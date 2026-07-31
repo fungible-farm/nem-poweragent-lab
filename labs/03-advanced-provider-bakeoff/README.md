@@ -49,3 +49,28 @@ is required for this lab to be done — it's recorded so a later push doesn't re
 ```
 uv run labs/03-advanced-provider-bakeoff/orchestrator.py
 ```
+
+## Step-by-step walkthrough (presenter / backup script)
+
+1. **`podman kube play --replace kube/llamacpp-phi-pod.yaml`** (repeated per provider, swapping
+   the model file argument) — You should see: `llamacpp-server ready on :8080, model:
+   phi-4-mini-instruct-Q4.gguf`. Repeat for `gemma-4` and `llama-3.2-3b` before the sweep starts.
+   — Why it matters: this is the moment the "why podman kube play" argument stops being abstract
+   — the exact same pod definition, one file argument different, is the entire difference between
+   providers.
+2. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep`**
+   — You should see: rows arriving as each provider × task-family pair completes —
+   `phi-4-mini | line-rating-fit | PASS | err=0.008 | 4.2s`, ending with the PowerFM
+   (OpenPowerBench) baseline row, which prints `n/a` under tokens/latency-per-call since it's a
+   single forward pass, not an agent loop.
+   — *Backup if a model server is slow/unavailable on the day*: the committed
+   `benchmarks/power-agent-bench-lite/results/sample_scorecard.json` has one full pre-run sweep;
+   load and print it, saying plainly "this is a pre-recorded run, not live."
+3. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report`**
+   — You should see: the final scorecard table, plus a Gradio page with the radar chart
+   (provider × task family) and the bubble chart (accuracy vs. latency vs. tokens).
+   — Why it matters: this is the "which local model is actually good enough, and how would you
+   know" question answered with a re-runnable artifact instead of an anecdote.
+4. **(super-stretch only, see `docs/VISION.md` §7)**: the Flint-authored chart button and the
+   "I'll try it myself" human row on the leaderboard — not part of the v1 walkthrough, called out
+   here only so a presenter knows where the demo could grow if there's time and appetite.

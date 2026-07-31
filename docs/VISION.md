@@ -11,11 +11,12 @@ We are composing five existing open-source projects — **pandapower**, **poweri
 **PowerWF/PowerSkills** and **Microsoft Agent Framework** — around a real, public NEM network
 model (CSIRO's Synthetic-NEM-2000-Bus dataset), run entirely on local compute (llama.cpp serving
 Phi-4-mini on CPU, no cloud API keys), packaged as `podman kube play` pods so each piece can be
-started, replaced and scaled independently. The deliverable is three runnable labs (simple,
-medium, advanced) that show deterministic, scriptable agent workflows doing the kind of thing a
-power modeller currently does by hand: load a case, run a study, check limits, produce a report —
-and a benchmark harness that scores how well different *local* LLM providers perform simple
-parameter-fitting/regression tasks against a public power-systems benchmark.
+started, replaced and scaled independently. The deliverable is four runnable labs (simple, medium,
+advanced, and a real-AEMO-data lab) that show deterministic, scriptable agent workflows doing the
+kind of thing a power modeller currently does by hand: load a case, run a study, check limits,
+produce a report — plus a benchmark harness that scores how well different *local* LLM providers
+perform simple parameter-fitting/regression tasks against a public power-systems benchmark, and a
+reconciliation exercise against real historical AEMO market data.
 
 Nothing here requires PSS/E, PowerFactory, a cloud LLM subscription, or `b00t`.
 
@@ -90,8 +91,12 @@ document is plumbing to make that demonstrable in an hour, on a laptop, with no 
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) | Local inference server, OpenAI-compatible `/v1/chat/completions`, CPU-only | C/C++ | Serves Phi-4-mini-instruct (GGUF, Q4), swappable for Gemma-4/Llama-3.2 for the bake-off lab |
 | [CSIRO Synthetic-NEM-2000-Bus](https://github.com/csiro-energy-systems/Synthetic-NEM-2000bus-Data) | The actual grid: ~2000 buses, all NEM states + Tasmania, 3 HVDC interconnectors, CC-BY 4.0 | MATPOWER `.m` | Our one and only network model — real topology, synthetic parameters, no confidentiality issue |
 | `podman kube play` | Composition/runtime for every service above | — | Each pod is one YAML file, no cluster, no kubelet, just Podman turning k8s manifests into local containers |
+| [NEMOSIS](https://github.com/UNSW-CEEM/NEMOSIS) | Downloads/caches real historical AEMO MMS dispatch data | Python | Lab 4 only — `pip install nemosis`, `dynamic_data_compiler()` / `static_table()` |
+| [mms-guide](https://www.mdavis.xyz/mms-guide/) | Documents the MMS table joins (`PARTICIPANTID → STATIONID → DUID`, versioning/dedup rules) | reference, not code | Lab 4 only |
+| [susantoj/NEM_constraints](https://github.com/susantoj/NEM_constraints) | Decodes public NEMDE generic-constraint-equation formulations into LHS/RHS terms | Python | Lab 4 only — used instead of writing a constraint-equation parser |
+| [akxen/egrimod-nem](https://github.com/akxen/egrimod-nem) | Prior art for collating DUID/generator metadata from AEMO's MMSDM+NTNDP | Python (notebooks) | Lab 4 only — referenced for methodology, we keep the CSIRO topology rather than its own GA/ABS-derived network |
 
-Everything in this table already exists. This repo's job is the glue: kube manifests, the three
+Everything in this table already exists. This repo's job is the glue: kube manifests, the four
 lab scripts, and the benchmark scorer. **Verify exact install commands against each project's
 current README at build time** — the ones quoted above were fetched in July 2026 and may drift.
 
@@ -151,8 +156,9 @@ nem-poweragent-lab/
 ├── pyproject.toml                   # uv-managed workspace, single lockfile
 ├── docs/
 │   ├── VISION.md                    # this file
-│   └── DEFINITION_OF_DONE.md
-├── data/                            # gitignored raw CSIRO files; fetch script populates
+│   ├── DEFINITION_OF_DONE.md
+│   └── LAB4_AEMO_REAL_DATA.md       # Lab 4 lives in its own file — see §7a
+├── data/                            # gitignored raw CSIRO + NEMOSIS cache; fetch scripts populate
 ├── scripts/
 │   ├── fetch_csiro_nem_data.py
 │   └── record_asciinema_demo.sh
@@ -163,16 +169,19 @@ nem-poweragent-lab/
 ├── labs/
 │   ├── 01-simple-loadflow-fit/
 │   ├── 02-medium-interconnection-screening/
-│   └── 03-advanced-provider-bakeoff/
+│   ├── 03-advanced-provider-bakeoff/
+│   └── 04-aemo-digital-twin-reconciliation/
 └── benchmarks/
     └── power-agent-bench-lite/
 ```
 
-## 7. The three labs
+## 7. The four labs
 
 Each lab folder will contain: a numbered `README.md` (do this → run this → you should see this →
-here's why an AEMO modeller cares), one Python entry point runnable via `uv run`, and a fixed
-expected-output fixture so the lab is self-checking, not vibes-checking.
+here's why an AEMO modeller cares — plus, per every lab's README, a "presenter/backup script"
+section detailed enough to talk through even if the live run isn't available on the day), one
+Python entry point runnable via `uv run`, and a fixed expected-output fixture so the lab is
+self-checking, not vibes-checking.
 
 ### Lab 1 — Simple: load-flow model fitting (single agent, single tool, no orchestration framework)
 
@@ -302,6 +311,20 @@ hardware available on the day.
    mean something to a non-engineer in the room — they just watched themselves lose (or win) to
    Phi-4-mini on a task they now understand because they just did it.
 
+### Lab 4 — Real AEMO Data: Digital-Twin Reconciliation & Constraint Literacy
+
+Full concept, library choices, and caveats: [`docs/LAB4_AEMO_REAL_DATA.md`](LAB4_AEMO_REAL_DATA.md).
+In one line: Labs 1–3 are entirely synthetic; Lab 4 pulls real historical NEM dispatch data via
+[NEMOSIS](https://github.com/UNSW-CEEM/NEMOSIS), maps real DUIDs onto the CSIRO synthetic
+generators (using the `mms-guide`'s documented `PARTICIPANTID → STATIONID → DUID` join pattern,
+with [`akxen/egrimod-nem`](https://github.com/akxen/egrimod-nem) as prior art for the collation
+step), imposes real dispatch on the synthetic network, and scores how well the modelled power
+flow reconciles against AEMO's actually-reported outcome — plus a constraint-equation-literacy
+exercise built on the public [`susantoj/NEM_constraints`](https://github.com/susantoj/NEM_constraints)
+library rather than a hand-rolled parser. It carries two non-negotiable caveats (not a digital
+twin of the real network; not a fault-reproduction claim for its optional 2016 SA Black System
+case study) that must appear in the lab's own README, not only in the design doc.
+
 ## 8. Rust component
 
 We are **not** writing a new Rust crate. `powerio` already does exactly what's needed — parses
@@ -365,7 +388,7 @@ it, so the walkthrough can't drift out of sync with the actual code the way a sl
 ## 12. Explicit non-goals
 
 - No `b00t` dependency, anywhere.
-- No commercial engines (PSS/E, PowerFactory, PowerWorld, PSCAD) required for any of the 3 labs —
+- No commercial engines (PSS/E, PowerFactory, PowerWorld, PSCAD) required for any of the 4 labs —
   PowerMCP's servers for those tools exist and could be added later as *optional* extras, never on
   the golden path.
 - No cloud LLM API keys — every model call in every lab goes to `localhost` only; this is a network

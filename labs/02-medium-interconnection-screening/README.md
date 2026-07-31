@@ -28,3 +28,30 @@ submission would need to defend.
 ```
 uv run labs/02-medium-interconnection-screening/workflow.py
 ```
+
+## Step-by-step walkthrough (presenter / backup script)
+
+1. **`uv run labs/02-medium-interconnection-screening/workflow.py --step base`**
+   — You should see: `Loaded snem1803.m, attached candidate 250 MW generator at bus <id>`
+   followed by `Base-case power flow converged`.
+   — Why it matters: this is the "does the case even solve before we stress it" gate every real
+   screening study starts with.
+2. **`uv run labs/02-medium-interconnection-screening/workflow.py --step contingencies`**
+   — You should see: a live-updating count, `Contingency 7/23 complete (line L-114 dropped:
+   no violations)`, run as parallel tool calls, not a visible serial loop — the point is that they
+   genuinely overlap, not just that the log looks busy.
+   — *Backup if the pandapower MCP pod isn't reachable*: the committed
+   `expected_contingency_table.json` fixture has the full N-1 table pre-computed; print it and say
+   "here's the pass/fail table this step produces."
+3. **`uv run labs/02-medium-interconnection-screening/workflow.py --step check-limits`**
+   — You should see: a table — contingency ID, worst bus voltage, worst line loading, pass/fail
+   against the stated NEM planning bands — with any breach highlighted.
+   — Why it matters: this is the actual engineering judgment call, made deterministically against
+   documented criteria, not eyeballed.
+4. **`uv run labs/02-medium-interconnection-screening/workflow.py --step memo`**
+   — You should see: the agent's drafted plain-English screening memo printed to the terminal,
+   then a Gradio page opens with `gr.Button("Approve")` sitting unclicked — the workflow genuinely
+   pauses here.
+   — Why it matters: this is the human-in-the-loop checkpoint made literal — click the button
+   yourself, and only then does the memo get marked final. This is the single best "show, don't
+   tell" moment for the "the agent proposes, a human still signs off" argument.

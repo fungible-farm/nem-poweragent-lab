@@ -33,11 +33,13 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       pandapower MCP server, verified by a trivial MCP `list_tools` call.
 - [ ] Both pods can be torn down (`--down`) and replaced (`--replace`) without touching the other.
 - [ ] No lab, at any point, makes an outbound network call other than: the one-time model/data
-      download, and localhost traffic to the two pods above. This is checked, not assumed
-      (e.g. run one lab with network egress blocked except to localhost and confirm it still
-      passes).
+      download (CSIRO case files, the GGUF model, and — Lab 4 only — the NEMOSIS pull from AEMO's
+      NEMWeb, which is cached exactly like the others after first run), and localhost traffic to
+      the two pods above. This is checked, not assumed (e.g. run Labs 1–3 with network egress
+      blocked except to localhost and confirm they still pass; Lab 4 needs one documented
+      exception for its one-time NEMWeb fetch).
 
-## The three labs
+## The four labs
 
 - [ ] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
       parameter fit against `snemSA.m`, and its printed result matches
@@ -53,6 +55,17 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 - [ ] Lab 3's scorecard includes the non-agentic PowerFM (OpenPowerBench) load-forecasting
       baseline row alongside the LLM-agent providers, scored on the same held-out-window metric,
       with the README explaining why it is a baseline rather than a competing provider.
+- [ ] Lab 4 (real AEMO data): the NEMOSIS pull for the chosen day is cached and idempotent; the
+      DUID → synthetic-generator mapping is a committed, human-readable CSV with a rationale
+      column, not implicit in code; the reconciliation tolerance (and why it's looser than Lab 1's)
+      is stated in the lab's own README; the constraint-decode step uses `NEM_constraints` (or an
+      equivalent cited public library) rather than a hand-rolled parser; and both required
+      caveats — "not a digital twin of the real network" and "not a fault-reproduction claim" for
+      the optional 2016 case study — appear verbatim (or equivalent) in the lab's own README, not
+      only in `docs/LAB4_AEMO_REAL_DATA.md`.
+- [ ] Every lab's README includes a "step-by-step walkthrough (presenter/backup script)" section
+      detailed enough that someone could talk through the demo from it even if the live run fails
+      on the day.
 - [ ] Every lab's `README.md` is written MEA137A-style: numbered steps, an explicit "you should
       see" for each step, and one paragraph per lab tying the mechanic back to a real AEMO
       modelling task (no unexplained jargon, no marketing language).
