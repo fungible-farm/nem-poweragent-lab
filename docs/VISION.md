@@ -11,12 +11,13 @@ We are composing five existing open-source projects — **pandapower**, **poweri
 **PowerWF/PowerSkills** and **Microsoft Agent Framework** — around a real, public NEM network
 model (CSIRO's Synthetic-NEM-2000-Bus dataset), run entirely on local compute (llama.cpp serving
 Phi-4-mini on CPU, no cloud API keys), packaged as `podman kube play` pods so each piece can be
-started, replaced and scaled independently. The deliverable is four runnable labs (simple, medium,
-advanced, and a real-AEMO-data lab) that show deterministic, scriptable agent workflows doing the
-kind of thing a power modeller currently does by hand: load a case, run a study, check limits,
-produce a report — plus a benchmark harness that scores how well different *local* LLM providers
-perform simple parameter-fitting/regression tasks against a public power-systems benchmark, and a
-reconciliation exercise against real historical AEMO market data.
+started, replaced and scaled independently. The deliverable is five runnable labs (simple, medium,
+advanced, a real-AEMO-data lab, and an EMT-domain transient-streaming lab) that show
+deterministic, scriptable agent workflows doing the kind of thing a power modeller currently does
+by hand: load a case, run a study, check limits, produce a report — plus a benchmark harness that
+scores how well different *local* LLM providers perform simple parameter-fitting/regression tasks
+against a public power-systems benchmark, a reconciliation exercise against real historical AEMO
+market data, and a real-time transient stream feeding an external edge anomaly-detection project.
 
 Nothing here requires PSS/E, PowerFactory, a cloud LLM subscription, or `b00t`.
 
@@ -95,8 +96,11 @@ document is plumbing to make that demonstrable in an hour, on a laptop, with no 
 | [mms-guide](https://www.mdavis.xyz/mms-guide/) | Documents the MMS table joins (`PARTICIPANTID → STATIONID → DUID`, versioning/dedup rules) | reference, not code | Lab 4 only |
 | [susantoj/NEM_constraints](https://github.com/susantoj/NEM_constraints) | Decodes public NEMDE generic-constraint-equation formulations into LHS/RHS terms | Python | Lab 4 only — used instead of writing a constraint-equation parser |
 | [akxen/egrimod-nem](https://github.com/akxen/egrimod-nem) | Prior art for collating DUID/generator metadata from AEMO's MMSDM+NTNDP | Python (notebooks) | Lab 4 only — referenced for methodology, we keep the CSIRO topology rather than its own GA/ABS-derived network |
+| [SimBench](https://github.com/e2nIEE/simbench) | 13 real benchmark grids (LV–EHV) with full-year time series, pandapower-native | Python | Lab 5 only — seeds "chaos-net" procedural topology generation with realistic parameter distributions |
+| [DPsim](https://github.com/sogno-platform/dpsim) | Real-time-capable power-flow / dynamic-phasor / EMT solver, deterministic timesteps down to 50µs | C++, Python bindings | Lab 5 only — the actual transient-physics engine; pandapower stays the steady-state tool everywhere else |
+| [VILLASnode](https://github.com/VILLASframework/node) | Real-time multi-protocol gateway (~18 protocols incl. native IEC 61850 Sampled Values/GOOSE), ships as an OCI container | C/C++ | Lab 5 only — DPsim's own documentation names this as its recommended external-interface path; drops into `podman kube play` like every other pod |
 
-Everything in this table already exists. This repo's job is the glue: kube manifests, the four
+Everything in this table already exists. This repo's job is the glue: kube manifests, the five
 lab scripts, and the benchmark scorer. **Verify exact install commands against each project's
 current README at build time** — the ones quoted above were fetched in July 2026 and may drift.
 
@@ -157,7 +161,8 @@ nem-poweragent-lab/
 ├── docs/
 │   ├── VISION.md                    # this file
 │   ├── DEFINITION_OF_DONE.md
-│   └── LAB4_AEMO_REAL_DATA.md       # Lab 4 lives in its own file — see §7a
+│   ├── LAB4_AEMO_REAL_DATA.md       # Lab 4 lives in its own file — see §7a
+│   └── LAB5_SPARTAN_CHAOSNET.md     # Lab 5 lives in its own file — see §7b
 ├── data/                            # gitignored raw CSIRO + NEMOSIS cache; fetch scripts populate
 ├── scripts/
 │   ├── fetch_csiro_nem_data.py
@@ -165,17 +170,19 @@ nem-poweragent-lab/
 ├── kube/
 │   ├── llamacpp-phi-pod.yaml
 │   ├── powermcp-pandapower-pod.yaml
-│   └── benchmark-runner-job.yaml
+│   ├── benchmark-runner-job.yaml
+│   └── villasnode-tap-pod.yaml
 ├── labs/
 │   ├── 01-simple-loadflow-fit/
 │   ├── 02-medium-interconnection-screening/
 │   ├── 03-advanced-provider-bakeoff/
-│   └── 04-aemo-digital-twin-reconciliation/
+│   ├── 04-aemo-digital-twin-reconciliation/
+│   └── 05-spartan-chaosnet-transient-stream/
 └── benchmarks/
     └── power-agent-bench-lite/
 ```
 
-## 7. The four labs
+## 7. The five labs
 
 Each lab folder will contain: a numbered `README.md` (do this → run this → you should see this →
 here's why an AEMO modeller cares — plus, per every lab's README, a "presenter/backup script"
@@ -325,6 +332,22 @@ library rather than a hand-rolled parser. It carries two non-negotiable caveats 
 twin of the real network; not a fault-reproduction claim for its optional 2016 SA Black System
 case study) that must appear in the lab's own README, not only in the design doc.
 
+### Lab 5 — SPARTAN Chaos-Net: Transient Streams via DPsim + VILLASnode
+
+Full concept, architecture, and Definition of Done: [`docs/LAB5_SPARTAN_CHAOSNET.md`](LAB5_SPARTAN_CHAOSNET.md).
+In one line: Labs 1–4 all operate at the dispatch-interval timescale; Lab 5 operates at the
+waveform timescale — procedurally generated "chaos-net" grid topologies (SimBench seed grids +
+NetworkX perturbation), a network-wide EMT-domain transient solve in
+[DPsim](https://github.com/sogno-platform/dpsim) at a 4kHz-class timestep with a scheduled,
+counting-down sequence of faults and switching events, streamed per-substation via
+[VILLASnode](https://github.com/VILLASframework/node)'s native IEC 61850 Sampled Values node-type
+toward SPARTAN, an external edge PMU anomaly-detection project. Its Definition of Done is split:
+a laptop-portable core (no physical hardware required, a stub stands in for SPARTAN) is required;
+validation against the actual Radxa Dragon Q8B hardware is an optional, separately-gated
+extension. It does not implement SPARTAN's anomaly-detection logic (a subsequent phase) and does
+not claim any generated topology represents a real substation network — both caveats must appear
+in the lab's own README, not only in the design doc.
+
 ## 8. Rust component
 
 We are **not** writing a new Rust crate. `powerio` already does exactly what's needed — parses
@@ -388,7 +411,7 @@ it, so the walkthrough can't drift out of sync with the actual code the way a sl
 ## 12. Explicit non-goals
 
 - No `b00t` dependency, anywhere.
-- No commercial engines (PSS/E, PowerFactory, PowerWorld, PSCAD) required for any of the 4 labs —
+- No commercial engines (PSS/E, PowerFactory, PowerWorld, PSCAD) required for any of the 5 labs —
   PowerMCP's servers for those tools exist and could be added later as *optional* extras, never on
   the golden path.
 - No cloud LLM API keys — every model call in every lab goes to `localhost` only; this is a network

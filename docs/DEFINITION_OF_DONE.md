@@ -1,8 +1,8 @@
 # Definition of Done
 
-This lab (all three exercises + supporting plumbing) is done when every item below is true and
+This lab (all five exercises + supporting plumbing) is done when every item below is true and
 checkable by someone who has never seen this repo, on a machine with nothing pre-installed but
-`curl` and Podman.
+`curl` and Podman. Lab 5 is the one exception with a split DoD — see its own section below.
 
 ## Install
 
@@ -33,13 +33,16 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       pandapower MCP server, verified by a trivial MCP `list_tools` call.
 - [ ] Both pods can be torn down (`--down`) and replaced (`--replace`) without touching the other.
 - [ ] No lab, at any point, makes an outbound network call other than: the one-time model/data
-      download (CSIRO case files, the GGUF model, and — Lab 4 only — the NEMOSIS pull from AEMO's
-      NEMWeb, which is cached exactly like the others after first run), and localhost traffic to
-      the two pods above. This is checked, not assumed (e.g. run Labs 1–3 with network egress
-      blocked except to localhost and confirm they still pass; Lab 4 needs one documented
-      exception for its one-time NEMWeb fetch).
+      download (CSIRO case files, the GGUF model, — Lab 4 only — the NEMOSIS pull from AEMO's
+      NEMWeb, and — Lab 5 only — the one-time SimBench seed-grid download), all cached exactly
+      like the others after first run, plus localhost traffic to the two pods above and (Lab 5's
+      laptop-portable core only) between the DPsim and VILLASnode pods. This is checked, not
+      assumed (e.g. run Labs 1–3 with network egress blocked except to localhost and confirm they
+      still pass; Labs 4 and 5's laptop-portable core each need one documented one-time-fetch
+      exception. Lab 5's optional hardware-validated extension is explicitly exempt — it talks to
+      a real Radxa board by design.)
 
-## The four labs
+## The five labs
 
 - [ ] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
       parameter fit against `snemSA.m`, and its printed result matches
@@ -63,6 +66,18 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       caveats — "not a digital twin of the real network" and "not a fault-reproduction claim" for
       the optional 2016 case study — appear verbatim (or equivalent) in the lab's own README, not
       only in `docs/LAB4_AEMO_REAL_DATA.md`.
+- [ ] Lab 5 (SPARTAN chaos-net), **laptop-portable core, required**: a procedurally generated
+      topology (SimBench seed + NetworkX perturbation) loads in both pandapower and DPsim; DPsim
+      runs a network-wide EMT solve at a 4kHz-class (≤250µs) timestep with at least one scheduled
+      fault/switching event firing mid-run and its countdown logged beforehand; a VILLASnode pod
+      re-emits the per-substation taps as IEC 61850 Sampled Values, verified against a stub
+      receiver — no physical hardware present.
+- [ ] Lab 5, **hardware-validated extension, optional and separately gated**: the same pipeline
+      validated end to end against a real Radxa Dragon Q8B running SPARTAN's actual data recorder.
+      Not required for this repo's core Definition of Done to be met.
+- [ ] Lab 5's README states, verbatim or equivalent, both caveats: it does not implement or
+      reproduce SPARTAN's anomaly-detection logic (a subsequent phase, out of scope here), and no
+      generated topology represents a real substation network.
 - [ ] Every lab's README includes a "step-by-step walkthrough (presenter/backup script)" section
       detailed enough that someone could talk through the demo from it even if the live run fails
       on the day.

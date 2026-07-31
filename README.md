@@ -12,6 +12,12 @@ Labs 1–3 (simple/medium/advanced), and the reasoning behind every technology c
 that pulls actual historical AEMO market data instead of synthetic inputs, in its own file since
 it carries its own risk profile and caveats.
 
+**Transient/edge: [`docs/LAB5_SPARTAN_CHAOSNET.md`](docs/LAB5_SPARTAN_CHAOSNET.md)** — Lab 5,
+EMT-domain 4kHz-class transient streams from procedurally generated grid topologies, feeding
+SPARTAN (an external edge PMU anomaly-detection project) via DPsim + VILLASnode. Its own file for
+the same reason as Lab 4 — different risk profile, and a Definition of Done split between a
+laptop-portable core and an optional hardware-validated extension.
+
 **Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
 is being built against.
 
@@ -27,6 +33,8 @@ walkthrough written to double as a presenter/backup script if a live run isn't a
 - `labs/03-advanced-provider-bakeoff/` — multi-provider, Podman-scaled benchmark bake-off
 - `labs/04-aemo-digital-twin-reconciliation/` — real AEMO dispatch data reconciled against the
   synthetic network, plus a constraint-equation literacy exercise
+- `labs/05-spartan-chaosnet-transient-stream/` — procedurally generated chaos-net topologies,
+  DPsim EMT-domain transient solves, VILLASnode streaming to SPARTAN's data recorder
 - `kube/` — `podman kube play` manifests for the local LLM server and PowerMCP tool server
 - `benchmarks/` — deterministic scoring harness
 - `scripts/` — data fetch + asciinema recording
@@ -43,7 +51,10 @@ walkthrough written to double as a presenter/backup script if a live run isn't a
 [llama.cpp](https://github.com/ggml-org/llama.cpp) ·
 [CSIRO Synthetic-NEM-2000-Bus](https://github.com/csiro-energy-systems/Synthetic-NEM-2000bus-Data) ·
 [NEMOSIS](https://github.com/UNSW-CEEM/NEMOSIS) ·
-[NEM_constraints](https://github.com/susantoj/NEM_constraints)
+[NEM_constraints](https://github.com/susantoj/NEM_constraints) ·
+[DPsim](https://github.com/sogno-platform/dpsim) ·
+[VILLASnode](https://github.com/VILLASframework/node) ·
+[SimBench](https://github.com/e2nIEE/simbench)
 
 Package management: `uv` only. No cloud LLM keys. No commercial power-system engines on the
 golden path. No `b00t`.

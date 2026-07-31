@@ -12,6 +12,9 @@ Planned manifests:
 - `benchmark-runner-job.yaml` — Kubernetes `Job` shape for Lab 3's provider × task-family matrix,
   runnable as parallel pods under `podman kube play` today, and unchanged in shape if ever pointed
   at a real cluster later.
+- `villasnode-tap-pod.yaml` — VILLASnode, one pod per tagged substation in Lab 5's chaos-net,
+  native IEC 61850 Sampled Values output, replaceable per topology via `podman kube play --replace`
+  the same way the llama.cpp pod's model file is swapped for Lab 3.
 
 Each manifest will be applied/torn down independently (`podman kube play <file>` /
 `podman kube play --down <file>`) — see the Definition of Done for the exact checks each pod must
