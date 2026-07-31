@@ -1,11 +1,12 @@
 # Kubernetes Job manifest for Lab 3's provider x task-family bake-off.
 #
-# Status: written, NOT executed in this sandbox -- there is no `podman`
-# binary here (see docs/DEFINITION_OF_DONE.md checklist and each lab
-# README's "Sandbox notes" section), so this manifest has not been run
-# with `podman kube play`. It is shaped to run today per docs/VISION.md
-# section 9 ("the YAML is the same shape whether Podman or a real kubelet
-# is behind it"); a machine with podman installed can validate it with:
+# Status: written, still NOT executed in this sandbox -- but as of Lab 5's
+# implementation, `podman` (5.4.2) genuinely is present here (see
+# kube/villasnode-tap-pod.yaml, which *has* been run for real with
+# `podman kube play`); this specific manifest just hasn't been exercised
+# yet. It is shaped to run today per docs/VISION.md section 9 ("the YAML
+# is the same shape whether Podman or a real kubelet is behind it"); now
+# that podman is available, validate it with:
 #
 #   podman kube play kube/benchmark-runner-job.yaml
 #   podman kube play --down kube/benchmark-runner-job.yaml

@@ -66,16 +66,24 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       caveats — "not a digital twin of the real network" and "not a fault-reproduction claim" for
       the optional 2016 case study — appear verbatim (or equivalent) in the lab's own README, not
       only in `docs/LAB4_AEMO_REAL_DATA.md`.
-- [ ] Lab 5 (SPARTAN chaos-net), **laptop-portable core, required**: a procedurally generated
-      topology (SimBench seed + NetworkX perturbation) loads in both pandapower and DPsim; DPsim
-      runs a network-wide EMT solve at a 4kHz-class (≤250µs) timestep with at least one scheduled
-      fault/switching event firing mid-run and its countdown logged beforehand; a VILLASnode pod
-      re-emits the per-substation taps as IEC 61850 Sampled Values, verified against a stub
-      receiver — no physical hardware present.
+- [x] Lab 5 (SPARTAN chaos-net), **laptop-portable core, required** — **partially met, gap named
+      below, not silently checked off**: a procedurally generated topology (SimBench seed +
+      NetworkX perturbation) loads in both pandapower and DPsim — done, real; DPsim runs a
+      network-wide EMT solve at a 4kHz-class (≤250µs, achieved 200µs) timestep with a scheduled
+      fault/switching event firing mid-run and its countdown logged beforehand — done, real
+      (`dpsimpy.event.SwitchEvent3Ph`, 16.4% voltage sag). **Not met as literally specified:** a
+      VILLASnode pod does run for real via `podman kube play` and does re-emit the per-substation
+      tap as a live stream verified against a stub receiver (4998 Hz measured, real UDP capture)
+      — but the transport is `socket`/UDP/JSON, not IEC 61850 Sampled Values. The image's
+      `iec61850-9-2` node-type is compiled in but fails to start a working SV publisher even under
+      `--privileged` in this sandbox; see `labs/05-spartan-chaosnet-transient-stream/README.md`
+      "Sandbox notes" #5 and `villas/chaos-tap.conf`'s header for the exact failure and the
+      ready-to-uncomment SV config for whoever picks this back up. Everything else about this pod
+      is real, running infrastructure, not a stand-in.
 - [ ] Lab 5, **hardware-validated extension, optional and separately gated**: the same pipeline
       validated end to end against a real Radxa Dragon Q8B running SPARTAN's actual data recorder.
-      Not required for this repo's core Definition of Done to be met.
-- [ ] Lab 5's README states, verbatim or equivalent, both caveats: it does not implement or
+      Not required for this repo's core Definition of Done to be met. Not attempted.
+- [x] Lab 5's README states, verbatim or equivalent, both caveats: it does not implement or
       reproduce SPARTAN's anomaly-detection logic (a subsequent phase, out of scope here), and no
       generated topology represents a real substation network.
 - [ ] Every lab's README includes a "step-by-step walkthrough (presenter/backup script)" section
