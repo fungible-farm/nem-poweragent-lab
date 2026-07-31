@@ -1,2 +1,39 @@
 # nem-poweragent-lab
-PowerAgent Tutorial
+
+PowerAgent Tutorial — AEMO Labs
+
+A training lab (not a product pitch) demonstrating deterministic, agent-driven power-system
+workflows against a real NEM network model, running entirely on local, open-source components.
+
+**Start here: [`docs/VISION.md`](docs/VISION.md)** for the full plan — ecosystem map, architecture,
+the three labs (simple/medium/advanced), and the reasoning behind every technology choice.
+
+**Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
+is being built against.
+
+## Status
+
+Planning complete, implementation not yet started. Every directory below currently contains a
+`README.md` describing what will go there — see each for its spec:
+
+- `labs/01-simple-loadflow-fit/` — single-agent load-flow parameter fit
+- `labs/02-medium-interconnection-screening/` — Agent Framework Sequential+Concurrent asset
+  provisioning screen
+- `labs/03-advanced-provider-bakeoff/` — multi-provider, Podman-scaled benchmark bake-off
+- `kube/` — `podman kube play` manifests for the local LLM server and PowerMCP tool server
+- `benchmarks/` — deterministic scoring harness
+- `scripts/` — data fetch + asciinema recording
+
+## What this is built from (all upstream, none of it written here)
+
+[pandapower](https://www.pandapower.org/) ·
+[powerio](https://github.com/eigenergy/powerio) (Rust) ·
+[PowerMCP](https://github.com/Power-Agent/PowerMCP) ·
+[PowerSkills](https://github.com/Power-Agent/PowerSkills) ·
+[PowerWF](https://github.com/Power-Agent/PowerWF) ·
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) ·
+[llama.cpp](https://github.com/ggml-org/llama.cpp) ·
+[CSIRO Synthetic-NEM-2000-Bus](https://github.com/csiro-energy-systems/Synthetic-NEM-2000bus-Data)
+
+Package management: `uv` only. No cloud LLM keys. No commercial power-system engines on the
+golden path. No `b00t`.

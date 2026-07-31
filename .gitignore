@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+target/
+data/*
+!data/README.md
+benchmarks/power-agent-bench-lite/results/*
+!benchmarks/power-agent-bench-lite/results/.gitkeep
+*.cast
+*.gguf
