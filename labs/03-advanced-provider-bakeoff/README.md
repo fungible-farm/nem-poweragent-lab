@@ -35,6 +35,15 @@ foundation model wins outright (forecasting) and where the agentic tool-calling 
 different job entirely (interactive parameter fitting against an engine you don't want to
 retrain a model on).
 
+## Super-stretch goal (not part of v1)
+
+See `docs/VISION.md` §7 "Lab 3 — Super-Stretch Goal" for the aspirational version: full
+`snem2000.m` + full PowerAgentBench-SS/Dyn task coverage run as a real multi-node cluster sweep,
+a wider (honestly-labelled) provider matrix, multiple PowerFM architectures each scored on the
+task family they're actually suited for, a chaos/resilience escalation sweep, a live Gradio
+leaderboard, an agent-authored Flint dashboard, and a "human row" on the leaderboard. None of it
+is required for this lab to be done — it's recorded so a later push doesn't re-derive the shape.
+
 ## Command (once implemented)
 
 ```

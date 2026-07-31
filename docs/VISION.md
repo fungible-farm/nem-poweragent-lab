@@ -243,6 +243,65 @@ expected-output fixture so the lab is self-checking, not vibes-checking.
   tokens (n/a for the PowerFM row) — checked into `benchmarks/power-agent-bench-lite/results/` so
   the demo is re-runnable and diffable, not a screenshot.
 
+#### Lab 3 — Super-Stretch Goal (explicitly out of the v1 Definition of Done)
+
+Everything below is aspirational — it is what Lab 3 grows into *if* the core version above lands
+cleanly and there's appetite (and hardware) to keep going. None of it is required to call the lab
+"done"; it's written down now so a later push doesn't have to re-derive the shape from scratch.
+Treat every subsection as independently optional — cut whichever ones don't fit the time or
+hardware available on the day.
+
+1. **Full case, full task suite, real parallelism.** Swap `snem1803.m` for the full `snem2000.m`
+   (all NEM states + Tasmania), and swap the "2–3 borrowed task families" for genuine coverage of
+   both [PowerAgentBench-SS](https://arxiv.org/pdf/2606.18789) (steady-state: power flow, OPF,
+   contingency, thermal/voltage) *and* [PowerAgentBench-Dyn](https://arxiv.org/abs/2606.20401)
+   (dynamic: model-quality review, security-risk screening) task families — not the "lite" scorer,
+   the real breadth. At that scale the provider × task-family matrix stops being a for-loop you'd
+   ever run serially and becomes the thing that actually justifies `kube/benchmark-runner-job.yaml`
+   fanning out across a real multi-node cluster rather than a single Podman host — the honest
+   answer to "when do you actually need Kubernetes, not just `podman kube play`" is *here*, once
+   the matrix is large enough that a single machine's core count is the bottleneck.
+2. **Wider, honestly-labelled provider matrix.** Add a larger local model if the demo hardware has
+   the RAM for it (e.g. a quantized 8B–14B model) purely to show the latency/accuracy trade-off
+   against Phi-4-mini's 3.8B — same tasks, same tolerance, one more row. Optionally add a single
+   cloud frontier model as a **calibration reference only**: off by default, requires an explicit
+   opt-in flag and the operator's own API key, clearly labelled "not on the golden path, shown only
+   to calibrate how far local inference is from a state-of-the-art baseline." This is the one place
+   in the whole repo a cloud key is even discussed, and it stays optional and clearly fenced off —
+   the "no cloud LLM keys" rule (`docs/DEFINITION_OF_DONE.md`) governs everything else.
+3. **PowerFM, plural.** The core lab uses one OpenPowerBench checkpoint for one task family
+   (load forecasting). The stretch version adds a **GridFM** (GNN, trained on grid topology rather
+   than text) baseline for the topology-dependent task families, and a **GridLDM** (diffusion)
+   baseline for a time-series *generation* task (e.g. synthesising a plausible EV-charging load
+   profile for a bus that has none) — each PowerFM model scored only on the task family it's
+   actually suited for, so the scorecard reads as "best tool for the job" across foundation-model
+   architectures, not a single forecasting number standing in for the whole PowerFM project.
+4. **Chaos/resilience sweep.** A small "chaos" Job pod that, between benchmark runs, randomly
+   escalates the contingency severity fed to each provider (N-1 → N-2 → a randomly perturbed load
+   profile within realistic bounds) and tracks the model-size/provider accuracy curve as stress
+   increases — a direct, hands-on echo of the cited paper's own framing ("a rising frequency of
+   extreme weather events" straining "traditional control paradigms"): does a smaller local model's
+   advice degrade gracefully or fall off a cliff as the scenario gets harder, and does that curve
+   look different for the PowerFM baselines than for the LLM-agent providers?
+5. **Live dashboard, not a post-hoc table.** Move the scorecard from "printed after the sweep
+   finishes" to a live Gradio page that updates as each Job pod completes (Gradio's generator-based
+   streaming updates make this a small addition, not a rewrite) — for a room full of people watching
+   a demo, a leaderboard filling in row by row is a materially different experience than a table
+   dropped at the end.
+6. **Flint-authored dashboard, on request.** Wire the optional [Flint](https://github.com/microsoft/flint-chart)
+   MCP server (`npx flint-chart-mcp`, Node-gated, static-chart fallback if Node isn't present — see
+   the visualization discussion) as one more tool call the *orchestrating agent itself* can make:
+   once the (already-computed, already-correct) scorecard data exists, let the agent decide how to
+   chart it and render that live in the Gradio page next to the pre-built version. The data is
+   fixed either way — only the presentation is agent-authored — which is why this is safe to hand
+   to the LLM even though nothing else in this repo lets it touch anything load-bearing.
+7. **Human row.** Add a `gr.Button("I'll try it myself")` to the Gradio dashboard that lets someone
+   in the room attempt one of the Lab 1-style parameter-fit tasks by hand through the same UI,
+   timed and scored on the identical metric, and appended to the leaderboard live next to the AI
+   providers. Cheap to build, and it's the single most effective way to make a benchmark number
+   mean something to a non-engineer in the room — they just watched themselves lose (or win) to
+   Phi-4-mini on a task they now understand because they just did it.
+
 ## 8. Rust component
 
 We are **not** writing a new Rust crate. `powerio` already does exactly what's needed — parses
