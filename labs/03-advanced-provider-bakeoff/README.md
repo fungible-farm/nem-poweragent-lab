@@ -1,76 +1,90 @@
 # Lab 3 (Advanced) — Multi-Provider Bake-off, Podman-Scaled
 
-> Status: **spec only** — see `docs/VISION.md` §7 "Lab 3".
+> Status: **implemented**. `orchestrator.py`, `expected_scorecard.json`, and `test_lab3.py` are
+> real, runnable code — see `docs/VISION.md` §7 "Lab 3" for the original spec, and "Sandbox notes"
+> below (the most significant deviation of any lab in this repo — read it before trusting the
+> "provider" column).
 
 ## What you'll do
 
-1. Reuse `snem1803.m` and 3+ task families in the shape of Lab 1's parameter-fit task (line rating
-   fit, generator droop-constant fit, plus at least one more borrowed from the PowerAgentBench-SS
-   task pattern).
-2. Run the same tasks, same tolerances, same deterministic scorer against several local model
-   providers served through the same llama.cpp pod (Phi-4-mini-instruct, Gemma-4, Llama-3.2-3B),
-   swapped in with `podman kube play --replace`.
-3. Orchestrate each provider's manager+worker pair with Agent Framework's Magentic/group-chat
-   pattern so every provider sees an identical prompt/tool surface.
-4. **Add a fourth, non-agentic row**: pull a pretrained [PowerFM](https://github.com/Power-Agent/PowerFM)
-   **OpenPowerBench** load-forecasting checkpoint from Hugging Face Hub and run it directly (no
-   LLM, no tool calls, no orchestration) against a CSIRO regional load trace, scored on the same
-   held-out-window metric. This is the paper's "Foundation Model" pillar sitting next to the
-   "Agent + MCP + Workflow" pillar in one scorecard — not a competing claim, the two other thirds
-   of the same architecture (see `docs/VISION.md` §1).
-5. Run the same matrix as a Kubernetes `Job` (`kube/benchmark-runner-job.yaml`) so the 3×N sweep
-   can be farmed out as parallel pods instead of a serial loop.
-6. Write a single scorecard (JSON + printed table) to
-   `benchmarks/power-agent-bench-lite/results/`.
+1. Reuse `snem1803.m` and 3 task families in the shape of Lab 1's parameter-fit task:
+   `load-scale-fit` (a second bus, same mechanic as Lab 1), `line-rating-fit` (fit a line's rating
+   to a 100%-of-nameplate thermal trip point), and `gen-droop-fit` (fit a generator's dispatch to a
+   target transformer-loading level, a steady-state proxy for droop response).
+2. Run the same tasks, same tolerances, same deterministic scorer against 3 local deterministic
+   search policies standing in for LLM providers (see Sandbox notes).
+3. Add a fourth, non-agentic row: a seasonal-persistence forecast against a synthetic regional
+   demand trace, standing in for a PowerFM OpenPowerBench checkpoint (see Sandbox notes).
+4. Write a single scorecard (JSON + printed table) to
+   `benchmarks/power-agent-bench-lite/results/scorecard.json`.
 
 ## Why an AEMO modeller should care
 
 This is the "which local model is actually good enough for this class of task, and how would you
-know" question, answered with a re-runnable, diffable artifact instead of an anecdote — and the
-moment in the whole repo where reaching for orchestration (rather than a for-loop) is the
-Operations-relevant call, because the workload is genuinely parallel and genuinely repeated. The
-PowerFM row also answers a question the board will ask unprompted: "why not just use a proper
-forecasting model instead of an LLM?" — the scorecard shows exactly where a purpose-built
-foundation model wins outright (forecasting) and where the agentic tool-calling path is doing a
-different job entirely (interactive parameter fitting against an engine you don't want to
-retrain a model on).
+know" question, answered with a re-runnable, diffable artifact instead of an anecdote. The
+architecture — run the same tasks/tolerances/scorer across every provider, append a non-agentic
+foundation-model baseline in the same scorecard rather than treating it as a competing claim — is
+the real deliverable here; see Sandbox notes for what stands in for what in *this* run.
 
-## Super-stretch goal (not part of v1)
+## Sandbox notes (read this before the walkthrough)
 
-See `docs/VISION.md` §7 "Lab 3 — Super-Stretch Goal" for the aspirational version: full
-`snem2000.m` + full PowerAgentBench-SS/Dyn task coverage run as a real multi-node cluster sweep,
-a wider (honestly-labelled) provider matrix, multiple PowerFM architectures each scored on the
-task family they're actually suited for, a chaos/resilience escalation sweep, a live Gradio
-leaderboard, an agent-authored Flint dashboard, and a "human row" on the leaderboard. None of it
-is required for this lab to be done — it's recorded so a later push doesn't re-derive the shape.
+`docs/VISION.md`'s Lab 3 swaps three *live* local LLMs (Phi-4-mini-instruct, Gemma-4,
+Llama-3.2-3B) through a single llama.cpp pod via `podman kube play --replace`, orchestrated with
+Agent Framework's Magentic/group-chat pattern, plus a PowerFM OpenPowerBench checkpoint pulled from
+Hugging Face Hub. This sandbox has no `podman`, no GPU, and no budget to download and serve three
+GGUF models or a PowerFM checkpoint. So, concretely:
 
-## Command (once implemented)
+- **`local-policy-A` / `local-policy-B` / `local-policy-C`** are three deterministic search
+  policies (plain bisection, false-position/regula-falsi, and a seeded-noise perturbed bisection —
+  see `orchestrator.py`'s docstrings) standing in for the three LLMs' "propose the next trial
+  value" role. They are never given a real model's name, so the scorecard can never be mistaken
+  for a real model comparison — the variation you see between them (different iteration counts,
+  different error margins) is real, reproducible variation between three different *algorithms*,
+  not between three different *language models*.
+- **`PowerFM-OpenPowerBench-stub`** is a seasonal-persistence forecast against a synthetic (not
+  historical-AEMO) regional demand trace built from `snem1803.m`'s own static load table plus a
+  documented daily-shape multiplier — not a real trained forecasting model. The scorecard slot,
+  metric (MAPE over a held-out day), and "single forward pass, no tool calls" character are real;
+  the specific model is not.
+- There is no Magentic/group-chat orchestration — there is no live chat model to orchestrate. The
+  orchestration that *is* real here is running the 3×3 provider/task-family matrix plus the
+  baseline row and collecting them into one scorecard, which is the part of Lab 3 that is
+  architecture, not model weights.
+- `kube/benchmark-runner-job.yaml` is a written, valid Kubernetes Job manifest shaped to run this
+  same matrix as parallel pods per `docs/VISION.md` §9 — it has **not** been executed here (no
+  `podman` binary in this sandbox). See the manifest's own header comment for exactly what's
+  missing to make it fully wire up (a Containerfile, and a `PROVIDER_FILTER` env var so each
+  indexed completion scores one provider instead of all three).
+
+## Command
 
 ```
-uv run labs/03-advanced-provider-bakeoff/orchestrator.py
+uv run scripts/fetch_csiro_nem_data.py   # once, to populate data/snem1803.m
+uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep
+uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report
+uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py
 ```
 
 ## Step-by-step walkthrough (presenter / backup script)
 
-1. **`podman kube play --replace kube/llamacpp-phi-pod.yaml`** (repeated per provider, swapping
-   the model file argument) — You should see: `llamacpp-server ready on :8080, model:
-   phi-4-mini-instruct-Q4.gguf`. Repeat for `gemma-4` and `llama-3.2-3b` before the sweep starts.
-   — Why it matters: this is the moment the "why podman kube play" argument stops being abstract
-   — the exact same pod definition, one file argument different, is the entire difference between
-   providers.
-2. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep`**
+1. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep`**
    — You should see: rows arriving as each provider × task-family pair completes —
-   `phi-4-mini | line-rating-fit | PASS | err=0.008 | 4.2s`, ending with the PowerFM
-   (OpenPowerBench) baseline row, which prints `n/a` under tokens/latency-per-call since it's a
-   single forward pass, not an agent loop.
-   — *Backup if a model server is slow/unavailable on the day*: the committed
-   `benchmarks/power-agent-bench-lite/results/sample_scorecard.json` has one full pre-run sweep;
-   load and print it, saying plainly "this is a pre-recorded run, not live."
-3. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report`**
-   — You should see: the final scorecard table, plus a Gradio page with the radar chart
-   (provider × task family) and the bubble chart (accuracy vs. latency vs. tokens).
-   — Why it matters: this is the "which local model is actually good enough, and how would you
+   `local-policy-A | load-scale-fit   | PASS | err=0.0013 | 0.57s`, ending with the PowerFM
+   baseline row, which prints `n/a tokens/latency-per-call (single forward pass)` since it's a
+   single forecast, not a search loop.
+   — *Backup if you'd rather not run it live*: the committed
+   `benchmarks/power-agent-bench-lite/results/scorecard.json` (and this directory's
+   `expected_scorecard.json`) has one full pre-run sweep; load and print it, saying plainly "this
+   is a pre-recorded run, not live."
+2. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report`**
+   — You should see: the final scorecard table (10 rows: 3 providers × 3 task families + 1
+   baseline), plus `Scorecard written to .../scorecard.json`.
+   — Why it matters: this is the "which local approach is actually good enough, and how would you
    know" question answered with a re-runnable artifact instead of an anecdote.
-4. **(super-stretch only, see `docs/VISION.md` §7)**: the Flint-authored chart button and the
-   "I'll try it myself" human row on the leaderboard — not part of the v1 walkthrough, called out
-   here only so a presenter knows where the demo could grow if there's time and appetite.
+3. **`uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py`**
+   — You should see: `1 passed` — the full sweep re-run and diffed against
+   `expected_scorecard.json` (wall-clock excluded from the comparison, since it's machine-dependent
+   by nature).
+4. **(super-stretch only, see `docs/VISION.md` §7)**: full `snem2000.m`, real
+   PowerAgentBench-SS/Dyn coverage, a live Gradio leaderboard, a chaos/resilience sweep — not part
+   of this v1 walkthrough, called out here only so a presenter knows where the demo could grow.

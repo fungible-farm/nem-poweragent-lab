@@ -1,6 +1,10 @@
 # `power-agent-bench-lite`
 
-> Status: **spec only**. See `docs/VISION.md` §7 "Lab 3", including the PowerFM baseline row.
+> Status: **implemented** — see `labs/03-advanced-provider-bakeoff/orchestrator.py` and its own
+> README's "Sandbox notes" for what stands in for a live model server in this environment.
+> `results/scorecard.json` is real, committed output from `orchestrator.py --step report`, diffable
+> against `labs/03-advanced-provider-bakeoff/expected_scorecard.json`. See `docs/VISION.md` §7
+> "Lab 3" for the original spec, including the PowerFM baseline row.
 
 A small, self-hosted benchmark harness in the same spirit as the external
 [PowerAgentBench](https://github.com/Power-Agent/PowerAgentBench) family (structured task → agent
