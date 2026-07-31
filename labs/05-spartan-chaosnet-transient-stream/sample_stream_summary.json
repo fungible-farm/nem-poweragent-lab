@@ -1,0 +1,8 @@
+{
+  "node": "sub-3-tap",
+  "live_pod": true,
+  "packets_captured": 19991,
+  "capture_duration_s": 4.0,
+  "achieved_rate_hz": 4997.8,
+  "channel_count": 3
+}

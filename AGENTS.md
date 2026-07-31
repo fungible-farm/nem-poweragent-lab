@@ -88,9 +88,13 @@ the same result on a clean checkout is.
   and a README with "Sandbox notes."
 - `labs/04-aemo-digital-twin-reconciliation/` — implemented (Part A + B required, Part C optional,
   also implemented); see `docs/LAB4_AEMO_REAL_DATA.md` and the lab's own `README.md`.
-- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built; see
-  `docs/LAB5_SPARTAN_CHAOSNET.md`.
+- `labs/05-spartan-chaosnet-transient-stream/` — implemented (laptop-portable core; the
+  hardware-validated extension is optional and out of scope). See `docs/LAB5_SPARTAN_CHAOSNET.md`
+  and the lab's own `README.md` "Sandbox notes" for the real DPsim/VILLASnode session and the one
+  node-type substitution found by actually running it.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
-  executed with `podman` in this sandbox (no `podman` binary present); see the file's own header.
+  executed with `podman` in this sandbox (Lab 3's own fixture doesn't require it); see the file's
+  own header. `kube/villasnode-tap-pod.yaml` (Lab 5), by contrast, has been actually run with
+  `podman kube play` in this sandbox — see its own header.
 - `data/` — gitignored; populated by `scripts/fetch_csiro_nem_data.py`, never vendored/committed.
 - `benchmarks/power-agent-bench-lite/results/scorecard.json` — Lab 3's committed, diffable output.

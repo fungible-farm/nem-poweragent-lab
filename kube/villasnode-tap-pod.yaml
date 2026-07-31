@@ -1,0 +1,60 @@
+# Kubernetes Pod manifest for Lab 5's "sub-3-tap" VILLASnode stream gateway.
+#
+# Status: WRITTEN AND PODMAN-EXECUTED in this sandbox (unlike
+# benchmark-runner-job.yaml, this one has been run for real -- see
+# labs/05-spartan-chaosnet-transient-stream/README.md's "Sandbox notes" for
+# the full session log). Confirmed:
+#
+#   podman kube play kube/villasnode-tap-pod.yaml
+#   podman ps                          # sub-3-tap-pod-villasnode Up
+#   podman logs sub-3-tap-pod-villasnode  # "Starting node sub-3-tap(socket)..."
+#   uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --node sub-3-tap
+#   podman kube play --down kube/villasnode-tap-pod.yaml
+#
+# Image: registry.git.rwth-aachen.de/acs/public/villas/node:latest (2.24 GB,
+# the real upstream RWTH Aachen GitLab registry -- docker.io/villas/node
+# does not exist / 403s, see this lab's README). Confirmed
+# `1-MV-rural--0-sw` is a real SimBench code and this image is a real
+# VILLASnode 1.1.0 build by direct experiment, not assumed.
+#
+# hostNetwork: true -- required so the socket node's `out.address =
+# 127.0.0.1:12000` actually reaches the host's loopback (villasnode-tap
+# sends *outbound* UDP; a bridged/port-published network only forwards
+# *inbound* connections, so a bridge network here silently drops every
+# outbound packet before it leaves the pod's own netns -- confirmed by
+# direct experiment: zero packets received under bridge networking with
+# `-p 12000:12000/udp`, all packets received once switched to
+# `--network host`). See villas/chaos-tap.conf's own header for why
+# `http.port` is overridden away from the image's default (80).
+#
+# hostPath below is absolute (Kubernetes requires it for hostPath
+# volumes). It matches this repo's checkout location during testing --
+# if you've cloned this repo elsewhere, edit `volumes[0].hostPath.path`
+# below to <your-checkout>/labs/05-spartan-chaosnet-transient-stream/villas
+# before running podman kube play. That directory holds the committed
+# chaos-tap.conf and the chaos_stream.csv that
+# labs/05-spartan-chaosnet-transient-stream/run_dpsim.py writes on every
+# real run (step 2 of the walkthrough) -- run step 2 before this step 3.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sub-3-tap-pod
+  labels:
+    app: spartan-chaosnet
+    substation: sub-3
+spec:
+  hostNetwork: true
+  restartPolicy: Never
+  containers:
+    - name: villasnode
+      image: registry.git.rwth-aachen.de/acs/public/villas/node:latest
+      command: ["villas-node"]
+      args: ["/data/chaos-tap.conf"]
+      volumeMounts:
+        - name: chaos-data
+          mountPath: /data
+  volumes:
+    - name: chaos-data
+      hostPath:
+        path: /home/brianh/promptexecution/aemo/nem-poweragent-lab/labs/05-spartan-chaosnet-transient-stream/villas
+        type: Directory

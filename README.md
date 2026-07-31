@@ -49,9 +49,17 @@ see each lab's "Sandbox notes" section for exactly what stands in for what, and 
   FAIL against its own stated tolerance, with a memo that quantifies why), and a real binding
   constraint decoded via a vendored `NEM_constraints` (not hand-rolled) into plain English. See its
   own `README.md`.
-- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built (see its own `README.md`).
+- `labs/05-spartan-chaosnet-transient-stream/` — **implemented** (laptop-portable core Definition
+  of Done; the hardware-validated extension against a real Radxa Dragon Q8B is optional and out of
+  scope, not attempted). A real SimBench + NetworkX chaos-net topology, a real DPsim EMT solve
+  (200µs timestep, a real scheduled `SwitchEvent3Ph` fault with a live countdown), and a real
+  VILLASnode pod actually run via `podman kube play`, verified by a real UDP capture. See its own
+  `README.md` for exactly which node-type (`socket`/UDP/JSON, not `iec61850-9-2` — compiled into
+  the image but fails to actually start in this sandbox even under `--privileged`) and transport
+  (file, not a live `dpsimpyvillas` socket) had to be substituted, and why.
 - `kube/` — `benchmark-runner-job.yaml` is a written, valid (not yet podman-executed in this
-  sandbox) Job manifest for Lab 3; the LLM-server/PowerMCP pods remain spec only.
+  sandbox) Job manifest for Lab 3; `villasnode-tap-pod.yaml` (Lab 5) is written **and actually run**
+  via real `podman kube play` in this sandbox; the LLM-server/PowerMCP pods remain spec only.
 - `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, committed output.
 - `scripts/` — `fetch_csiro_nem_data.py` and `run_labs_1_3.sh` are real; `record_asciinema_demo.sh`
   is not yet built.
