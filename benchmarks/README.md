@@ -1,6 +1,6 @@
 # `power-agent-bench-lite`
 
-> Status: **spec only**. See `docs/VISION.md` §6 "Lab 3".
+> Status: **spec only**. See `docs/VISION.md` §7 "Lab 3", including the PowerFM baseline row.
 
 A small, self-hosted benchmark harness in the same spirit as the external
 [PowerAgentBench](https://github.com/Power-Agent/PowerAgentBench) family (structured task → agent

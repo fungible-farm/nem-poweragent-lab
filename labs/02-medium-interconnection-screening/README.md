@@ -1,6 +1,6 @@
 # Lab 2 (Medium) — Interconnection / Asset-Provisioning Screening
 
-> Status: **spec only** — see `docs/VISION.md` §6 "Lab 2". This mirrors PowerWF's "Grid Impact
+> Status: **spec only** — see `docs/VISION.md` §7 "Lab 2". This mirrors PowerWF's "Grid Impact
 > Evaluation" reference workflow, reimplemented on Microsoft Agent Framework instead of LangGraph.
 
 ## What you'll do

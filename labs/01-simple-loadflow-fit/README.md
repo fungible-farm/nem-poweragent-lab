@@ -1,6 +1,6 @@
 # Lab 1 (Simple) — Load-Flow Parameter Fit
 
-> Status: **spec only** — see `docs/VISION.md` §6 "Lab 1" for the full description. Code,
+> Status: **spec only** — see `docs/VISION.md` §7 "Lab 1" for the full description. Code,
 > `expected_results.json`, and the step-by-step walkthrough below will be filled in during
 > implementation; this file fixes the intended shape so review can happen before code is written.
 

@@ -50,6 +50,9 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       scorecard file under `benchmarks/power-agent-bench-lite/results/`, and the
       `kube/benchmark-runner-job.yaml` Job manifest can run the same matrix as parallel pods, not
       only as the serial reference implementation.
+- [ ] Lab 3's scorecard includes the non-agentic PowerFM (OpenPowerBench) load-forecasting
+      baseline row alongside the LLM-agent providers, scored on the same held-out-window metric,
+      with the README explaining why it is a baseline rather than a competing provider.
 - [ ] Every lab's `README.md` is written MEA137A-style: numbered steps, an explicit "you should
       see" for each step, and one paragraph per lab tying the mechanic back to a real AEMO
       modelling task (no unexplained jargon, no marketing language).

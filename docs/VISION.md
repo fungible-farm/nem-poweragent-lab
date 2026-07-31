@@ -19,7 +19,50 @@ parameter-fitting/regression tasks against a public power-systems benchmark.
 
 Nothing here requires PSS/E, PowerFactory, a cloud LLM subscription, or `b00t`.
 
-## 1. Why (the actual problem, not the pitch)
+## 1. Grounding: the paper this lab operationalises
+
+This repo is not an original architecture — it is a runnable, laptop-scale implementation of the
+roadmap laid out in:
+
+> Q. Zhang and L. Xie, "PowerAgent: A Road Map Toward Agentic Intelligence in Power Systems:
+> Foundation Model, Model Context Protocol, and Workflow," *IEEE Power and Energy Magazine*,
+> vol. 23, no. 5, pp. 93–101, Sept.–Oct. 2025.
+> [ieeexplore.ieee.org/document/11131348](https://ieeexplore.ieee.org/document/11131348/) ·
+> open-access preprint: [doi.org/10.36227/techrxiv.174918210.07854858/v1](https://www.techrxiv.org/doi/full/10.36227/techrxiv.174918210.07854858/v1)
+> · project site: [poweragent.seas.harvard.edu](https://poweragent.seas.harvard.edu/) (Qian Zhang
+> and Le Xie, Harvard SEAS, Power and AI Initiative)
+
+> "The operational resilience of electric power grids is facing growing challenges caused by aging
+> infrastructure, increasing system complexity, and a rising frequency of extreme weather events.
+> Traditional control paradigms, built around deterministic models and human-in-the-loop decision
+> making, will become insufficient to manage the escalating demands on power grids. In response,
+> recent advances in artificial intelligence (AI)—particularly the emergence of general-purpose AI
+> agents capable of tool use, reasoning, and task orchestration—offer a new direction for
+> enhancing grid flexibility and resiliency. This article introduces the concept of the Power
+> Agent: an AI-enabled, context-aware assistant that leverages foundation models, standardized
+> tool interfaces, and structured workflows to support grid operation and planning decisions. We
+> discuss the conceptual architecture, implementation pathways, and system-level benefits of
+> deploying Power Agents in power grid operations, with an emphasis on augmenting operator
+> capabilities, improving situational awareness, and reducing operational bottlenecks."
+> — abstract, Zhang & Xie 2025
+
+The paper's own subtitle names its three architectural pillars — **Foundation Model, Model Context
+Protocol, and Workflow** — and the Power-Agent GitHub organisation is that same triad, shipped as
+code:
+
+| Paper's pillar | Repo | Role in *this* lab |
+|---|---|---|
+| Foundation Model | [PowerFM](https://github.com/Power-Agent/PowerFM) | §7, Lab 3 — a domain-trained baseline sitting alongside the general-purpose LLM agents |
+| Model Context Protocol | [PowerMCP](https://github.com/Power-Agent/PowerMCP) | Tool layer — pandapower exposed to any MCP client |
+| Workflow | [PowerWF](https://github.com/Power-Agent/PowerWF) / [PowerSkills](https://github.com/Power-Agent/PowerSkills) | Orchestration pattern, reimplemented here on Microsoft Agent Framework |
+
+So the "why compose these five projects" question in §3 has a one-line answer: **this is the
+reference architecture from the IEEE paper, assembled from the org's own open-source
+implementation of each of its three named pillars**, with a local-only inference stack and a real
+NEM case substituted in for the demo. Everything downstream in this document is that
+substitution made concrete and runnable.
+
+## 2. Why (the actual problem, not the pitch)
 
 Provisioning studies (new generator/load connection screening, N-1 contingency checks, model
 validation before a planning submission) are currently a chain of manual steps: pull a case,
@@ -32,12 +75,13 @@ deterministic script, let an agent drive the script, containerise each tool so t
 is pinned, and get the same answer every time.** That's the entire thesis. Everything else in this
 document is plumbing to make that demonstrable in an hour, on a laptop, with no vendor accounts.
 
-## 2. Ecosystem map (what we're composing, not building)
+## 3. Ecosystem map (what we're composing, not building)
 
 | Project | Role in this lab | Language | Note |
 |---|---|---|---|
 | [pandapower](https://www.pandapower.org/) | The power-flow / OPF / contingency engine | Python | Wraps PYPOWER + pandas; solves AC/DC PF, OPF, short-circuit, topological search |
 | [powerio](https://github.com/eigenergy/powerio) | Fast MATPOWER `.m` / PSS/E `.raw` / PyPSA-CSV parser + format converter, Python bindings over Rust | **Rust**, Python bindings | This is our Rust requirement — it reads CSIRO's `.m` files directly and its own benchmark suite validates against pandapower, PowerModels.jl and egret |
+| [PowerFM](https://github.com/Power-Agent/PowerFM) | Domain-trained foundation models for power/energy: **OpenPowerBench** (transformer models for topology-dependent tasks — power flow, OPF, contingency — and topology-independent tasks — load/price forecasting), **GridLDM** (diffusion models for time-series generation), **GridFM** (GNNs trained on grid topology), **mAIEnergy** (multimodal) | Python, models on Hugging Face Hub | This is the paper's "Foundation Model" pillar; §7 Lab 3 pulls an OpenPowerBench load-forecasting checkpoint as a fixed domain-specific baseline row, run *without* any LLM in the loop, next to the general-purpose agents |
 | [PowerMCP](https://github.com/Power-Agent/PowerMCP) | MCP servers exposing pandapower (and other engines) as tools an LLM can call | Python | `pip install powermcp && powermcp install` |
 | [PowerSkills](https://github.com/Power-Agent/PowerSkills) | Agent-Skill playbooks on top of PowerMCP — "load case → solve base case → escalate to contingency → mitigation playbook" | Python + Markdown SKILL.md | Progressive disclosure: low-risk ops first |
 | [PowerWF](https://github.com/Power-Agent/PowerWF) | Reference agentic workflows (grid-impact evaluation, market-inquiry agent) | Python | We replace their suggested LangGraph/AutoGen/CrewAI orchestrator with Microsoft Agent Framework per this lab's brief |
@@ -51,7 +95,7 @@ Everything in this table already exists. This repo's job is the glue: kube manif
 lab scripts, and the benchmark scorer. **Verify exact install commands against each project's
 current README at build time** — the ones quoted above were fetched in July 2026 and may drift.
 
-## 3. Component architecture
+## 4. Component architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -78,10 +122,10 @@ current README at build time** — the ones quoted above were fetched in July 20
 
 The orchestrator itself is **not** containerised — it's the thing a human runs (`uv run
 labs/02.../workflow.py`). Everything it *depends on* (model server, tool server) is a pod. That
-split matters for the "why Kubernetes" argument in §8: you containerise the things that need
+split matters for the "why Kubernetes" argument in §9: you containerise the things that need
 version-pinning and horizontal scale-out, not the control script.
 
-## 4. Data: CSIRO Synthetic NEM 2000-Bus
+## 5. Data: CSIRO Synthetic NEM 2000-Bus
 
 - Source files are MATPOWER `.m` text case files: `snem2000.m` (full NEM), `snem1803.m`
   (mainland), `snem197.m` (Tasmania), `snem2000_acdc.m` (+3 HVDC links), `snem2000_tnep.m` (+9
@@ -99,7 +143,7 @@ version-pinning and horizontal scale-out, not the control script.
   enough that N-1 over all lines is a genuine "why would I want this parallelised" moment), and
   it needs zero data-sharing agreement.
 
-## 5. Repo layout (target state)
+## 6. Repo layout (target state)
 
 ```
 nem-poweragent-lab/
@@ -124,7 +168,7 @@ nem-poweragent-lab/
     └── power-agent-bench-lite/
 ```
 
-## 6. The three labs
+## 7. The three labs
 
 Each lab folder will contain: a numbered `README.md` (do this → run this → you should see this →
 here's why an AEMO modeller cares), one Python entry point runnable via `uv run`, and a fixed
@@ -184,11 +228,22 @@ expected-output fixture so the lab is self-checking, not vibes-checking.
   (`kube/benchmark-runner-job.yaml`) so the whole matrix (3 providers × N task families) can be
   farmed out as parallel Job pods instead of a serial for-loop — this is the concrete "here's where
   you'd actually reach for an orchestration platform" moment for the Operations audience.
-- **Output**: a single scorecard (JSON + printed table) — provider, task family, pass/fail, error
-  margin, wall-clock, tokens — checked into `benchmarks/power-agent-bench-lite/results/` so the
-  demo is re-runnable and diffable, not a screenshot.
+- **PowerFM baseline (the fourth row, no LLM involved)**: alongside the LLM-agent providers,
+  pull one pretrained [PowerFM](https://github.com/Power-Agent/PowerFM) **OpenPowerBench**
+  load-forecasting checkpoint (topology-independent task family — a short-horizon regional demand
+  forecast) from Hugging Face Hub, run it directly against a CSIRO NEM regional load trace, and
+  score it on the identical held-out-window/error-tolerance metric used for the LLM-driven
+  parameter-fit tasks. It is not asked to do the model-fitting task families (that would compare
+  unlike things) — it establishes the "domain-trained foundation model, no agent loop, no tool
+  calls" reference point the paper itself distinguishes from the agentic path, in the same
+  scorecard, so the audience sees the Foundation-Model and Agent+MCP+Workflow pillars from §1
+  side by side rather than as competing claims.
+- **Output**: a single scorecard (JSON + printed table) — provider (Phi-4-mini / Gemma-4 /
+  Llama-3.2-3B / PowerFM-OpenPowerBench), task family, pass/fail, error margin, wall-clock,
+  tokens (n/a for the PowerFM row) — checked into `benchmarks/power-agent-bench-lite/results/` so
+  the demo is re-runnable and diffable, not a screenshot.
 
-## 7. Rust component
+## 8. Rust component
 
 We are **not** writing a new Rust crate. `powerio` already does exactly what's needed — parses
 CSIRO's native MATPOWER `.m` files, converts formats, and its own test suite already benchmarks
@@ -200,7 +255,7 @@ into MATPOWER extension fields), the fallback is pandapower's own `from_ppc`/`fr
 converters — but leading with `powerio` is the more interesting demo and the one the brief asked
 for by name.
 
-## 8. Why `podman kube play` / why Kubernetes-style thinking at all
+## 9. Why `podman kube play` / why Kubernetes-style thinking at all
 
 Deliberately explained, not sold, because the board audience includes Operations and System
 Design, who will (rightly) ask "why not just a shell script":
@@ -221,7 +276,7 @@ Design, who will (rightly) ask "why not just a shell script":
   entirely; `podman kube play` gives us the manifest shape and the "one command, no cluster" story
   that fits a laptop demo.
 
-## 9. `install.sh` — spec
+## 10. `install.sh` — spec
 
 One command, POSIX shell, checks-then-acts (never silently reinstalls something already present):
 
@@ -240,7 +295,7 @@ One command, POSIX shell, checks-then-acts (never silently reinstalls something 
 7. Smoke test: one `uv run` call that does a trivial power flow through the running pods and
    prints PASS/FAIL — this is the "did the install actually work" gate before anyone opens a lab.
 
-## 10. asciinema training recording
+## 11. asciinema training recording
 
 `scripts/record_asciinema_demo.sh` wraps `asciinema rec` around: `./install.sh` → Lab 1 → Lab 2 →
 Lab 3 summary table, with `PS1` and terminal width pinned so the `.cast` file plays back
@@ -248,7 +303,7 @@ consistently regardless of the presenter's own shell config. The recording is an
 repo, not a separate hand-edited video — re-running the script after any lab changes regenerates
 it, so the walkthrough can't drift out of sync with the actual code the way a slide deck does.
 
-## 11. Explicit non-goals
+## 12. Explicit non-goals
 
 - No `b00t` dependency, anywhere.
 - No commercial engines (PSS/E, PowerFactory, PowerWorld, PSCAD) required for any of the 3 labs —
@@ -256,6 +311,6 @@ it, so the walkthrough can't drift out of sync with the actual code the way a sl
   the golden path.
 - No cloud LLM API keys — every model call in every lab goes to `localhost` only; this is a network
   policy worth stating explicitly to Operations, not just an implementation detail.
-- No new Rust code (see §7) — we consume `powerio`, we don't fork it.
+- No new Rust code (see §8) — we consume `powerio`, we don't fork it.
 - Not a sales artifact — no ROI slide, no competitor comparison; the labs either reproduce the
   claimed behaviour on the reader's own machine or they don't.

@@ -1,6 +1,6 @@
 # `podman kube play` manifests
 
-> Status: **spec only**. See `docs/VISION.md` §3 and §9.
+> Status: **spec only**. See `docs/VISION.md` §4 and §10.
 
 Planned manifests:
 
