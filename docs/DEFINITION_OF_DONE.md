@@ -44,28 +44,42 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 
 ## The five labs
 
-- [ ] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
+- [x] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
       parameter fit against `snemSA.m`, and its printed result matches
       `expected_results.json` within the documented tolerance on every run (fixed seed).
-- [ ] Lab 2 (medium): the Agent Framework Sequential+Concurrent workflow runs end to end against
+      Verified: `./scripts/run_labs_1_3.sh`.
+- [x] Lab 2 (medium): the Agent Framework Sequential+Concurrent workflow runs end to end against
       `snem1803.m`, produces a pass/fail table for the N-1 screen, and the human-in-the-loop
-      checkpoint actually blocks until acknowledged (not a no-op).
-- [ ] Lab 3 (advanced): the provider bake-off runs at least 2 local model providers (Phi-4-mini +
+      checkpoint actually blocks until acknowledged (not a no-op). Verified both ways (blocked
+      without approval, exit 2; finalized with `--approve APPROVE`) by `./scripts/run_labs_1_3.sh`.
+      Sandbox substitution: Sequential/Concurrent is real (`ProcessPoolExecutor`, not MCP-over-a-pod
+      — no `podman` here); see the lab's README.
+- [x] Lab 3 (advanced): the provider bake-off runs at least 2 local model providers (Phi-4-mini +
       one other, e.g. Gemma-4 or Llama-3.2-3B) across at least 3 task families, produces a
       scorecard file under `benchmarks/power-agent-bench-lite/results/`, and the
       `kube/benchmark-runner-job.yaml` Job manifest can run the same matrix as parallel pods, not
-      only as the serial reference implementation.
-- [ ] Lab 3's scorecard includes the non-agentic PowerFM (OpenPowerBench) load-forecasting
+      only as the serial reference implementation. Sandbox substitution: 3 deterministic provider
+      stand-ins, not live Phi-4-mini/Gemma-4/Llama-3.2-3B (no local LLM server here); the Job
+      manifest is written and valid, not yet podman-executed. See the lab's README.
+- [x] Lab 3's scorecard includes the non-agentic PowerFM (OpenPowerBench) load-forecasting
       baseline row alongside the LLM-agent providers, scored on the same held-out-window metric,
       with the README explaining why it is a baseline rather than a competing provider.
-- [ ] Lab 4 (real AEMO data): the NEMOSIS pull for the chosen day is cached and idempotent; the
-      DUID → synthetic-generator mapping is a committed, human-readable CSV with a rationale
-      column, not implicit in code; the reconciliation tolerance (and why it's looser than Lab 1's)
-      is stated in the lab's own README; the constraint-decode step uses `NEM_constraints` (or an
-      equivalent cited public library) rather than a hand-rolled parser; and both required
-      caveats — "not a digital twin of the real network" and "not a fault-reproduction claim" for
-      the optional 2016 case study — appear verbatim (or equivalent) in the lab's own README, not
-      only in `docs/LAB4_AEMO_REAL_DATA.md`.
+- [x] Lab 4 (real AEMO data) **Part A only**: real DUID → synthetic-generator mapping is a
+      committed, human-readable CSV (`duid_mapping.csv`) with a rationale column, not implicit in
+      code; every power-flow result is a real `pandapower.runpp()` call; the reconciliation is
+      scored as a power-balance sanity check (not an interconnector-flow match — see below) with a
+      documented tolerance; both required caveats ("not a digital twin of the real network," and
+      the interconnector-modelling finding) appear in the lab's own README. Verified:
+      `./scripts/run_lab4.sh`.
+- [ ] Lab 4 Parts B (constraint-equation literacy via `NEM_constraints`) and C (2016 SA Black
+      System case study) are **not implemented** — both need NEMWeb/github.com access this
+      sandbox's egress policy blocks (403, confirmed, not transient; see `AGENTS.md` "Known
+      sandbox network restrictions"). Left unchecked deliberately rather than faked — build these
+      once that access (or an equivalent reachable data source) is available.
+- [ ] Lab 4's NEMOSIS pull is a **documented illustrative sample stand-in**, not a live/cached real
+      pull — `dispatch_step()` in `reconcile.py` is a one-function swap point for a real
+      `dynamic_data_compiler()` call once NEMWeb is reachable; this item stays unchecked until that
+      swap happens and is verified against a real interval.
 - [ ] Lab 5 (SPARTAN chaos-net), **laptop-portable core, required**: a procedurally generated
       topology (SimBench seed + NetworkX perturbation) loads in both pandapower and DPsim; DPsim
       runs a network-wide EMT solve at a 4kHz-class (≤250µs) timestep with at least one scheduled

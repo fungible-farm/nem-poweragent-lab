@@ -1,0 +1,12 @@
+real_duid,fuel_source_descriptor,approx_registered_capacity_mw,matched_synthetic_bus,matched_synthetic_base_p_mw,capacity_delta_mw,rationale
+TORRA4,Natural Gas (Steam),120.0,1683,127.265,7.265,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+WPWF,Wind,111.0,1653,95.029,-15.971,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+SNOWTWN1,Wind,98.0,1652,93.253,-4.747,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+HALLWF1,Wind,94.5,1708,93.217,-1.283,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+HALLWF2,Wind,71.4,1682,70.775,-0.625,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+MTMILLAR,Wind,70.0,1678,76.442,6.442,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+CATHROCK,Wind,66.0,1707,63.227,-2.773,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+CLEMGPWF,Wind,56.7,1692,55.875,-0.825,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+BLUFF1,Wind,52.5,1680,49.842,-2.658,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+LKBONNY3,Wind,39.0,1691,38.771,-0.229,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"
+STARHLWF,Wind,34.5,1690,37.308,2.808,"nearest-capacity match among non-slack, nonzero-p_mw synthetic generators (no fuel-type field in snemSA.m -- see function docstring)"

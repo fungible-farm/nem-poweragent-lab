@@ -11,6 +11,25 @@ network model (CSIRO's Synthetic-NEM-2000-Bus dataset), intended to run on local
 components only (`pandapower`, `powerio`, `agent-framework`, `llama.cpp`, `podman kube play`). See
 the root `README.md` for current per-lab status.
 
+## Known sandbox network restrictions
+
+Confirmed by hand (via `curl` and `/root/.ccr/__agentproxy/status`), not assumed: this sandbox's
+egress policy returns 403 ("destination host not allowed," an organization policy denial, not a
+transient failure — do not retry or route around it) for **`nemweb.com.au`** and for **`github.com`
+itself**. `raw.githubusercontent.com` and `pypi.org` *are* reachable, which is how
+`scripts/fetch_csiro_nem_data.py` and Lab 4's real DUID data both work despite this. Practically:
+
+- Any AEMO NEMWeb pull (NEMOSIS's `dynamic_data_compiler()`, for instance) cannot reach live data
+  here — pip-installing the library still works (PyPI), calling it does not.
+- Any third-party GitHub repo you'd otherwise `pip install git+https://github.com/...` or browse
+  via `api.github.com`/`github.com` is unreachable; only exact `raw.githubusercontent.com/<owner>/
+  <repo>/<ref>/<path>` file fetches work, and only if you already know the path (no directory
+  listing).
+
+Don't re-discover this by trial and error on a future change — assume it's still true, name the
+specific host you tried in any new "sandbox stand-in" docstring, and follow the pattern already
+used in `labs/04-aemo-digital-twin-reconciliation/reconcile.py`.
+
 ## Package management: `uv` only
 
 Never use bare `pip`/`pip3`. Always:
@@ -26,17 +45,19 @@ uv run python -m pytest labs/  # run the test suite
 ```
 uv run scripts/fetch_csiro_nem_data.py   # once: fetch + checksum-verify CSIRO case data into data/
 ./scripts/run_labs_1_3.sh                # the committed end-to-end proof: fetch -> Labs 1-3 -> pytest -> PASS/FAIL
+./scripts/run_lab4.sh                    # the committed end-to-end proof: fetch -> Lab 4 Part A -> pytest -> PASS/FAIL
 ```
 
-Each lab is also runnable step by step — see the lab's own `README.md` "Command" section
-(`labs/01-simple-loadflow-fit/run.py --step {load,fit,check}`,
+Each lab is also runnable step by step — see the lab's own `README.md` "Command"/"What's
+implemented" section (`labs/01-simple-loadflow-fit/run.py --step {load,fit,check}`,
 `labs/02-medium-interconnection-screening/workflow.py --step {base,contingencies,check-limits,memo}`,
-`labs/03-advanced-provider-bakeoff/orchestrator.py --step {sweep,report,check}`).
+`labs/03-advanced-provider-bakeoff/orchestrator.py --step {sweep,report,check}`,
+`labs/04-aemo-digital-twin-reconciliation/reconcile.py --step {dispatch,map,reconcile,check}`).
 
-**`scripts/run_labs_1_3.sh` is the proof, not a transcript.** If you change a lab, re-run this
-script (or at least that lab's `--step check` and pytest file) before considering the change done.
-Running commands ad hoc in a session is not proof anything works — the committed script re-deriving
-the same result on a clean checkout is.
+**The proof scripts are the proof, not a transcript.** If you change a lab, re-run its proof script
+(or at least that lab's `--step check` and pytest file) before considering the change done. Running
+commands ad hoc in a session is not proof anything works — a committed script re-deriving the same
+result on a clean checkout is.
 
 ## Non-negotiable conventions in this codebase
 
@@ -86,9 +107,16 @@ the same result on a clean checkout is.
 - `labs/01-simple-loadflow-fit/`, `labs/02-medium-interconnection-screening/`,
   `labs/03-advanced-provider-bakeoff/` — implemented; each has real code, a fixture, a pytest test,
   and a README with "Sandbox notes."
-- `labs/04-aemo-digital-twin-reconciliation/`, `labs/05-spartan-chaosnet-transient-stream/` — spec
-  only, not yet built; see `docs/LAB4_AEMO_REAL_DATA.md` / `docs/LAB5_SPARTAN_CHAOSNET.md`.
+- `labs/04-aemo-digital-twin-reconciliation/` — **Part A implemented** (real DUID-to-synthetic-gen
+  mapping, dispatch imposition, real `pandapower.runpp()`, power-balance scoring, fixture + pytest).
+  Parts B (constraint literacy) and C (2016 case study) are spec-only — both need NEMWeb/github.com
+  access this sandbox's egress policy blocks (403, confirmed via `/root/.ccr`, not transient); see
+  `reconcile.py`'s module docstring and the lab's README "Sandbox notes."
+- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built; see
+  `docs/LAB5_SPARTAN_CHAOSNET.md`. Needs DPsim/VILLASnode (C/C++ toolchains) not present here.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
   executed with `podman` in this sandbox (no `podman` binary present); see the file's own header.
 - `data/` — gitignored; populated by `scripts/fetch_csiro_nem_data.py`, never vendored/committed.
 - `benchmarks/power-agent-bench-lite/results/scorecard.json` — Lab 3's committed, diffable output.
+- `labs/04-aemo-digital-twin-reconciliation/duid_mapping.csv` — Lab 4's committed, auditable
+  DUID-to-synthetic-generator mapping, regenerated by `reconcile.py --step map`.

@@ -23,17 +23,21 @@ is being built against.
 
 ## Status
 
-**Labs 1-3 are implemented and self-checking.** Run the whole thing end to end, with proof:
+**Labs 1-3 are implemented and self-checking, and Lab 4 Part A now is too.** Run either end to end,
+with proof:
 
 ```
 ./scripts/run_labs_1_3.sh
+./scripts/run_lab4.sh
 ```
 
-That one committed script — not a transcript of anyone running commands by hand — is the proof
-these labs work: it fetches the real CSIRO case data, runs every step of Labs 1-3, runs the pytest
-suite, and prints a final PASS/FAIL summary. Every lab's `README.md` documents where this sandbox's
-implementation deviates from `docs/VISION.md`'s full spec (no `podman`, no live local LLM server —
-see each lab's "Sandbox notes" section for exactly what stands in for what, and why).
+Each is a committed script — not a transcript of anyone running commands by hand — that is the
+proof its labs work: it fetches the real CSIRO case data, runs every step, runs the pytest suite,
+and prints a final PASS/FAIL summary. Every lab's `README.md` documents where this sandbox's
+implementation deviates from `docs/VISION.md`'s full spec (no `podman`, no live local LLM server,
+and — new to Lab 4 — no reachable NEMWeb or github.com; see `AGENTS.md` "Known sandbox network
+restrictions" and each lab's own "Sandbox notes" section for exactly what stands in for what, and
+why).
 
 - `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
   real CSIRO `snemSA.m` data.
@@ -42,13 +46,17 @@ see each lab's "Sandbox notes" section for exactly what stands in for what, and 
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
   a non-agentic forecasting-baseline row, scored into a committed, diffable scorecard.
-- `labs/04-aemo-digital-twin-reconciliation/` — spec only, not yet built (see its own `README.md`).
-- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built (see its own `README.md`).
+- `labs/04-aemo-digital-twin-reconciliation/` — **Part A implemented**: real DUID-to-synthetic-
+  generator mapping (auditable, committed `duid_mapping.csv`), dispatch imposition, real
+  `pandapower.runpp()`, power-balance scoring. Parts B/C are spec-only — both need NEMWeb/
+  github.com access this sandbox's egress policy blocks; see the lab's "Sandbox notes."
+- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built (needs DPsim/VILLASnode,
+  C/C++ toolchains not present here); see its own `README.md`.
 - `kube/` — `benchmark-runner-job.yaml` is a written, valid (not yet podman-executed in this
-  sandbox) Job manifest for Lab 3; the LLM-server/PowerMCP pods remain spec only.
+  sandbox) Job manifest for Lab 3; the LLM-server/PowerMCP/VILLASnode pods remain spec only.
 - `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, committed output.
-- `scripts/` — `fetch_csiro_nem_data.py` and `run_labs_1_3.sh` are real; `record_asciinema_demo.sh`
-  is not yet built.
+- `scripts/` — `fetch_csiro_nem_data.py`, `run_labs_1_3.sh`, and `run_lab4.sh` are real;
+  `record_asciinema_demo.sh` is not yet built.
 
 ## What this is built from (all upstream, none of it written here)
 
