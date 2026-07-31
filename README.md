@@ -42,7 +42,13 @@ see each lab's "Sandbox notes" section for exactly what stands in for what, and 
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
   a non-agentic forecasting-baseline row, scored into a committed, diffable scorecard.
-- `labs/04-aemo-digital-twin-reconciliation/` — spec only, not yet built (see its own `README.md`).
+- `labs/04-aemo-digital-twin-reconciliation/` — **implemented** (Part A + Part B required, Part C
+  optional — also implemented). Real `NEMOSIS` pulls of AEMO's live NEMWeb MMS archive (no fixture
+  fallback needed — the live pull worked), a committed auditable DUID→synthetic-generator mapping,
+  a real `pandapower.runpp()` reconciliation against real interconnector flow (honestly scored
+  FAIL against its own stated tolerance, with a memo that quantifies why), and a real binding
+  constraint decoded via a vendored `NEM_constraints` (not hand-rolled) into plain English. See its
+  own `README.md`.
 - `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built (see its own `README.md`).
 - `kube/` — `benchmark-runner-job.yaml` is a written, valid (not yet podman-executed in this
   sandbox) Job manifest for Lab 3; the LLM-server/PowerMCP pods remain spec only.

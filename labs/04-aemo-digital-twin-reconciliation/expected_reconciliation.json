@@ -1,0 +1,15 @@
+{
+  "date": "2026-06-15",
+  "interval": "2026-06-15 12:00:00",
+  "converged": true,
+  "matched_synthetic_generators": 22,
+  "load_scale_factor": 0.949494,
+  "total_demand_actual_mw": 1808.92,
+  "modelled_interconnector_mw": 234.168,
+  "actual_interconnector_mw": 187.7,
+  "synthetic_network_losses_mw": 63.527,
+  "actual_interconnector_losses_mw": 2.129,
+  "delta_mw": 46.468,
+  "tolerance_fraction": 0.15,
+  "passed": false
+}

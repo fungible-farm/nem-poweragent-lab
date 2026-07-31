@@ -10,6 +10,7 @@ dependencies = [
     "scipy>=1.11",
     "pandas>=2.0",
     "numba>=0.60",
+    "nemosis>=3.8.1",
 ]
 
 [dependency-groups]

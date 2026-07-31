@@ -86,8 +86,10 @@ the same result on a clean checkout is.
 - `labs/01-simple-loadflow-fit/`, `labs/02-medium-interconnection-screening/`,
   `labs/03-advanced-provider-bakeoff/` — implemented; each has real code, a fixture, a pytest test,
   and a README with "Sandbox notes."
-- `labs/04-aemo-digital-twin-reconciliation/`, `labs/05-spartan-chaosnet-transient-stream/` — spec
-  only, not yet built; see `docs/LAB4_AEMO_REAL_DATA.md` / `docs/LAB5_SPARTAN_CHAOSNET.md`.
+- `labs/04-aemo-digital-twin-reconciliation/` — implemented (Part A + B required, Part C optional,
+  also implemented); see `docs/LAB4_AEMO_REAL_DATA.md` and the lab's own `README.md`.
+- `labs/05-spartan-chaosnet-transient-stream/` — spec only, not yet built; see
+  `docs/LAB5_SPARTAN_CHAOSNET.md`.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
   executed with `podman` in this sandbox (no `podman` binary present); see the file's own header.
 - `data/` — gitignored; populated by `scripts/fetch_csiro_nem_data.py`, never vendored/committed.

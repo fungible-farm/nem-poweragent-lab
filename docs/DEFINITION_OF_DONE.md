@@ -58,7 +58,7 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 - [ ] Lab 3's scorecard includes the non-agentic PowerFM (OpenPowerBench) load-forecasting
       baseline row alongside the LLM-agent providers, scored on the same held-out-window metric,
       with the README explaining why it is a baseline rather than a competing provider.
-- [ ] Lab 4 (real AEMO data): the NEMOSIS pull for the chosen day is cached and idempotent; the
+- [x] Lab 4 (real AEMO data): the NEMOSIS pull for the chosen day is cached and idempotent; the
       DUID → synthetic-generator mapping is a committed, human-readable CSV with a rationale
       column, not implicit in code; the reconciliation tolerance (and why it's looser than Lab 1's)
       is stated in the lab's own README; the constraint-decode step uses `NEM_constraints` (or an
