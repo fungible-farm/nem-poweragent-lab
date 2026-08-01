@@ -1,6 +1,7 @@
 # 0002 — Research: pandapower's own diagram options, and open-source symbolic/single-line-diagram packages
 
-- **Status:** open (research complete, no implementation yet)
+- **Status:** done — free-tier recommendations implemented via 0003/0004; the stretch tier
+  (symbolic single-line) remains gated on a CIM/CGMES export step (see 0004).
 - **Depends on:** 0001 (the gap this is scoping a fix for)
 - **Feeds:** 0003 (Lab 3), 0004 (Lab 4 & 5), 0005 (the notebook playbook)
 

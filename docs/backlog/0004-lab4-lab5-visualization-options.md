@@ -1,6 +1,7 @@
 # 0004 — Lab 4 & Lab 5: visualization options
 
-- **Status:** open
+- **Status:** partially done — Lab 4's reconciliation chart and Lab 5's topology drawing are done;
+  Lab 5's stretch-tier symbolic single-line is still open.
 - **Depends on:** 0001 (gap), 0002 (options research)
 
 ## Lab 4 — `labs/04-aemo-digital-twin-reconciliation/`
