@@ -1,0 +1,18 @@
+# Lab 5 fault/event schedule -- committed, human-readable, and the only
+# place a fault's timing/target/type/duration live. run_dpsim.py drives
+# DPsim's real emt.ph3.Switch component directly from these fields (via
+# dpsimpy.event.SwitchEvent3Ph); nothing here is a hard-coded literal
+# duplicated in the script -- see docs/LAB5_SPARTAN_CHAOSNET.md's
+# "deterministic scripting" framing ("the schedule is a committed, readable
+# file, not implicit in code").
+#
+# One event for the laptop-portable core DoD tier: a single line-to-ground
+# fault at substation SUB-3 (the third tap point tagged by
+# generate_topology.py for the default seed, chaosnet.DEFAULT_SEED=42),
+# clearing 150ms later. "SUB-3" and "150ms" both match
+# docs/LAB5_SPARTAN_CHAOSNET.md step 2's worked example verbatim.
+events:
+  - target: SUB-3
+    type: line-to-ground
+    trigger_time_s: 0.2
+    clearing_duration_s: 0.15

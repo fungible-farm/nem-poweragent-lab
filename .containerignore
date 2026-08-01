@@ -1,0 +1,33 @@
+# Build-context excludes for Containerfile.bakeoff (kube/benchmark-runner-
+# job.yaml's power-agent-bench-lite:local image). `podman build` otherwise
+# sends the *entire* local checkout as build context regardless of
+# .gitignore (that file only governs git, not container build context), so
+# without this file a `COPY . .` step would ship this repo's 1.3G .venv/
+# and 187M logs/ into the image and/or fail on files that don't belong
+# there.
+#
+# data/*.m (the CSIRO case files `scripts/fetch_csiro_nem_data.py` fetches)
+# is deliberately *not* excluded here: orchestrator.py's --step sweep needs
+# data/snem1803.m to exist, and there is no reasonable way for a
+# Containerfile's own RUN steps to fetch+checksum-verify it during a build
+# (network access during build is best avoided, and the real fetch script
+# is meant to be run once per checkout, not baked into every image build).
+# So this image bakes in whatever data/*.m is present on disk at build
+# time -- run `uv run scripts/fetch_csiro_nem_data.py` on the host before
+# `podman build` if data/ is empty. data/nemosis_cache/ (Lab 4's AEMO
+# download cache, ~160MB, unrelated to Lab 3) is excluded below.
+.venv/
+.git/
+logs/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+data/nemosis_cache/
+# data/models/ holds GGUF model weight(s) for a concurrent llama.cpp/
+# PowerMCP kube-manifest task in this same session (out of this
+# Containerfile's scope, and multi-GB -- also observed mid-write during
+# this build, which made an unfiltered `podman build` fail with
+# "archive/tar: write too long"). Not needed by orchestrator.py --step
+# sweep.
+data/models/

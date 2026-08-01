@@ -1,0 +1,99 @@
+# Kubernetes Pod manifest for the local Phi-4-mini-instruct inference server
+# (docs/VISION.md §4's "llamacpp-server" box; install.sh step 6 in §10).
+#
+# Status: WRITTEN AND PODMAN-EXECUTED in this sandbox -- see
+# kube/README.md and this session's report for the full log. Confirmed real:
+#
+#   podman kube play kube/llamacpp-phi-pod.yaml
+#   podman ps                                    # llamacpp-phi-pod-llamacpp-server Up
+#   curl http://127.0.0.1:8091/v1/chat/completions \
+#     -H "Content-Type: application/json" \
+#     -d '{"model":"phi-4-mini","messages":[{"role":"user","content":"Say hello in five words."}]}'
+#   podman kube play --down kube/llamacpp-phi-pod.yaml
+#
+# Image: ghcr.io/ggml-org/llama.cpp:server (CPU-only variant -- only ships the
+# `llama-server` binary, no CUDA/ROCm/Vulkan backend; confirmed real and
+# pullable via `podman pull` in this sandbox, per docs/docker.md in the
+# ggml-org/llama.cpp repo as of this session, Aug 2026). GPU-enabled tags
+# (`server-cuda`, `server-rocm`, ...) exist but are deliberately not used here
+# -- docs/VISION.md names CPU-only inference as the whole point (no vendor
+# GPU dependency for the laptop demo).
+#
+# Model: unsloth/Phi-4-mini-instruct-GGUF, file
+# Phi-4-mini-instruct-Q4_K_M.gguf (Q4_K_M quant, 2,491,874,272 bytes /
+# ~2.32 GiB). Downloaded for real this session from
+# https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/main/Phi-4-mini-instruct-Q4_K_M.gguf
+# and verified byte-for-byte against the repo's own LFS metadata
+# (`GET https://huggingface.co/api/models/unsloth/Phi-4-mini-instruct-GGUF?blobs=true`):
+# local sha256 88c00229914083cd112853aab84ed51b87bdf6b9ce42f532d8c85c7c63b1730a
+# == HF's recorded lfs.sha256 for that file, local size == HF's recorded
+# lfs.size. This is the one-time model-download exception named in
+# docs/DEFINITION_OF_DONE.md's Composition section -- install.sh (a separate
+# task) needs to fetch this same URL into data/models/ before this pod can
+# start; the file itself is gitignored (data/*, *.gguf) exactly like the
+# CSIRO case files. `unsloth` was chosen over the several other
+# Phi-4-mini-instruct GGUF requantizers found on Hugging Face Hub search
+# (VladimirRH, tensorblock, ...) for download-count/provenance confidence
+# (45k+ downloads at time of check) -- not the microsoft/Phi-3-mini-*
+# results the same search surfaces, which are a different, older model.
+#
+# --n-gpu-layers 0: forces CPU-only inference even though this image has no
+# GPU backend compiled in anyway -- kept explicit per docs/DEFINITION_OF_DONE.md's
+# literal wording ("CPU only (--n-gpu-layers 0 or equivalent)").
+#
+# -c 4096: CTX_SIZE chosen as a laptop-reasonable working context (Phi-4-mini
+# supports much longer, but every lab's prompts + tool-call transcripts in
+# this repo fit comfortably under 4096 tokens; raising it only costs more
+# CPU-side KV-cache RAM for no benefit here) -- not a spec-cited number, a
+# deliberate demo-scale choice, named here per AGENTS.md's "no undocumented
+# magic numbers" rule.
+#
+# Port: 8091 published to the host via hostPort (not hostNetwork like
+# villasnode-tap-pod.yaml -- that pod needed hostNetwork because VILLASnode
+# *sends* outbound UDP from inside the pod's netns; llama-server only accepts
+# *inbound* HTTP connections, which a normal bridged/published port handles
+# fine -- confirmed by direct experiment, see kube/README.md). 8091, not the
+# image's default 8080, because this is a shared multi-tenant sandbox host
+# with many pre-existing containers already bound to 0.0.0.0:8080 (confirmed
+# by `podman kube play` failing with "address already in use" against 8080
+# on first attempt) -- pick a free host port for your own machine if 8091 is
+# also taken.
+#
+# hostPath below is absolute (Kubernetes requires it for hostPath volumes).
+# It matches this repo's checkout location during testing -- if you've cloned
+# this repo elsewhere, edit `volumes[0].hostPath.path` below to
+# <your-checkout>/data/models before running podman kube play.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: llamacpp-phi-pod
+  labels:
+    app: poweragent-lab
+    component: llm-server
+spec:
+  restartPolicy: Never
+  containers:
+    - name: llamacpp-server
+      image: ghcr.io/ggml-org/llama.cpp:server
+      args:
+        - "-m"
+        - "/models/Phi-4-mini-instruct-Q4_K_M.gguf"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "8080"
+        - "-c"
+        - "4096"
+        - "--n-gpu-layers"
+        - "0"
+      ports:
+        - containerPort: 8080
+          hostPort: 8091
+      volumeMounts:
+        - name: models
+          mountPath: /models
+  volumes:
+    - name: models
+      hostPath:
+        path: /home/brianh/promptexecution/aemo/nem-poweragent-lab/data/models
+        type: Directory

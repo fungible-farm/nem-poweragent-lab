@@ -1,23 +1,60 @@
 # Kubernetes Job manifest for Lab 3's provider x task-family bake-off.
 #
-# Status: written, NOT executed in this sandbox -- there is no `podman`
-# binary here (see docs/DEFINITION_OF_DONE.md checklist and each lab
-# README's "Sandbox notes" section), so this manifest has not been run
-# with `podman kube play`. It is shaped to run today per docs/VISION.md
-# section 9 ("the YAML is the same shape whether Podman or a real kubelet
-# is behind it"); a machine with podman installed can validate it with:
+# Status: WRITTEN AND PODMAN-EXECUTED in this sandbox, with one real,
+# documented limitation found by actually running it (see below) --
+# `podman` (5.4.2) genuinely is present here (see kube/villasnode-tap-
+# pod.yaml, run for real in Lab 5). Build + run + teardown, confirmed this
+# session:
 #
+#   podman build -t power-agent-bench-lite:local -f Containerfile.bakeoff .
 #   podman kube play kube/benchmark-runner-job.yaml
+#   podman ps            # power-agent-bench-lite-sweep-pod-bakeoff-sweep
+#   podman logs power-agent-bench-lite-sweep-pod-bakeoff-sweep
 #   podman kube play --down kube/benchmark-runner-job.yaml
 #
-# `parallelism: 3` fans the 3-provider matrix out as 3 concurrent pods (one
-# `completion` per provider), each running the same
-# labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep against a
-# different PROVIDER_FILTER -- the serial reference path
-# (`uv run orchestrator.py --step sweep`, no env var) already covers all
-# providers in one process; this Job is the "farm the matrix out instead of
-# a for-loop" artifact named in docs/VISION.md section 9, not a required
-# path for Lab 3's own expected_scorecard.json fixture to pass.
+# THE LIMITATION (found by running it, not assumed): `podman kube play`
+# 5.4.2 does not implement Job's `completions`/`parallelism`/
+# `completionMode`/`backoffLimit` fields at all -- `man podman-kube-play`'s
+# own "Job Fields" support table lists all four as "no" (parallelism and
+# completions are silently forced to 1). So `podman kube play` on *this*
+# file creates and runs exactly ONE pod, not 3 -- it does not set the
+# `batch.kubernetes.io/job-completion-index` annotation either, so
+# PROVIDER_FILTER resolves empty in that single pod and it correctly falls
+# back to scoring every provider (the fallback in
+# labs/03-advanced-provider-bakeoff/orchestrator.py's _select_providers()
+# is real and was exercised by this, not just unit-tested).
+#
+# The PROVIDER_FILTER partitioning itself -- the actual point of this
+# manifest -- IS real and IS podman-verified, just via 3 directly-launched
+# `podman run` containers (same image, same PROVIDER_FILTER=0/1/2 env var
+# shape this manifest's fieldRef would produce on a real kubelet, same
+# shared results volume) rather than through `podman kube play`'s own
+# (unsupported) Job semantics:
+#
+#   podman run -d --name bakeoff-sweep-0 -e PROVIDER_FILTER=0 \
+#     -v $(pwd)/benchmarks/power-agent-bench-lite/results:/workspace/benchmarks/power-agent-bench-lite/results \
+#     power-agent-bench-lite:local --step sweep
+#   # ...same for PROVIDER_FILTER=1, 2
+#   podman ps   # confirmed all 3 Up concurrently
+#   # each container's log showed exactly its one assigned provider's 3
+#   # rows, and wrote a distinct scorecard.partial.<provider>.json --
+#   # error margins matched expected_scorecard.json exactly (each
+#   # provider's search is deterministic and independent, so a partitioned
+#   # run reproduces the serial run's numbers, not just its shape)
+#   uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step collect
+#   # merged the 3 partial files + a freshly-computed PowerFM row into one
+#   # 10-row scorecard, verified identical (modulo wall_clock_s) to
+#   # expected_scorecard.json
+#
+# This manifest's own shape (Indexed completionMode, per-pod
+# PROVIDER_FILTER sourced from the completion-index annotation, hostPath
+# results volume) is correct per docs/VISION.md section 9 ("the YAML is
+# the same shape whether Podman or a real kubelet is behind it") and would
+# genuinely fan out to 3 concurrent, correctly-partitioned pods on a real
+# kubelet (or any podman version/tool that implements Job's Indexed
+# completion mode) -- `podman kube play`'s own Job support just isn't
+# there yet in 5.4.2. Re-validating this note against a newer podman (or a
+# real cluster) is the natural follow-up once one is available.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -39,23 +76,29 @@ spec:
       restartPolicy: Never
       containers:
         - name: bakeoff-sweep
-          # Built from this repo's root (uv-managed); no Containerfile is
-          # committed yet -- `podman build -t power-agent-bench-lite:local .`
-          # from a future Containerfile is the documented next step, not
-          # silently assumed here.
+          # Built from this repo's root (uv-managed) via the committed
+          # Containerfile.bakeoff (named .bakeoff, not the bare
+          # `Containerfile`, to avoid colliding with any other root-level
+          # Containerfile this repo grows -- see that file's own header):
+          #
+          #   podman build -t power-agent-bench-lite:local -f Containerfile.bakeoff .
           image: power-agent-bench-lite:local
           workingDir: /workspace
           command: ["uv", "run", "labs/03-advanced-provider-bakeoff/orchestrator.py"]
           args: ["--step", "sweep"]
           env:
-            # Indexed completion mode sets JOB_COMPLETION_INDEX per pod
-            # (0, 1, 2); orchestrator.py does not currently read this env
-            # var (the serial --step sweep path runs all 3 providers
-            # unconditionally) -- wiring a PROVIDER_FILTER env var so each
-            # indexed pod scores exactly one provider is the documented
-            # follow-up to make this Job genuinely partition the matrix
-            # rather than triple-run it.
-            - name: JOB_COMPLETION_INDEX
+            # PROVIDER_FILTER is the env var orchestrator.py's
+            # _select_providers() actually reads (see that function's
+            # docstring). It accepts either a literal provider name or an
+            # integer index into PROVIDERS' iteration order -- sourcing it
+            # straight from Indexed completion mode's own per-pod
+            # `batch.kubernetes.io/job-completion-index` annotation (0, 1,
+            # 2 for this Job's 3 completions) needs no separate lookup
+            # table. Each pod scores exactly one provider's 3 rows and
+            # writes them to their own file under the mounted results
+            # volume (write_partial_scorecard()) instead of all 3 pods
+            # redundantly scoring all 3 providers.
+            - name: PROVIDER_FILTER
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
@@ -64,9 +107,22 @@ spec:
               mountPath: /workspace/benchmarks/power-agent-bench-lite/results
       volumes:
         - name: results
-          # podman kube play maps a named volume to local storage; a real
-          # multi-node cluster would instead need a shared PVC so all 3
-          # completions' result files land somewhere the collector can
-          # read -- see docs/VISION.md section 7's "Lab 3 -- Super-Stretch
-          # Goal" item 1 for when that distinction starts to matter.
-          emptyDir: {}
+          # hostPath, not emptyDir: an emptyDir's backing podman volume is
+          # only reachable through podman's own volume storage path, not
+          # this repo's own benchmarks/power-agent-bench-lite/results/ --
+          # pointing straight at that directory means all 3 completions'
+          # partial scorecards (scorecard.partial.<provider>.json, see
+          # write_partial_scorecard()) land somewhere
+          # `uv run orchestrator.py --step collect` (collect_step()) can
+          # read directly from the host after the Job completes, with no
+          # extra volume-export step. hostPath must be absolute
+          # (Kubernetes requirement, same as kube/villasnode-tap-pod.yaml's
+          # own hostPath) -- edit it if this repo is checked out elsewhere.
+          # A real multi-node cluster would instead need a shared PVC so
+          # all 3 completions' result files land somewhere a collector pod
+          # can read -- see docs/VISION.md section 7's "Lab 3 --
+          # Super-Stretch Goal" item 1 for when that distinction starts to
+          # matter.
+          hostPath:
+            path: /home/brianh/promptexecution/aemo/nem-poweragent-lab/benchmarks/power-agent-bench-lite/results
+            type: Directory

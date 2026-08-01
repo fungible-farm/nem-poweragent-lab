@@ -10,6 +10,13 @@ dependencies = [
     "scipy>=1.11",
     "pandas>=2.0",
     "numba>=0.60",
+    "nemosis>=3.8.1",
+    "dpsim>=1.2.1",
+    "simbench>=1.6.2",
+    "networkx>=3.6.1",
+    "pyyaml>=6.0.3",
+    "matplotlib>=3.11.1",
+    "mcp==1.12.2",
 ]
 
 [dependency-groups]

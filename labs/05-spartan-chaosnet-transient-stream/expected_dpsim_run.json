@@ -1,0 +1,16 @@
+{
+  "seed": 42,
+  "fault_target": "SUB-3",
+  "fault_type": "line-to-ground",
+  "time_step_s": 0.0002,
+  "trigger_time_s": 0.2,
+  "clearing_duration_s": 0.15,
+  "final_time_s": 0.55,
+  "num_samples": 2750,
+  "pre_fault_rms_v": 9425.085,
+  "during_fault_rms_v": 7875.404,
+  "post_fault_rms_v": 9885.91,
+  "sag_percent": 16.44,
+  "max_abs_v": 35760.646,
+  "converged": true
+}

@@ -5,7 +5,7 @@
     "passed": true,
     "error_margin": 0.001349,
     "iterations": 3,
-    "wall_clock_s": 0.4831,
+    "wall_clock_s": 0.287,
     "tokens": null,
     "detail": "fitted=0.9250x -> 0.9598pu (target 0.9585pu)"
   },
@@ -15,7 +15,7 @@
     "passed": true,
     "error_margin": 0.350889,
     "iterations": 3,
-    "wall_clock_s": 0.4851,
+    "wall_clock_s": 0.2773,
     "tokens": null,
     "detail": "fitted=0.9750x -> 100.3509% (target 100.0%)"
   },
@@ -25,7 +25,7 @@
     "passed": true,
     "error_margin": 0.305384,
     "iterations": 2,
-    "wall_clock_s": 0.3936,
+    "wall_clock_s": 0.23,
     "tokens": null,
     "detail": "fitted=1.0500x -> 38.1946% (target 38.5%)"
   },
@@ -35,7 +35,7 @@
     "passed": true,
     "error_margin": 0.001135,
     "iterations": 2,
-    "wall_clock_s": 0.4068,
+    "wall_clock_s": 0.2263,
     "tokens": null,
     "detail": "fitted=0.9229x -> 0.9596pu (target 0.9585pu)"
   },
@@ -45,7 +45,7 @@
     "passed": true,
     "error_margin": 0.079763,
     "iterations": 2,
-    "wall_clock_s": 0.4056,
+    "wall_clock_s": 0.2284,
     "tokens": null,
     "detail": "fitted=0.9792x -> 99.9202% (target 100.0%)"
   },
@@ -55,7 +55,7 @@
     "passed": true,
     "error_margin": 0.002944,
     "iterations": 1,
-    "wall_clock_s": 0.3013,
+    "wall_clock_s": 0.1684,
     "tokens": null,
     "detail": "fitted=1.0579x -> 38.4971% (target 38.5%)"
   },
@@ -65,7 +65,7 @@
     "passed": true,
     "error_margin": 0.001401,
     "iterations": 3,
-    "wall_clock_s": 0.5306,
+    "wall_clock_s": 0.2791,
     "tokens": null,
     "detail": "fitted=0.9255x -> 0.9599pu (target 0.9585pu)"
   },
@@ -75,7 +75,7 @@
     "passed": true,
     "error_margin": 0.225983,
     "iterations": 3,
-    "wall_clock_s": 0.6821,
+    "wall_clock_s": 0.2839,
     "tokens": null,
     "detail": "fitted=0.9762x -> 100.2260% (target 100.0%)"
   },
@@ -85,7 +85,7 @@
     "passed": true,
     "error_margin": 0.259751,
     "iterations": 2,
-    "wall_clock_s": 0.4166,
+    "wall_clock_s": 0.2277,
     "tokens": null,
     "detail": "fitted=1.0512x -> 38.2402% (target 38.5%)"
   },
@@ -95,7 +95,7 @@
     "passed": true,
     "error_margin": 1.4807,
     "iterations": null,
-    "wall_clock_s": 1e-05,
+    "wall_clock_s": 6e-06,
     "tokens": null,
     "detail": "MAPE=1.48% over 24 held-out hours (pass <= 5.0%)"
   }

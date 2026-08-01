@@ -27,14 +27,16 @@
 #   ./scripts/run_labs_1_3.sh
 #
 # Sandbox notes that apply to every lab this script runs (full detail in
-# each lab's own README.md "Sandbox notes" section, not just here): this
-# repo currently has no `podman` available in its build/CI sandbox, so
-# Labs 1-3 run pandapower/powerio directly in-process rather than through
-# podman-hosted llama.cpp/PowerMCP pods, and Lab 1/3's "agent" trial-value
-# proposals are deterministic, documented, seeded search policies rather
-# than a live local LLM. Every such swap is named at its call site in code
-# -- this script does not paper over that, it runs the real substitute and
-# reports real results from it.
+# each lab's own README.md "Sandbox notes" section, not just here): real
+# `podman`-hosted llama.cpp/PowerMCP pods now exist and run in this build
+# environment (kube/llamacpp-phi-pod.yaml, kube/powermcp-pandapower-pod.yaml
+# -- see kube/README.md and ./install.sh), but Labs 1-3 below were not
+# rewired this round to call them -- they still run pandapower/powerio
+# directly in-process, and Lab 1/3's "agent" trial-value proposals are still
+# deterministic, documented, seeded search policies rather than a live local
+# LLM. Every such swap is named at its call site in code -- this script does
+# not paper over that, it runs the real substitute and reports real results
+# from it.
 
 set -euo pipefail
 

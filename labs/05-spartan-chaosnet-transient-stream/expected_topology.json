@@ -1,0 +1,14 @@
+{
+  "seed": 42,
+  "simbench_code": "1-MV-rural--0-sw",
+  "num_buses": 14,
+  "num_lines": 28,
+  "num_taps": 3,
+  "tap_names": [
+    "SUB-1",
+    "SUB-2",
+    "SUB-3"
+  ],
+  "pandapower_converged": true,
+  "mean_vm_pu": 0.99966
+}

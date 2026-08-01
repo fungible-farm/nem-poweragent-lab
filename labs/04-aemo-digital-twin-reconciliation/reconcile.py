@@ -1,423 +1,528 @@
 #!/usr/bin/env python3
-"""Lab 4 -- Real AEMO Data: Digital-Twin Reconciliation (Part A only).
+"""Lab 4 step 3 (+ optional step 5) -- digital-twin reconciliation.
 
-See README.md in this directory for the full walkthrough, and
-docs/LAB4_AEMO_REAL_DATA.md for the original three-part spec. Four steps:
-
-    uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --step dispatch
-    uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --step map
-    uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --step reconcile
+    uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py
     uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --step check
+    uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --date 2016-09-28   # optional Part C
 
-Sandbox note (read this before the "why" of anything below): this sandbox's
-egress policy returns 403 ("destination host not allowed", confirmed via
-/root/.ccr/__agentproxy/status, not a transient failure) for nemweb.com.au
-*and* for github.com itself -- only raw.githubusercontent.com and pypi.org
-are reachable. That means:
+Imposes real SCADA MW on the synthetic generators matched by map_duids.py
+(duid_mapping.csv, summed per synthetic bus), scales all synthetic loads by
+a single factor so total demand matches the real DISPATCHREGIONSUM total,
+solves a real `pandapower.runpp()`, and compares the modelled flow at
+snemSA.m's interconnector-equivalent bus (see _lab4_shared.py) to the real
+combined V-SA + V-S-MNSP1 flow (DISPATCHREGIONSUM's NETINTERCHANGE for
+SA1) within RECONCILE_TOLERANCE_FRACTION.
 
-  - NEMOSIS is pip-installable (it's on PyPI), but `dynamic_data_compiler()`
-    cannot actually reach NEMWeb to fetch a real dispatch interval. There is
-    no live AEMO data this sandbox can pull -- SAMPLE_DUID_DISPATCH below is
-    a documented, fixed stand-in in NEMOSIS's real column shape, not a
-    captured historical interval. It uses real DUIDs (well-known South
-    Australian generating units) with illustrative capacity/dispatch
-    figures -- treat every MW value here as illustrative, not as reported
-    AEMO ground truth, and verify against AEMO's real DUDETAILSUMMARY /
-    DISPATCH_UNIT_SCADA before using this for anything beyond demonstrating
-    the mechanism.
-  - `susantoj/NEM_constraints` cannot be pip/git-installed (github.com
-    blocked), so Part B (constraint-equation literacy) is NOT implemented
-    in this pass -- see the README's "Sandbox notes" section. Faking a
-    constraint decoder rather than using the real library would violate
-    this repo's "use libraries, don't reinvent" rule worse than simply not
-    building it yet.
-  - Part C (the 2016 SA Black System narrative) is likewise not built here
-    -- it needs the same unreachable NEMWeb pull, just for a different date.
+**Honesty caveat (docs/LAB4_AEMO_REAL_DATA.md, verbatim requirement):**
+this is not a digital twin of the real SA network. snemSA.m's topology is
+synthetic -- real NEM statistics, invented specific line and bus
+parameters. This script's teaching point is the reconciliation
+methodology and the discipline of explaining the gap, not a claim that the
+modelled network reproduces reality.
 
-What IS real below: snemSA.m (real CSIRO file, powerio-parsed), every
-power-flow result (an actual pandapower.runpp() call, never fabricated),
-and the DUID names (real South Australian generating units). What is a
-documented stand-in: the specific MW figures in SAMPLE_DUID_DISPATCH and
-TOTALDEMAND_MW.
+Sandbox stand-ins (all named here and in this lab's README "Sandbox
+notes"):
+- The "interconnector-equivalent branch" is snemSA.m's single slack
+  generator (see _lab4_shared.INTERCONNECTOR_EQUIVALENT_BUS's docstring
+  for why) standing in for the real Heywood (V-SA) + Murraylink
+  (V-S-MNSP1) interconnectors combined -- snemSA.m is an SA-only island
+  reduction with no explicit branches to VIC1 at all.
+- Unmatched synthetic generators (buses with no real DUID mapped to them
+  by map_duids.py) are set to 0 MW, not left at their snemSA.m base-case
+  Pg -- see `_impose_real_generation`'s docstring for why leaving them at
+  base-case output reliably fails to converge (it double-counts capacity
+  against the real generators SCADA is imposed on) and why 0 MW is the
+  honest choice: this reconciliation only asserts generation this lab has
+  real evidence for.
+- All synthetic loads are scaled by one uniform factor
+  (`_shared.gridfit.scale_loads`, the same helper Lab 1 uses), not a
+  per-bus real allocation -- this lab has no real bus-level SA1 demand
+  data, only the regional DISPATCHREGIONSUM total, so "scale any
+  unmatched load buses" (docs/LAB4_AEMO_REAL_DATA.md Part A step 5) is
+  implemented as "scale every load bus by the same regional ratio," the
+  only demand-matching this lab's real data actually supports.
 
-One consequence of the network block worth stating plainly: docs/
-LAB4_AEMO_REAL_DATA.md's original plan was to reconcile the model against
-AEMO's *actually-reported* interconnector flow. Without a live pull there
-is no real reported figure to compare against -- so this implementation's
-"reconciliation" is a mechanism demonstration (map real DUIDs onto the
-synthetic network, impose sample dispatch, solve, check the power balance
-is physically sane) against a self-consistent illustrative sample, not a
-validated comparison to reality. Swap `sample_dispatch()`'s body for a real
-`nemosis.dynamic_data_compiler()` call the moment NEMWeb is reachable and
-the rest of this file's logic is unchanged -- at that point the reconciled
-figure becomes a genuine one.
-
-A second real finding from actually building this (kept, not smoothed
-over): snemSA.m has no modelled branch corresponding to the real
-Heywood/Murraylink interconnectors -- its designated slack bus (985, 165kV)
-is an internal sub-transmission reference node, not a boundary injection at
-an interconnector's real voltage level (Heywood is 275kV AC). Comparing
-this bus's solved P to a real interconnector flow would overclaim a
-correspondence that isn't there, so this lab scores the *power balance*
-(does imposing real-DUID dispatch plus a demand-matched scaling of the
-rest of the fleet solve to a slack residual small relative to demand -- the
-AC-loss-plus-mismatch sanity check) rather than an interconnector-flow
-match.
+--step check's optional Part C use (docs/LAB4_AEMO_REAL_DATA.md Part C):
+**this is explicitly not a claim that this model reproduces the 2016 SA
+Black System event's actual root cause.** That event's real cause --
+wind-farm low-voltage-ride-through and rate-of-change-of-frequency
+protection settings tripping in sequence -- needs dynamic/transient
+simulation this lab does not attempt (a single snapshot AC power flow
+cannot show a cascading protection-trip sequence). What --date 2016-09-28
+*can* honestly show is the real pre-event dispatch mix (high wind
+penetration, real interconnector loading) reconciled against the same
+synthetic network exactly as in Part A, with AEMO's own report supplying
+the narrative the model itself cannot -- see PART_C_NARRATIVE below and
+this lab's README "References."
 """
 from __future__ import annotations
 
 import argparse
-import csv
+import datetime
 import json
 import sys
 from pathlib import Path
-from typing import TypedDict
+from typing import Final, Optional, TypedDict
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pandapower as pp
-from _shared.gridfit import load_case
+import pandas as pd
+from _lab4_shared import (
+    LAB4_DATE,
+    NEMOSIS_CACHE_DIR,
+    PART_C_DATE,
+    PART_C_INTERVAL,
+    RECONCILE_INTERVAL,
+    RECONCILE_TOLERANCE_FLOOR_MW,
+    RECONCILE_TOLERANCE_FRACTION,
+    SA_INTERCONNECTOR_IDS,
+    load_synthetic_net,
+    slack_bus,
+)
 
-LAB_DIR = Path(__file__).resolve().parent
-DATA_FILE = LAB_DIR.parent.parent / "data" / "snemSA.m"
-MAPPING_FILE = LAB_DIR / "duid_mapping.csv"
-EXPECTED_FILE = LAB_DIR / "expected_reconciliation.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _shared.gridfit import scale_loads
 
+from nemosis import dynamic_data_compiler
 
-class SampleDuid(TypedDict):
-    """One row of the NEMOSIS-shaped sample stand-in (see module docstring).
+LAB_DIR: Final[Path] = Path(__file__).resolve().parent
+MAPPING_CSV: Final[Path] = LAB_DIR / "duid_mapping.csv"
+EXPECTED_FILE: Final[Path] = LAB_DIR / "expected_reconciliation.json"
 
-    Field names deliberately echo NEMOSIS's real DISPATCH_UNIT_SCADA /
-    DUDETAILSUMMARY columns (DUID, SCADAVALUE) so swapping in a real pull
-    later is a data-source change, not a schema change.
-    """
+# Same rationale as Lab 1/2's FIXTURE_FLOAT_ATOL / FIXTURE_VOLTAGE_ATOL:
+# looser than JSON print precision to absorb pandapower Newton-Raphson
+# solver noise across numpy/BLAS versions, tight enough to catch a real
+# regression. 0.5 MW is small relative to both RECONCILE_TOLERANCE_FLOOR_MW
+# (10 MW) and any plausible real interconnector flow (~hundreds of MW).
+FIXTURE_FLOAT_ATOL_MW: Final[float] = 0.5
 
-    DUID: str
-    FUEL_SOURCE_DESCRIPTOR: str
-    approx_registered_capacity_mw: float
-    SCADAVALUE: float
-
-
-# Real, well-known South Australian (SA1) generating units and illustrative
-# dispatch figures -- see module docstring for what "illustrative" means
-# here. Capacities are approximate public-knowledge figures for these units,
-# not sourced from a live DUDETAILSUMMARY pull (blocked, see above); verify
-# before relying on them for anything beyond this demo. Wind units are given
-# a SCADAVALUE at a plausible capacity factor (30-55%) for a windy but not
-# extreme dispatch interval; TORRA4 (gas steam) at a mid-merit dispatch
-# level. Pelican Point (PPCCGT, ~478 MW) is deliberately excluded: no
-# synthetic generator in snemSA.m is remotely close to that capacity (the
-# largest is ~137.6 MW), and forcing a bad match would be worse than
-# documenting the gap -- a real implementation would need to aggregate
-# several synthetic buses or accept the mismatch explicitly.
-SAMPLE_DUID_DISPATCH: list[SampleDuid] = [
-    {"DUID": "TORRA4", "FUEL_SOURCE_DESCRIPTOR": "Natural Gas (Steam)", "approx_registered_capacity_mw": 120.0, "SCADAVALUE": 85.0},
-    {"DUID": "HALLWF1", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 94.5, "SCADAVALUE": 41.0},
-    {"DUID": "HALLWF2", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 71.4, "SCADAVALUE": 30.0},
-    {"DUID": "SNOWTWN1", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 98.0, "SCADAVALUE": 52.0},
-    {"DUID": "WPWF", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 111.0, "SCADAVALUE": 47.0},
-    {"DUID": "LKBONNY3", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 39.0, "SCADAVALUE": 18.0},
-    {"DUID": "CATHROCK", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 66.0, "SCADAVALUE": 25.0},
-    {"DUID": "STARHLWF", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 34.5, "SCADAVALUE": 12.0},
-    {"DUID": "MTMILLAR", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 70.0, "SCADAVALUE": 33.0},
-    {"DUID": "CLEMGPWF", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 56.7, "SCADAVALUE": 21.0},
-    {"DUID": "BLUFF1", "FUEL_SOURCE_DESCRIPTOR": "Wind", "approx_registered_capacity_mw": 52.5, "SCADAVALUE": 19.0},
-]
-
-# NOTE on TOTALDEMAND: earlier drafts of this file hardcoded an
-# "illustrative" TOTALDEMAND_MW disconnected from snemSA.m's actual load.
-# That was a bug, not a modelling choice: it left generation targeting one
-# total while `net.load` (untouched) summed to a different one, so the
-# slack bus was forced to absorb the gap between them on top of real AC
-# losses -- a mismatch about the reconciliation mechanism's own arithmetic,
-# not about how well the sample dispatch reconciles against the network.
-# reconcile_step() now reads the network's own total load as the demand
-# figure (the DISPATCHREGIONSUM.TOTALDEMAND stand-in), so the only thing
-# left for the slack bus to absorb is genuine AC losses -- see
-# SLACK_BALANCE_TOLERANCE_FRACTION.
-
-# Loss/mismatch sanity band: real AC transmission losses on a ~1900 MW
-# system are typically 1-3% of throughput; 5% is a documented, generous
-# upper bound so a genuine modelling error (bad mapping, non-convergence)
-# fails the check while ordinary AC losses do not. This is a physical-
-# plausibility check, not a match against a real reported figure -- see
-# module docstring for why there is no such figure to match here.
-SLACK_BALANCE_TOLERANCE_FRACTION: float = 0.05
-
-# Float-equality slack for expected_reconciliation.json comparison, same
-# rationale as Lab 1/2's fixture tolerances (solver last-bit noise across
-# numpy/BLAS versions).
-FIXTURE_FLOAT_ATOL: float = 1e-3
-
-
-def dispatch_step(verbose: bool = True) -> list[SampleDuid]:
-    """"Fetch" step: the sample-dispatch stand-in (see module docstring for
-    why this isn't a live NEMOSIS pull in this sandbox).
-
-    Returns:
-        SAMPLE_DUID_DISPATCH, unchanged -- a function (not a bare module
-        constant reference) so a real `nemosis.dynamic_data_compiler()`
-        call is a one-function swap later.
-    """
-    if verbose:
-        total = sum(d["SCADAVALUE"] for d in SAMPLE_DUID_DISPATCH)
-        print(
-            f"[sandbox stand-in, not a live NEMOSIS pull -- see module "
-            f"docstring] {len(SAMPLE_DUID_DISPATCH)} DUIDs, "
-            f"{total:.1f} MW mapped dispatch (TOTALDEMAND is read from "
-            f"snemSA.m's own load total in reconcile_step, not hardcoded "
-            f"here -- see the note above SAMPLE_DUID_DISPATCH)"
-        )
-        for d in SAMPLE_DUID_DISPATCH:
-            print(f"  {d['DUID']:<10} {d['FUEL_SOURCE_DESCRIPTOR']:<20} "
-                  f"cap~{d['approx_registered_capacity_mw']:.1f} MW  "
-                  f"SCADAVALUE={d['SCADAVALUE']:.1f} MW")
-    return SAMPLE_DUID_DISPATCH
-
-
-class DuidMappingRow(TypedDict):
-    """One row of the committed, human-readable duid_mapping.csv."""
-
-    real_duid: str
-    fuel_source_descriptor: str
-    approx_registered_capacity_mw: float
-    matched_synthetic_bus: int
-    matched_synthetic_base_p_mw: float
-    capacity_delta_mw: float
-    rationale: str
-
-
-def map_duids(verbose: bool = True) -> list[DuidMappingRow]:
-    """"Map" step: nearest-capacity match each sample DUID to a synthetic
-    generator bus in snemSA.m.
-
-    Matching is capacity-proximity only, not fuel-type -- MATPOWER case
-    files (snemSA.m's format) carry no fuel-type field, confirmed by
-    inspecting `net.gen.columns` while building this lab (there is no
-    "fuel" or "type"-with-real-values column), so docs/LAB4_AEMO_REAL_DATA.md's
-    "fuel type where the CSIRO metadata records it" clause resolves to
-    "never, for this dataset" -- stated plainly rather than silently
-    dropped. Matching excludes the slack bus (985) and every synthetic
-    generator with zero base-case p_mw (23 of 56 non-slack generators --
-    not currently dispatched in the base case, so not a sensible target for
-    "this is where a real running unit's output goes"). Each synthetic bus
-    is used at most once (greedy, real DUIDs processed largest-capacity
-    first).
-
-    Returns:
-        One DuidMappingRow per SAMPLE_DUID_DISPATCH entry, also written to
-        duid_mapping.csv.
-    """
-    net, _ = load_case(DATA_FILE)
-    candidates = net.gen[(net.gen.bus != 985) & (net.gen.p_mw > 0)].copy()
-    candidates = candidates.sort_values("p_mw")
-
-    rows: list[DuidMappingRow] = []
-    used_buses: set[int] = set()
-    for duid in sorted(
-        SAMPLE_DUID_DISPATCH,
-        key=lambda d: d["approx_registered_capacity_mw"],
-        reverse=True,
-    ):
-        remaining = candidates[~candidates.bus.isin(used_buses)]
-        if remaining.empty:
-            raise RuntimeError(
-                f"map_duids: ran out of unused synthetic generator buses "
-                f"before mapping {duid['DUID']}"
-            )
-        diffs = (remaining.p_mw - duid["approx_registered_capacity_mw"]).abs()
-        best_idx = diffs.idxmin()
-        best_bus = int(remaining.loc[best_idx, "bus"])
-        best_p_mw = float(remaining.loc[best_idx, "p_mw"])
-        used_buses.add(best_bus)
-        rows.append(
-            {
-                "real_duid": duid["DUID"],
-                "fuel_source_descriptor": duid["FUEL_SOURCE_DESCRIPTOR"],
-                "approx_registered_capacity_mw": duid["approx_registered_capacity_mw"],
-                "matched_synthetic_bus": best_bus,
-                "matched_synthetic_base_p_mw": round(best_p_mw, 3),
-                "capacity_delta_mw": round(best_p_mw - duid["approx_registered_capacity_mw"], 3),
-                "rationale": "nearest-capacity match among non-slack, "
-                             "nonzero-p_mw synthetic generators (no fuel-type "
-                             "field in snemSA.m -- see function docstring)",
-            }
-        )
-
-    MAPPING_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with MAPPING_FILE.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-
-    if verbose:
-        print(f"{'real_duid':<10} {'->':<3} {'bus':>5} {'base_p_mw':>10} "
-              f"{'target_mw':>10} {'delta_mw':>9}")
-        for r in rows:
-            print(f"{r['real_duid']:<10} {'->':<3} {r['matched_synthetic_bus']:>5} "
-                  f"{r['matched_synthetic_base_p_mw']:>10.1f} "
-                  f"{r['approx_registered_capacity_mw']:>10.1f} "
-                  f"{r['capacity_delta_mw']:>9.1f}")
-        print(f"written to {MAPPING_FILE}")
-    return rows
+# docs/LAB4_AEMO_REAL_DATA.md Part C's guided-reading excerpt. Paraphrased
+# (not a verbatim quote) from AEMO's own public integrated final report on
+# the 28 September 2016 SA Black System event (see README "References"
+# for the exact document) -- included so `reconcile.py --date 2016-09-28`
+# is self-contained even without network access to AEMO's PDF, and printed
+# every time --date 2016-09-28 is used, immediately after the caveat.
+PART_C_NARRATIVE: Final[str] = (
+    "AEMO's integrated final report (2017) describes the pre-event SA1 "
+    "dispatch mix on 28 September 2016 as unusually wind-heavy: five "
+    "reported tornadoes tracked across the state, wind generation was "
+    "supplying roughly half of SA1's demand, and the Heywood "
+    "interconnector was importing power from Victoria. Multiple line "
+    "faults in quick succession triggered voltage disturbances; a "
+    "sequence of wind farms' low-voltage-ride-through protection settings "
+    "reduced their output faster than their registered performance "
+    "standards assumed, Heywood's flow surged to fill the gap and tripped "
+    "on overcurrent protection, and the resulting frequency collapse "
+    "islanded and then blacked out the entire SA1 region. None of that "
+    "protection-trip sequence is visible in a single snapshot AC power "
+    "flow -- see the caveat above."
+)
 
 
 class ReconciliationResult(TypedDict):
-    """Outcome of imposing sample dispatch on snemSA.m and solving AC power flow."""
+    """JSON-serializable reconciliation outcome, also the shape of
+    expected_reconciliation.json."""
 
-    total_demand_mw: float
-    mapped_dispatch_mw: float
-    unmapped_scale_factor: float
+    date: str
+    interval: str
     converged: bool
-    slack_p_mw: float
-    slack_fraction_of_demand: float
-    within_tolerance: bool
+    matched_synthetic_generators: int
+    load_scale_factor: float
+    total_demand_actual_mw: float
+    modelled_interconnector_mw: float
+    actual_interconnector_mw: float
+    synthetic_network_losses_mw: float
+    actual_interconnector_losses_mw: float
+    delta_mw: float
     tolerance_fraction: float
+    passed: bool
 
 
-def reconcile_step(verbose: bool = True) -> ReconciliationResult:
-    """"Reconcile" step: impose the sample dispatch on snemSA.m, scale the
-    unmapped fleet to match the network's own total load, solve, and score
-    the power balance (see module docstring for why this is a balance
-    check, not an interconnector-flow match).
+def _interval_for_date(date: str) -> str:
+    """Pick the dispatch interval to reconcile for a given --date.
 
-    The "TOTALDEMAND" figure (the DISPATCHREGIONSUM.TOTALDEMAND stand-in)
-    is read from `net.load.p_mw.sum()` -- snemSA.m's own real base-case
-    load total -- rather than a separately invented constant. An earlier
-    version of this function used a hardcoded illustrative total that
-    didn't match the network's actual load, which forced the slack bus to
-    absorb that mismatch on top of genuine AC losses; using the real load
-    total removes that artefact so the tolerance check below measures only
-    losses, which is what it claims to measure.
+    Args:
+        date: ISO 'YYYY-MM-DD' date.
 
     Returns:
-        A ReconciliationResult; `within_tolerance` is the pass/fail gate
-        matching docs/DEFINITION_OF_DONE.md's Lab 4 entry.
+        The full 'YYYY-MM-DD HH:MM:SS' interval: RECONCILE_INTERVAL for
+        LAB4_DATE, PART_C_INTERVAL for PART_C_DATE, else a default of
+        noon on the given date (documented fallback for any other date a
+        user passes ad hoc).
     """
-    if not DATA_FILE.exists():
+    if date == LAB4_DATE:
+        return RECONCILE_INTERVAL
+    if date == PART_C_DATE:
+        return PART_C_INTERVAL
+    return f"{date} 12:00:00"
+
+
+def _day_window(date: str) -> tuple[str, str]:
+    day = datetime.date.fromisoformat(date)
+    next_day = day + datetime.timedelta(days=1)
+    fmt = "%Y/%m/%d %H:%M:%S"
+    start = datetime.datetime.combine(day, datetime.time.min).strftime(fmt)
+    end = datetime.datetime.combine(next_day, datetime.time.min).strftime(fmt)
+    return start, end
+
+
+def _pull_reconciliation_inputs(
+    date: str, interval: str
+) -> tuple[pd.DataFrame, float, float, float]:
+    """Pull the real quantities this reconciliation needs.
+
+    Args:
+        date: ISO date (drives the NEMOSIS fetch window).
+        interval: the specific 'YYYY-MM-DD HH:MM:SS' dispatch interval.
+
+    Returns:
+        (scada_at_interval, total_demand_mw, actual_interconnector_mw,
+        actual_losses_mw): SCADA MW per DUID at `interval`; SA1's real
+        TOTALDEMAND at `interval`; SA1's real combined interconnector
+        import (-NETINTERCHANGE, i.e. positive = importing into SA1) at
+        `interval`; the real combined V-SA + V-S-MNSP1 MWLOSSES at
+        `interval` (used by the reconciliation memo to quantify how much
+        of the modelled-vs-actual delta is explained by snemSA.m's own,
+        much larger, internal line/transformer losses -- see
+        `_reconciliation_memo`).
+    """
+    start, end = _day_window(date)
+    scada = dynamic_data_compiler(
+        start, end, "DISPATCH_UNIT_SCADA", str(NEMOSIS_CACHE_DIR),
+        fformat="parquet", keep_csv=False,
+    )
+    scada_at_interval = scada[scada["SETTLEMENTDATE"] == interval]
+
+    regionsum = dynamic_data_compiler(
+        start, end, "DISPATCHREGIONSUM", str(NEMOSIS_CACHE_DIR),
+        fformat="parquet", keep_csv=False,
+    )
+    sa_row = regionsum[
+        (regionsum["SETTLEMENTDATE"] == interval) & (regionsum["REGIONID"] == "SA1")
+    ]
+    if sa_row.empty:
         print(
-            f"[FAIL] {DATA_FILE} not found -- run "
-            f"'uv run scripts/fetch_csiro_nem_data.py' first",
+            f"[FAIL] no DISPATCHREGIONSUM row for SA1 at {interval} -- "
+            f"run fetch_day.py for this date first",
             file=sys.stderr,
         )
         sys.exit(1)
+    total_demand = float(sa_row.iloc[0]["TOTALDEMAND"])
+    net_interchange = float(sa_row.iloc[0]["NETINTERCHANGE"])
+    actual_interconnector_mw = -net_interchange  # positive = import to SA1
 
-    mapping = map_duids(verbose=False)
-    net, _ = load_case(DATA_FILE)
-    total_demand_mw = float(net.load.p_mw.sum())
+    interconnectorres = dynamic_data_compiler(
+        start, end, "DISPATCHINTERCONNECTORRES", str(NEMOSIS_CACHE_DIR),
+        fformat="parquet", keep_csv=False,
+    )
+    ic_rows = interconnectorres[
+        (interconnectorres["SETTLEMENTDATE"] == interval)
+        & (interconnectorres["INTERCONNECTORID"].isin(SA_INTERCONNECTOR_IDS))
+    ]
+    actual_losses_mw = float(ic_rows["MWLOSSES"].sum())
 
-    mapped_buses = {row["matched_synthetic_bus"] for row in mapping}
-    mapped_dispatch_mw = sum(d["SCADAVALUE"] for d in SAMPLE_DUID_DISPATCH)
-    for row, duid in zip(mapping, SAMPLE_DUID_DISPATCH):
-        net.gen.loc[net.gen.bus == row["matched_synthetic_bus"], "p_mw"] = duid["SCADAVALUE"]
+    return scada_at_interval, total_demand, actual_interconnector_mw, actual_losses_mw
 
-    unmapped_mask = (~net.gen.bus.isin(mapped_buses)) & (net.gen.bus != 985)
-    unmapped_base_total = float(net.gen.loc[unmapped_mask, "p_mw"].sum())
-    target_unmapped_total = total_demand_mw - mapped_dispatch_mw
-    # Scale factor for the rest of the fleet so mapped+unmapped generation
-    # targets total_demand_mw before the AC solve (which will still add/
-    # remove a slack residual for losses -- that residual is exactly what
-    # this step scores). Guard against unmapped_base_total == 0, which
-    # cannot occur here (33 nonzero non-slack gens minus 11 mapped leaves
-    # 22 > 0) but would make the scale factor undefined.
-    if unmapped_base_total <= 0:
-        raise RuntimeError(
-            "reconcile_step: no unmapped generation capacity to scale -- "
-            "check map_duids() didn't consume every nonzero synthetic generator"
+
+def _impose_real_generation(
+    net: pp.pandapowerNet, mapping: pd.DataFrame, scada_at_interval: pd.DataFrame
+) -> int:
+    """Set each synthetic generator's p_mw from real SCADA: the sum of
+    every real DUID map_duids.py matched onto it, or 0.0 if map_duids.py
+    matched no real DUID onto it at all.
+
+    The "0.0 for unmapped generators" half of this is a deliberate
+    modelling decision, not an oversight: map_duids.py's nearest-capacity
+    matching is not a bijection (89 real SA1 generator DUIDs vs. 56
+    non-slack synthetic generators, so several real DUIDs share a nearest
+    synthetic bus -- see map_duids.py), which leaves roughly a third of
+    snemSA.m's generators with no real DUID mapped onto them at all. Left
+    at snemSA.m's own base-case OPF dispatch (this function's first
+    version), those generators' unchanged Pg stacks on top of the real
+    SCADA imposed elsewhere and inflates total synthetic generation to
+    ~2500 MW against a real ~1800 MW SA1 demand -- a generation surplus
+    that reflects double-counted capacity, not anything about the real
+    grid, and reliably fails to converge. Zeroing them instead means this
+    reconciliation only asserts generation this lab actually has real
+    SCADA evidence for; the resulting shortfall is exactly what the
+    interconnector-equivalent slack bus (see _lab4_shared.py) is for.
+
+    Args:
+        net: the synthetic pandapower net (mutated in place).
+        mapping: duid_mapping.csv, loaded.
+        scada_at_interval: DISPATCH_UNIT_SCADA rows for exactly one
+            dispatch interval.
+
+    Returns:
+        Number of synthetic generators with at least one real DUID
+        mapped onto them (regardless of that DUID's SCADA reading at this
+        particular interval, which may itself be 0).
+    """
+    scada_by_duid = scada_at_interval.set_index("DUID")["SCADAVALUE"]
+    imposed = mapping.copy()
+    imposed["scada_mw"] = imposed["real_duid"].map(scada_by_duid).fillna(0.0)
+    per_bus_mw = imposed.groupby("synthetic_gen_bus")["scada_mw"].sum()
+
+    bus_to_gen_idx = {int(b): i for i, b in net.gen["bus"].items()}
+    mapped_buses = set(int(b) for b in mapping["synthetic_gen_bus"].unique())
+    matched = 0
+    for bus, gen_idx in bus_to_gen_idx.items():
+        if net.gen.at[gen_idx, "slack"]:
+            continue  # the interconnector-equivalent bus, not a real generator
+        if bus in mapped_buses:
+            net.gen.at[gen_idx, "p_mw"] = float(per_bus_mw.get(bus, 0.0))
+            matched += 1
+        else:
+            net.gen.at[gen_idx, "p_mw"] = 0.0
+    return matched
+
+
+def reconcile(date: str = LAB4_DATE, verbose: bool = True) -> ReconciliationResult:
+    """Run Part A's full reconciliation for one dispatch interval.
+
+    Args:
+        date: ISO date to reconcile (LAB4_DATE for the ordinary-day run,
+            PART_C_DATE for the optional 2016 case study).
+        verbose: if True, print the step-by-step progress and the closing
+            reconciliation memo (see README step 3/5).
+
+    Returns:
+        A ReconciliationResult, JSON-serializable and diffable against
+        expected_reconciliation.json (see check_step).
+    """
+    interval = _interval_for_date(date)
+    if date == PART_C_DATE:
+        print("=" * 72)
+        print(
+            "CAVEAT: this is NOT a claim that this model reproduces the 2016 "
+            "SA Black System event's actual root cause. See reconcile.py's "
+            "module docstring and this lab's README before reading further."
         )
-    scale_factor = target_unmapped_total / unmapped_base_total
-    net.gen.loc[unmapped_mask, "p_mw"] = net.gen.loc[unmapped_mask, "p_mw"] * scale_factor
+        print("=" * 72)
+        print(PART_C_NARRATIVE)
+        print()
 
-    pp.runpp(net, init="flat")
-    slack_p_mw = float(net.res_gen.loc[net.gen.bus == 985, "p_mw"].iloc[0])
-    slack_fraction = abs(slack_p_mw) / total_demand_mw
-    within_tolerance = slack_fraction <= SLACK_BALANCE_TOLERANCE_FRACTION
+    if not MAPPING_CSV.exists():
+        print(
+            f"[FAIL] {MAPPING_CSV} not found -- run "
+            f"'uv run labs/04-aemo-digital-twin-reconciliation/map_duids.py' first",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    mapping = pd.read_csv(MAPPING_CSV)
 
-    result: ReconciliationResult = {
-        "total_demand_mw": round(total_demand_mw, 3),
-        "mapped_dispatch_mw": round(mapped_dispatch_mw, 3),
-        "unmapped_scale_factor": round(scale_factor, 6),
-        "converged": bool(net.converged),
-        "slack_p_mw": round(slack_p_mw, 3),
-        "slack_fraction_of_demand": round(slack_fraction, 6),
-        "within_tolerance": within_tolerance,
-        "tolerance_fraction": SLACK_BALANCE_TOLERANCE_FRACTION,
-    }
+    net, _warnings = load_synthetic_net()
+    slack = slack_bus(net)  # asserts the interconnector-equivalent assumption
+
+    if verbose:
+        print(f"Reconciling {date} interval {interval} (region SA1)")
+
+    scada_at_interval, total_demand_actual, actual_interconnector_mw, actual_losses_mw = (
+        _pull_reconciliation_inputs(date, interval)
+    )
+
+    matched = _impose_real_generation(net, mapping, scada_at_interval)
+
+    base_load_mw = float(net.load["p_mw"].sum())
+    load_scale = total_demand_actual / base_load_mw
+    net = scale_loads(net, load_scale)
 
     if verbose:
         print(
-            f"Imposed {len(mapping)} real-DUID dispatch values "
-            f"({mapped_dispatch_mw:.1f} MW), scaled remaining fleet by "
-            f"{scale_factor:.4f}x to match snemSA.m's own total load "
-            f"({total_demand_mw:.1f} MW)"
+            f"Imposed real SCADA MW on {matched} synthetic generators; "
+            f"scaled loads x{load_scale:.4f} ({base_load_mw:.1f} MW base -> "
+            f"{total_demand_actual:.1f} MW actual SA1 demand)"
         )
-        print(f"AC power flow converged: {result['converged']}")
-        status = "PASS" if within_tolerance else "FAIL"
+
+    pp.runpp(net)
+    converged = bool(net.converged)
+    modelled_interconnector_mw = float(net.res_gen.at[
+        net.gen[net.gen["slack"]].index[0], "p_mw"
+    ])
+    synthetic_losses_mw = float(net.res_line["pl_mw"].sum() + net.res_trafo["pl_mw"].sum())
+
+    delta = modelled_interconnector_mw - actual_interconnector_mw
+    tolerance_mw = max(
+        RECONCILE_TOLERANCE_FRACTION * abs(actual_interconnector_mw),
+        RECONCILE_TOLERANCE_FLOOR_MW,
+    )
+    passed = converged and abs(delta) <= tolerance_mw
+
+    if verbose:
+        status = "PASS" if passed else "FAIL"
         print(
-            f"Slack bus (985) residual: {slack_p_mw:+.2f} MW "
-            f"({slack_fraction * 100:.2f}% of demand, tolerance "
-            f"{SLACK_BALANCE_TOLERANCE_FRACTION * 100:.0f}%) -> {status}"
+            f"Modelled interconnector-equivalent flow (bus {slack}): "
+            f"{modelled_interconnector_mw:+.1f} MW"
         )
-        print(draft_memo(result, mapping))
-    return result
+        print(f"Actual combined {' + '.join(SA_INTERCONNECTOR_IDS)} flow: "
+              f"{actual_interconnector_mw:+.1f} MW")
+        print(
+            f"Delta: {delta:+.1f} MW (tolerance +/-{tolerance_mw:.1f} MW = "
+            f"{RECONCILE_TOLERANCE_FRACTION:.0%} of actual, floor "
+            f"{RECONCILE_TOLERANCE_FLOOR_MW:.0f} MW) -> {status}"
+        )
+        print()
+        print(
+            _reconciliation_memo(
+                matched, len(mapping), delta, tolerance_mw, passed,
+                synthetic_losses_mw, actual_losses_mw, mapping_is_stale=(date != LAB4_DATE),
+            )
+        )
+
+    return {
+        "date": date,
+        "interval": interval,
+        "converged": converged,
+        "matched_synthetic_generators": matched,
+        "load_scale_factor": round(load_scale, 6),
+        "total_demand_actual_mw": round(total_demand_actual, 3),
+        "modelled_interconnector_mw": round(modelled_interconnector_mw, 3),
+        "actual_interconnector_mw": round(actual_interconnector_mw, 3),
+        "synthetic_network_losses_mw": round(synthetic_losses_mw, 3),
+        "actual_interconnector_losses_mw": round(actual_losses_mw, 3),
+        "delta_mw": round(delta, 3),
+        "tolerance_fraction": RECONCILE_TOLERANCE_FRACTION,
+        "passed": passed,
+    }
 
 
-def draft_memo(result: ReconciliationResult, mapping: list[DuidMappingRow]) -> str:
-    """Plain-English reconciliation memo -- reports `result`, does not
-    itself decide pass/fail (same discipline as Lab 2's draft_memo)."""
+def _reconciliation_memo(
+    matched_gens: int, total_mapped_duids: int, delta_mw: float, tolerance_mw: float,
+    passed: bool, synthetic_losses_mw: float, actual_losses_mw: float,
+    mapping_is_stale: bool = False,
+) -> str:
+    """Draft the plain-English reconciliation memo docs/LAB4_AEMO_REAL_
+    DATA.md Part A step 8 asks for: modelled vs. actual, and a plausible
+    explanation for the difference, graded on correctly identifying the
+    divergence as a topology-fidelity artifact, not a bug.
+
+    Sandbox note: same as Lab 2's draft_memo -- docs/VISION.md has an LLM
+    draft this text; this sandbox has no live model server (see
+    labs/01-simple-loadflow-fit/run.py's module docstring for why), so
+    this is a plain Python f-string template. It only explains a delta
+    `reconcile()` already computed -- it does not decide pass/fail itself.
+
+    Args:
+        matched_gens: synthetic generators that received an imposed
+            real-SCADA value.
+        total_mapped_duids: total real DUIDs in duid_mapping.csv.
+        delta_mw: modelled minus actual interconnector flow.
+        tolerance_mw: the absolute MW tolerance band used.
+        passed: whether reconcile() judged this within tolerance.
+        synthetic_losses_mw: real pandapower-computed line + transformer
+            losses across the whole solved synthetic network.
+        actual_losses_mw: real AEMO-published combined V-SA + V-S-MNSP1
+            MWLOSSES for the same interval.
+        mapping_is_stale: True when duid_mapping.csv (always built for
+            LAB4_DATE) is being applied to a *different* date's SCADA --
+            i.e. an optional Part C run. A real DUID's capacity proxy, or
+            its very existence, can differ between the two dates (plant
+            commissioned/decommissioned, re-registered), which is a
+            second, distinct source of reconciliation error on top of the
+            network-loss one this function otherwise leads with.
+
+    Returns:
+        The memo text.
+    """
+    verdict = (
+        "within the stated tolerance" if passed
+        else "outside the stated tolerance"
+    )
+    loss_gap_mw = synthetic_losses_mw - actual_losses_mw
+    # Only credit the loss gap as *the* explanation when it plausibly
+    # pushes the delta in the same direction and is large enough to
+    # matter -- a same-magnitude loss gap of the *opposite* sign to the
+    # overall delta (seen on some Part C intervals, see mapping_is_stale)
+    # means something else dominates, and claiming otherwise would be the
+    # kind of hand-wave this lab is explicitly trying not to do.
+    loss_explains = (
+        abs(loss_gap_mw) >= 0.5 * abs(delta_mw)
+        and (loss_gap_mw > 0) == (delta_mw > 0)
+        if abs(delta_mw) > 1e-6
+        else False
+    )
     lines = [
+        "RECONCILIATION MEMO",
+        "=" * 60,
+        f"{matched_gens} of snemSA.m's 56 non-slack generators received a real "
+        f"SCADA MW value, aggregated from {total_mapped_duids} matched real "
+        f"SA1 DUIDs (see duid_mapping.csv).",
+        f"Modelled-vs-actual interconnector-equivalent delta: {delta_mw:+.1f} MW "
+        f"({verdict}, tolerance +/-{tolerance_mw:.1f} MW).",
         "",
-        "RECONCILIATION MEMO (illustrative sample, not a live pull -- see "
-        "reconcile.py module docstring)",
-        "=" * 70,
-        f"{len(mapping)} real SA1 DUIDs mapped onto snemSA.m by nearest "
-        f"generator capacity (no fuel-type field in this dataset).",
-        f"Target regional demand: {result['total_demand_mw']:.1f} MW "
-        f"(snemSA.m's own real base-case load total). Mapped real-DUID "
-        f"dispatch (illustrative, see module docstring): "
-        f"{result['mapped_dispatch_mw']:.1f} MW. Remaining fleet scaled "
-        f"{result['unmapped_scale_factor']:.3f}x to close the balance before "
-        f"solving.",
-        f"AC power flow: {'converged' if result['converged'] else 'DID NOT CONVERGE'}.",
-        f"Slack-bus residual (losses + any mismatch): "
-        f"{result['slack_p_mw']:+.2f} MW "
-        f"({result['slack_fraction_of_demand'] * 100:.2f}% of demand).",
+        f"Whole-network real losses in the solved synthetic model: "
+        f"{synthetic_losses_mw:.1f} MW (line + transformer). AEMO's "
+        f"published combined V-SA + V-S-MNSP1 loss for the same interval: "
+        f"{actual_losses_mw:.1f} MW -- a {loss_gap_mw:+.1f} MW gap.",
     ]
-    if result["within_tolerance"]:
+    if loss_explains:
         lines.append(
-            f"WITHIN the {result['tolerance_fraction'] * 100:.0f}% sanity "
-            f"band for AC losses on a system this size -- the mapping+impose "
-            f"procedure produces a physically plausible balanced case."
+            f"This loss gap alone accounts for most of the {delta_mw:+.1f} MW "
+            f"reconciliation delta: snemSA.m's per-line resistance values are "
+            f"synthetic estimates (real NEM topology, invented specific "
+            f"parameters -- see this lab's README 'Honesty caveat'), not "
+            f"calibrated to reproduce real transmission loss factors, so the "
+            f"whole-network model carries far more internal loss than the "
+            f"real interconnectors alone report. This is a topology-fidelity "
+            f"artifact, not a bug: the reconciliation's value is in "
+            f"quantifying and explaining the gap, not eliminating it."
         )
     else:
-        lines.append(
-            f"OUTSIDE the {result['tolerance_fraction'] * 100:.0f}% sanity "
-            f"band -- investigate the mapping or the scaling before trusting "
-            f"this case."
+        explanation = (
+            "This gap is expected even so, not a bug: snemSA.m's line "
+            "impedances, its single slack bus standing in for two real "
+            "interconnectors (Heywood AC + Murraylink DC) with different "
+            "loss characteristics, and a uniform load-scaling factor in "
+            "place of real bus-level demand are all synthetic-topology "
+            "approximations, not physics errors."
         )
-    lines.append(
-        "This is NOT a validation against AEMO's real reported outcome for "
-        "any actual interval -- see reconcile.py's module docstring for why "
-        "no such figure is available in this sandbox, and what changes once "
-        "NEMWeb is reachable."
-    )
+        if mapping_is_stale:
+            explanation += (
+                " On top of that, duid_mapping.csv was built from DUIDs "
+                f"registered as of {LAB4_DATE} and is being applied here to "
+                "an earlier interval: a real generator dispatched that day "
+                "may since have been re-registered or decommissioned (and "
+                "so is absent from today's mapping, imposing 0 MW where "
+                "real output existed), or vice versa -- a second, distinct "
+                "source of error specific to reconciling against a "
+                "historical date with a present-day DUID mapping."
+            )
+        explanation += (
+            " The reconciliation's value is in quantifying and explaining "
+            "this gap, not in eliminating it -- see this lab's README "
+            "'Honesty caveat.'"
+        )
+        lines.append(explanation)
     return "\n".join(lines)
 
 
-def check_step() -> bool:
-    """Self-check gate: re-run the reconciliation and diff against
-    expected_reconciliation.json."""
-    actual = reconcile_step(verbose=False)
+def check_step(date: str = LAB4_DATE) -> bool:
+    """Self-check gate: re-run reconcile() for LAB4_DATE and diff against
+    expected_reconciliation.json.
+
+    Deliberately always checks LAB4_DATE regardless of what a caller might
+    pass, matching this lab's committed fixture (Part C's 2016 run is a
+    narrative extra, not a fixture-checked path -- its real-world event
+    data doesn't need a regression fixture the way the ordinary-day
+    mechanic does).
+
+    Returns:
+        True if every compared field matches within FIXTURE_FLOAT_ATOL_MW
+        (floats) or exactly (bool/int); False otherwise.
+    """
+    actual = reconcile(LAB4_DATE, verbose=False)
+
     if not EXPECTED_FILE.exists():
         print(f"[FAIL] no fixture at {EXPECTED_FILE}", file=sys.stderr)
         return False
     expected = json.loads(EXPECTED_FILE.read_text())
 
     mismatches = []
-    for key in ("mapped_dispatch_mw", "slack_p_mw", "slack_fraction_of_demand", "converged", "within_tolerance"):
-        exp_val, act_val = expected[key], actual[key]
+    for key, val in expected.items():
+        exp_val, act_val = val, actual[key]
         if isinstance(exp_val, float):
-            ok = abs(exp_val - act_val) <= FIXTURE_FLOAT_ATOL
+            ok = abs(exp_val - act_val) <= FIXTURE_FLOAT_ATOL_MW
         else:
             ok = exp_val == act_val
         if not ok:
@@ -429,26 +534,25 @@ def check_step() -> bool:
         for key, exp_val, act_val in mismatches:
             print(f"  {key}: expected={exp_val} actual={act_val}")
         return False
-    print("MATCH: reconciliation result matches expected_reconciliation.json")
+
+    print(
+        f"MATCH: modelled={actual['modelled_interconnector_mw']} "
+        f"actual={actual['actual_interconnector_mw']} vs "
+        f"expected_reconciliation.json"
+    )
     return True
 
 
 def main() -> None:
-    """CLI entry point: dispatches to each step per --step."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--step", choices=["dispatch", "map", "reconcile", "check"], default="check"
-    )
+    parser.add_argument("--date", default=LAB4_DATE)
+    parser.add_argument("--step", choices=["run", "check"], default="run")
     args = parser.parse_args()
 
-    if args.step == "dispatch":
-        dispatch_step()
-    elif args.step == "map":
-        map_duids()
-    elif args.step == "reconcile":
-        reconcile_step()
+    if args.step == "run":
+        reconcile(args.date)
     elif args.step == "check":
-        ok = check_step()
+        ok = check_step(args.date)
         sys.exit(0 if ok else 1)
 
 
