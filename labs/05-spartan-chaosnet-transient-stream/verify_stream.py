@@ -203,6 +203,8 @@ def run_step(node: str, verbose: bool = True) -> StreamSummary:
         )
         if SAMPLE_SUMMARY_FILE.exists():
             fixture = json.loads(SAMPLE_SUMMARY_FILE.read_text())
+            fixture["live_pod"] = False
+            fixture["node"] = node
             print(json.dumps(fixture, indent=2))
             return fixture
         raise SystemExit(
