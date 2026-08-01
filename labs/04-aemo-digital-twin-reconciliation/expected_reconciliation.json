@@ -1,0 +1,10 @@
+{
+  "total_demand_mw": 1905.14,
+  "mapped_dispatch_mw": 383.0,
+  "unmapped_scale_factor": 1.260299,
+  "converged": true,
+  "slack_p_mw": 76.212,
+  "slack_fraction_of_demand": 0.040003,
+  "within_tolerance": true,
+  "tolerance_fraction": 0.05
+}

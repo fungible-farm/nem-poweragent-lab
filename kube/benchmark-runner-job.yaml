@@ -1,0 +1,72 @@
+# Kubernetes Job manifest for Lab 3's provider x task-family bake-off.
+#
+# Status: written, NOT executed in this sandbox -- there is no `podman`
+# binary here (see docs/DEFINITION_OF_DONE.md checklist and each lab
+# README's "Sandbox notes" section), so this manifest has not been run
+# with `podman kube play`. It is shaped to run today per docs/VISION.md
+# section 9 ("the YAML is the same shape whether Podman or a real kubelet
+# is behind it"); a machine with podman installed can validate it with:
+#
+#   podman kube play kube/benchmark-runner-job.yaml
+#   podman kube play --down kube/benchmark-runner-job.yaml
+#
+# `parallelism: 3` fans the 3-provider matrix out as 3 concurrent pods (one
+# `completion` per provider), each running the same
+# labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep against a
+# different PROVIDER_FILTER -- the serial reference path
+# (`uv run orchestrator.py --step sweep`, no env var) already covers all
+# providers in one process; this Job is the "farm the matrix out instead of
+# a for-loop" artifact named in docs/VISION.md section 9, not a required
+# path for Lab 3's own expected_scorecard.json fixture to pass.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: power-agent-bench-lite-sweep
+  labels:
+    app: power-agent-bench-lite
+spec:
+  # One pod per provider stand-in (local-policy-A/B/C -- see
+  # labs/03-advanced-provider-bakeoff/orchestrator.py's PROVIDERS dict).
+  completions: 3
+  parallelism: 3
+  completionMode: Indexed
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: power-agent-bench-lite
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: bakeoff-sweep
+          # Built from this repo's root (uv-managed); no Containerfile is
+          # committed yet -- `podman build -t power-agent-bench-lite:local .`
+          # from a future Containerfile is the documented next step, not
+          # silently assumed here.
+          image: power-agent-bench-lite:local
+          workingDir: /workspace
+          command: ["uv", "run", "labs/03-advanced-provider-bakeoff/orchestrator.py"]
+          args: ["--step", "sweep"]
+          env:
+            # Indexed completion mode sets JOB_COMPLETION_INDEX per pod
+            # (0, 1, 2); orchestrator.py does not currently read this env
+            # var (the serial --step sweep path runs all 3 providers
+            # unconditionally) -- wiring a PROVIDER_FILTER env var so each
+            # indexed pod scores exactly one provider is the documented
+            # follow-up to make this Job genuinely partition the matrix
+            # rather than triple-run it.
+            - name: JOB_COMPLETION_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+          volumeMounts:
+            - name: results
+              mountPath: /workspace/benchmarks/power-agent-bench-lite/results
+      volumes:
+        - name: results
+          # podman kube play maps a named volume to local storage; a real
+          # multi-node cluster would instead need a shared PVC so all 3
+          # completions' result files land somewhere the collector can
+          # read -- see docs/VISION.md section 7's "Lab 3 -- Super-Stretch
+          # Goal" item 1 for when that distinction starts to matter.
+          emptyDir: {}
