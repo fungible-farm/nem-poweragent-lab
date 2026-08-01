@@ -103,6 +103,9 @@ result on a clean checkout is.
   lab is *supposed* to do.
 - `docs/DEFINITION_OF_DONE.md` — the checklist this repo is built against; consult before claiming
   anything is "done."
+- `docs/backlog/` — gaps found after the fact (not deliberate non-goals — see
+  `docs/VISION.md` §12 for those), one numbered file per item, indexed at
+  `docs/backlog/README.md` and pointed to from `docs/VISION.md` §13.
 - `labs/_shared/gridfit.py` — shared powerio->pandapower loading and the bisection search helper
   used by Labs 1 and 3.
 - `labs/01-simple-loadflow-fit/`, `labs/02-medium-interconnection-screening/`,

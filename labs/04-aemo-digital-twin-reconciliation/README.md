@@ -2,9 +2,10 @@
 
 > Status: **implemented (Part A + Part B required, Part C optional -- also implemented)**.
 > `fetch_day.py`, `map_duids.py`, `reconcile.py`, `explain_constraint.py`,
-> `nem_constraints_vendored.py`, `expected_reconciliation.json`, `duid_mapping.csv`, and
-> `test_lab4.py` are real, runnable code that makes real network calls to AEMO's public NEMWeb MMS
-> data archive -- see [`docs/LAB4_AEMO_REAL_DATA.md`](../../docs/LAB4_AEMO_REAL_DATA.md) for the
+> `nem_constraints_vendored.py`, `expected_reconciliation.json`, `duid_mapping.csv`,
+> `sample_reconciliation_chart.png`, and `test_lab4.py` are real, runnable code that makes real
+> network calls to AEMO's public NEMWeb MMS data archive -- see
+> [`docs/LAB4_AEMO_REAL_DATA.md`](../../docs/LAB4_AEMO_REAL_DATA.md) for the
 > full concept and library choices, and "Sandbox notes" below for exactly where and why this build
 > deviates from that spec.
 
@@ -139,7 +140,10 @@ uv run python -m pytest labs/04-aemo-digital-twin-reconciliation/test_lab4.py
    `Actual combined V-SA + V-S-MNSP1 flow: +187.7 MW`, `Delta: +46.5 MW ... -> FAIL`, followed by a
    reconciliation memo that quantifies the gap: the solved synthetic network's own line +
    transformer losses (63.5 MW) are ~30x AEMO's published real interconnector losses for the same
-   interval (2.1 MW), which alone accounts for most of the delta.
+   interval (2.1 MW), which alone accounts for most of the delta, and finally
+   `[chart] wrote sample_reconciliation_chart.png` — a grouped bar chart of those same two
+   number-pairs (modelled-vs-actual interconnector flow, synthetic-vs-actual network losses), value
+   labeled, committed alongside `expected_reconciliation.json`.
    — Why it matters: this is the "does the digital twin's power flow reconstruct the market
    outcome" check — and, just as importantly, the printed memo showing the model can say *why*
    it's off (with a real, computed number backing the explanation), not just that it's off.
@@ -148,6 +152,9 @@ uv run python -m pytest labs/04-aemo-digital-twin-reconciliation/test_lab4.py
    `MATCH: modelled=234.168 actual=187.7 vs expected_reconciliation.json`. Note this checks that
    the computation *reproduces the fixture*, not that the reconciliation itself passed tolerance —
    `expected_reconciliation.json`'s own `"passed": false` is the correct, reproducible answer.
+   `--step check` also asserts the committed `sample_reconciliation_chart.png` exists, but never
+   rewrites it (`reconcile(..., refresh_chart=False)`) — only a plain `--step run` against
+   `LAB4_DATE` regenerates that chart.
 5. **`uv run labs/04-aemo-digital-twin-reconciliation/explain_constraint.py`**
    — You should see: a search across the day's binding constraints (`SA1-relevant` / `not
    SA1-relevant` printed per candidate checked), landing on a real constraint (e.g.

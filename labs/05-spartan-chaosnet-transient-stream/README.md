@@ -207,9 +207,15 @@ every run, same pattern as Labs 1–4's fetched/derived data).
    tagged as tap points (SUB-1, SUB-2, SUB-3)`, followed by
    `pandapower.runpp() converged: True (mean bus voltage 0.9997 pu)`. The edge count (28, not the
    design doc's illustrative 17) is this seed's real `nx.connected_watts_strogatz_graph(k=4)`
-   output, printed honestly rather than forced to match the doc's example.
+   output, printed honestly rather than forced to match the doc's example. It also renders the
+   generated graph structure itself — an `nx.spring_layout()` drawing of the 14 buses/28 lines,
+   with the 3 tagged tap substations (SUB-1/2/3) drawn larger and labelled so the fault target
+   (SUB-3, see step 2) is visible at a glance — to `sample_topology_plot.png`, closing the "the
+   generated topology is never drawn" gap (`docs/backlog/0004-lab4-lab5-visualization-options.md`
+   Lab 5 item 1).
    — *Backup if unavailable*: the committed `sample_topology.json` fixture (a real seed-42 run,
-   not hand-written), narrated with the same framing.
+   not hand-written) plus the pre-rendered `sample_topology_plot.png`, narrated with the same
+   framing.
 
 2. **`uv run labs/05-spartan-chaosnet-transient-stream/run_dpsim.py --schedule chaos_schedule.yaml`**
    — Real output from this sandbox:
@@ -255,7 +261,7 @@ every run, same pattern as Labs 1–4's fetched/derived data).
   with its own `--step check` self-check gate.
 - `chaos_schedule.yaml` — the committed fault schedule (one line-to-ground fault at SUB-3).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
-- `sample_topology.json`, `expected_topology.json`, `expected_dpsim_run.json`,
-  `sample_stream_summary.json`, `sample_transient_plot.png` — committed fixtures, each a real
-  output from one actual run, not hand-written.
+- `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
+  `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed
+  fixtures, each a real output from one actual run, not hand-written.
 - `test_lab5.py` — pytest wrapper around the three `--step check` gates.

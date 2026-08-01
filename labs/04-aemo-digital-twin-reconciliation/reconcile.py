@@ -13,6 +13,16 @@ snemSA.m's interconnector-equivalent bus (see _lab4_shared.py) to the real
 combined V-SA + V-S-MNSP1 flow (DISPATCHREGIONSUM's NETINTERCHANGE for
 SA1) within RECONCILE_TOLERANCE_FRACTION.
 
+The default `--step run` also (re)writes a grouped-bar-chart PNG
+(sample_reconciliation_chart.png) of the two number-pairs the printed
+reconciliation memo already discusses -- modelled-vs-actual interconnector
+flow and synthetic-vs-actual whole-network losses -- but only when
+`--date` is LAB4_DATE (see `reconcile()`'s `refresh_chart` gate, matching
+Lab 5's `generate_topology.py` fixture-write gate), so an ad-hoc `--date`
+or the optional Part C run never overwrites the officially-committed
+chart. `--step check` never writes it either (it passes
+`refresh_chart=False`); it only asserts the committed PNG exists.
+
 **Honesty caveat (docs/LAB4_AEMO_REAL_DATA.md, verbatim requirement):**
 this is not a digital twin of the real SA network. snemSA.m's topology is
 synthetic -- real NEM statistics, invented specific line and bus
@@ -66,8 +76,12 @@ from typing import Final, Optional, TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import pandapower as pp
-import pandas as pd
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import pandapower as pp  # noqa: E402
+import pandas as pd  # noqa: E402
 from _lab4_shared import (
     LAB4_DATE,
     NEMOSIS_CACHE_DIR,
@@ -89,6 +103,42 @@ from nemosis import dynamic_data_compiler
 LAB_DIR: Final[Path] = Path(__file__).resolve().parent
 MAPPING_CSV: Final[Path] = LAB_DIR / "duid_mapping.csv"
 EXPECTED_FILE: Final[Path] = LAB_DIR / "expected_reconciliation.json"
+CHART_FILE: Final[Path] = LAB_DIR / "sample_reconciliation_chart.png"
+
+# Bar colors for _plot_reconciliation()'s two series (modelled/synthetic vs
+# actual). Same exact hex pair as Lab 5's generate_topology.py
+# TOPOLOGY_BUS_NODE_COLOR / TOPOLOGY_TAP_NODE_COLOR, re-validated here for
+# this chart type (a 2-series grouped bar, not a node/edge graph) via the
+# dataviz skill's own validator: `node scripts/validate_palette.js
+# "#2a78d6,#e34948" --mode light` and `--mode dark` (run directly, not
+# estimated) both report ALL CHECKS PASS -- CVD separation 21.6 (protan),
+# normal-vision separation 32.3, contrast >=3:1 vs both chart surfaces.
+# Modelled/synthetic (this lab's model output) takes the blue slot, matching
+# verify_stream.py's blue main-series convention; the real AEMO-reported
+# actual value -- the number the model is graded against -- takes the red
+# slot, the same emphasis role Lab 5 gives its fault-target tap nodes.
+RECONCILIATION_CHART_MODELLED_COLOR: Final[str] = "#2a78d6"
+RECONCILIATION_CHART_ACTUAL_COLOR: Final[str] = "#e34948"
+
+# Matches Lab 5's verify_stream.py / generate_topology.py savefig dpi
+# convention. Figure sized for two label-heavy bar groups plus a legend,
+# narrower than verify_stream.py's wide time-series (9, 4) and less square
+# than generate_topology.py's graph layout (8, 6).
+RECONCILIATION_CHART_FIGSIZE: Final[tuple[float, float]] = (7.0, 5.0)
+RECONCILIATION_CHART_DPI: Final[int] = 130
+
+# Grouped-bar half-width (matplotlib's own documented grouped-bar-chart
+# idiom: bars centered at x-width/2 and x+width/2), and the fraction of that
+# width actually filled by each bar. Rendering bars at exactly
+# RECONCILIATION_CHART_BAR_WIDTH would place adjacent bars' edges flush
+# against each other (zero gap, confirmed by inspection: the two bars'
+# centers are RECONCILIATION_CHART_BAR_WIDTH apart, so a bar of that same
+# width has no room left over) -- RECONCILIATION_CHART_BAR_FILL_FRACTION
+# shrinks the drawn width so a visible gap survives between the two bars
+# within a group, matching the dataviz skill's mark spec (a visible surface
+# gap between adjacent bar fills).
+RECONCILIATION_CHART_BAR_WIDTH: Final[float] = 0.35
+RECONCILIATION_CHART_BAR_FILL_FRACTION: Final[float] = 0.85
 
 # Same rationale as Lab 1/2's FIXTURE_FLOAT_ATOL / FIXTURE_VOLTAGE_ATOL:
 # looser than JSON print precision to absorb pandapower Newton-Raphson
@@ -278,7 +328,63 @@ def _impose_real_generation(
     return matched
 
 
-def reconcile(date: str = LAB4_DATE, verbose: bool = True) -> ReconciliationResult:
+def _plot_reconciliation(result: ReconciliationResult, path: Path) -> None:
+    """Render the two number-pairs the printed reconciliation memo already
+    discusses (docs/backlog/0004-lab4-lab5-visualization-options.md's Lab 4
+    item): modelled-vs-actual interconnector-equivalent flow, and
+    synthetic-vs-actual whole-network losses.
+
+    A grouped bar chart, not a time series: `expected_reconciliation.json`
+    (and this function's `result` argument) is a single dispatch interval's
+    outcome, not a day-long series -- there is no time-series data available
+    here without new NEMOSIS pulls across many intervals (out of scope, see
+    docs/backlog/0004-lab4-lab5-visualization-options.md). Matches Lab 5's
+    generate_topology.py / verify_stream.py matplotlib convention (Agg
+    backend, `fig`/`ax`, `tight_layout`, `dpi=130`, `plt.close(fig)`).
+
+    Args:
+        result: a ReconciliationResult from reconcile() (any date -- this
+            function itself does not gate on LAB4_DATE; the caller does,
+            see reconcile()'s `refresh_chart` parameter).
+        path: output PNG path.
+    """
+    groups = ["Interconnector flow", "Network losses"]
+    modelled_values = [
+        result["modelled_interconnector_mw"], result["synthetic_network_losses_mw"],
+    ]
+    actual_values = [
+        result["actual_interconnector_mw"], result["actual_interconnector_losses_mw"],
+    ]
+    x_positions = range(len(groups))
+    half_width = RECONCILIATION_CHART_BAR_WIDTH / 2
+    bar_render_width = RECONCILIATION_CHART_BAR_WIDTH * RECONCILIATION_CHART_BAR_FILL_FRACTION
+
+    fig, ax = plt.subplots(figsize=RECONCILIATION_CHART_FIGSIZE)
+    modelled_bars = ax.bar(
+        [x - half_width for x in x_positions], modelled_values, bar_render_width,
+        label="Modelled / synthetic", color=RECONCILIATION_CHART_MODELLED_COLOR,
+    )
+    actual_bars = ax.bar(
+        [x + half_width for x in x_positions], actual_values, bar_render_width,
+        label="Actual (AEMO)", color=RECONCILIATION_CHART_ACTUAL_COLOR,
+    )
+    ax.bar_label(modelled_bars, fmt="%.1f", padding=3, fontsize=9)
+    ax.bar_label(actual_bars, fmt="%.1f", padding=3, fontsize=9)
+
+    ax.set_xticks(list(x_positions))
+    ax.set_xticklabels(groups)
+    ax.set_ylabel("MW")
+    ax.set_title(f"Lab 4 reconciliation -- SA1, {result['interval']}")
+    ax.legend()
+    ax.grid(True, axis="y", linewidth=0.4, alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(path, dpi=RECONCILIATION_CHART_DPI)
+    plt.close(fig)
+
+
+def reconcile(
+    date: str = LAB4_DATE, verbose: bool = True, refresh_chart: bool = True,
+) -> ReconciliationResult:
     """Run Part A's full reconciliation for one dispatch interval.
 
     Args:
@@ -286,6 +392,14 @@ def reconcile(date: str = LAB4_DATE, verbose: bool = True) -> ReconciliationResu
             PART_C_DATE for the optional 2016 case study).
         verbose: if True, print the step-by-step progress and the closing
             reconciliation memo (see README step 3/5).
+        refresh_chart: if True and date == LAB4_DATE, (re)write the
+            committed CHART_FILE PNG from this run's real output --
+            mirrors Lab 5's generate_topology.py `refresh_fixtures` gate on
+            `seed == FIXTURE_SEED`. check_step() passes False so a
+            self-check re-derivation never mutates the committed chart it
+            is about to assert the existence of; an ad-hoc `--date` run
+            (or the optional Part C run) never overwrites it regardless of
+            this flag, since the date itself is also gated below.
 
     Returns:
         A ReconciliationResult, JSON-serializable and diffable against
@@ -370,7 +484,7 @@ def reconcile(date: str = LAB4_DATE, verbose: bool = True) -> ReconciliationResu
             )
         )
 
-    return {
+    result: ReconciliationResult = {
         "date": date,
         "interval": interval,
         "converged": converged,
@@ -385,6 +499,17 @@ def reconcile(date: str = LAB4_DATE, verbose: bool = True) -> ReconciliationResu
         "tolerance_fraction": RECONCILE_TOLERANCE_FRACTION,
         "passed": passed,
     }
+
+    # Only LAB4_DATE's run overwrites the committed chart PNG -- exactly
+    # mirrors Lab 5's generate_topology.py `seed == FIXTURE_SEED and
+    # refresh_fixtures` gate, so an ad-hoc --date run or the optional Part C
+    # run (date == PART_C_DATE) can never cause fixture drift.
+    if date == LAB4_DATE and refresh_chart:
+        _plot_reconciliation(result, CHART_FILE)
+        if verbose:
+            print(f"[chart] wrote {CHART_FILE.name}")
+
+    return result
 
 
 def _reconciliation_memo(
@@ -507,11 +632,21 @@ def check_step(date: str = LAB4_DATE) -> bool:
     data doesn't need a regression fixture the way the ordinary-day
     mechanic does).
 
+    Also asserts the committed CHART_FILE PNG artifact exists (mirroring
+    Lab 5's generate_topology.py/verify_stream.py `SAMPLE_..._FILE.exists()`
+    pattern) so the self-check gate actually covers the new chart artifact
+    per AGENTS.md's "every lab is self-checking" rule, not just the JSON
+    fixture.
+
     Returns:
         True if every compared field matches within FIXTURE_FLOAT_ATOL_MW
-        (floats) or exactly (bool/int); False otherwise.
+        (floats) or exactly (bool/int) and the committed chart PNG exists;
+        False otherwise.
     """
-    actual = reconcile(LAB4_DATE, verbose=False)
+    # refresh_chart=False: a self-check re-derivation must never mutate the
+    # committed chart it is about to assert the existence of (mirrors
+    # generate_topology.py's check_step() passing refresh_fixtures=False).
+    actual = reconcile(LAB4_DATE, verbose=False, refresh_chart=False)
 
     if not EXPECTED_FILE.exists():
         print(f"[FAIL] no fixture at {EXPECTED_FILE}", file=sys.stderr)
@@ -533,6 +668,10 @@ def check_step(date: str = LAB4_DATE) -> bool:
         print("FAIL: fixture mismatch")
         for key, exp_val, act_val in mismatches:
             print(f"  {key}: expected={exp_val} actual={act_val}")
+        return False
+
+    if not CHART_FILE.exists():
+        print(f"FAIL: no chart at {CHART_FILE}")
         return False
 
     print(
