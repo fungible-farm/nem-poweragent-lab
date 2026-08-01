@@ -88,8 +88,8 @@ and why.
   matrix-partitioning logic was verified for real via 3 directly-launched `podman run` containers
   instead — see the manifest's own header). See `kube/README.md` for the full status of each.
 - `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, committed output.
-- `scripts/` — `fetch_csiro_nem_data.py`, `fetch_phi4_model.py`, `install_smoke_test.py`, and
-  `run_labs_1_3.sh` are real; `record_asciinema_demo.sh` is not yet built.
+- `scripts/` — `fetch_csiro_nem_data.py`, `fetch_phi4_model.py`, `install_smoke_test.py`,
+  `record_asciinema_demo.sh`, and `run_labs_1_3.sh` are real.
 
 ## What this is built from (all upstream, none of it written here)
 
