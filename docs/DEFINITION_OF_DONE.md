@@ -57,10 +57,11 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 
 ## The five labs
 
-- [ ] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
+- [x] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
       parameter fit against `snemSA.m`, and its printed result matches
       `expected_results.json` within the documented tolerance on every run (fixed seed).
-- [ ] Lab 2 (medium): the Agent Framework Sequential+Concurrent workflow runs end to end against
+      Verified: `./scripts/run_labs_1_3.sh`.
+- [x] Lab 2 (medium): the Agent Framework Sequential+Concurrent workflow runs end to end against
       `snem1803.m`, produces a pass/fail table for the N-1 screen, and the human-in-the-loop
       checkpoint actually blocks until acknowledged (not a no-op).
 - [x] Lab 3 (advanced) — **partially met, gap named below, not silently checked off**: the
