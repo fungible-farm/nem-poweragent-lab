@@ -2,8 +2,9 @@
 
 > Status: **implemented** — see `labs/03-advanced-provider-bakeoff/orchestrator.py` and its own
 > README's "Sandbox notes" for what stands in for a live model server in this environment.
-> `results/scorecard.json` is real, committed output from `orchestrator.py --step report`, diffable
-> against `labs/03-advanced-provider-bakeoff/expected_scorecard.json`. See `docs/VISION.md` §7
+> `results/scorecard.json` is regenerated, gitignored output from `orchestrator.py --step report`
+> (local-only; `wall_clock_s` differs every run), diffable against the committed
+> `labs/03-advanced-provider-bakeoff/expected_scorecard.json`. See `docs/VISION.md` §7
 > "Lab 3" for the original spec, including the PowerFM baseline row.
 
 A small, self-hosted benchmark harness in the same spirit as the external

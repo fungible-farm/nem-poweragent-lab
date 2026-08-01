@@ -21,7 +21,7 @@ Add a chart-emitting step to `orchestrator.py` (it already has `--step {sweep,re
   `error_margin` (or `wall_clock_s` as a second panel) — `matplotlib`, already a hard dependency,
   already used exactly once elsewhere in the repo (Lab 5's `verify_stream.py`), so this would be
   its second use, not a new pattern.
-- Read directly from the already-committed `scorecard.json` / `expected_scorecard.json` — do not
+- Read directly from the already-written `scorecard.json` / committed `expected_scorecard.json` — do not
   compute anything new, so this stays consistent with `AGENTS.md`'s "the proof scripts are the
   proof" convention: the chart is a rendering of an already-verified result, not a new source of
   truth.
@@ -43,19 +43,21 @@ docstring) wall-clock is small (~0.2-0.6s), dominated by `pandapower.runpp()` so
 rather than genuine per-provider variation, and is already excluded from `check_step()`'s fixture
 diff as machine-dependent — a second panel built on a number this noisy would add chart complexity
 without a real second signal; `error_margin` alone is the chart worth having for a first pass.
-Output: `scorecard_chart.png`, committed alongside `scorecard.json` in
-`benchmarks/power-agent-bench-lite/results/` (an explicit `!`-exception was needed in `.gitignore`,
-which otherwise ignores everything in that directory except `.gitkeep`/`scorecard.json`).
+Output: `scorecard_chart.png` in `benchmarks/power-agent-bench-lite/results/` (that directory is
+wholesale-ignored except `.gitkeep`). Like `scorecard.json` in the same directory, the PNG is
+deliberately *not* committed — `wall_clock_s` changes every real run/test, and the PNG is a
+rendering of that per-run data, so committing either turns into pure git churn with no diffable
+value (the real fixture, `expected_scorecard.json`, already lives committed in `LAB_DIR`); both
+regenerate locally on demand from `--step report`.
 `report_step()` writes the chart unconditionally (not gated behind a Lab 4/5-style `refresh_chart`
-flag): `check_step()` calls `sweep_step()` directly and never calls `report_step()`, so there is no
-self-check code path that could route through here and overwrite the committed PNG with a
-machine-dependent re-derivation -- `report_step()` only runs via an explicit `--step report` or
-`--step collect`, both already-deliberate "regenerate the committed scorecard" actions. `check_step()`
-asserts `SCORECARD_CHART_FILE.exists()` (mirroring Lab 4/5's pattern), confirmed by temporarily
-removing the PNG and re-running `--step check`, which failed with `[FAIL] no chart at ...`, then
-restoring it and re-running (`MATCH: all 10 scorecard rows match expected_scorecard.json`).
-`test_lab3.py::test_lab3_scorecard_matches_fixture` therefore transitively covers the new PNG gate
-too, since it asserts `--step check`'s exit code. Colors (`#2a78d6` blue / `#eb6834` orange /
+flag; that gate exists to protect a *committed* fixture from an ad-hoc run — there is nothing
+committed here to protect). `check_step()` calls `sweep_step()` directly and never calls
+`report_step()`, so an ordinary `--step check` never touches either file; neither its presence nor
+absence says anything about correctness (a fresh clone legitimately has neither until
+`--step report` runs once). The chart's real "does it still render" gate is
+`test_lab3.py::test_lab3_report_renders_scorecard_chart`, which unlinks the PNG and exercises
+`report_step()` directly (confirmed by running it: both Lab 3 tests pass, the fixture-diff test
+reports `MATCH: all 10 scorecard rows match expected_scorecard.json`). Colors (`#2a78d6` blue / `#eb6834` orange /
 `#1baf7a` aqua -- the dataviz skill's default palette's first three categorical slots) were
 validated as a 3-way *all-pairs* set (not just adjacent pairs, since all three bars in a 3-bar
 group are visually adjacent to the reader) via `node scripts/validate_palette.js

@@ -446,11 +446,14 @@ a grouped bar chart (`sample_reconciliation_chart.png`) of modelled-vs-actual in
 and synthetic-vs-actual network losses — the same two numbers the printed reconciliation memo
 already discusses — gated on `date == LAB4_DATE` so the optional Part C (2016 SA Black System) run
 never overwrites it. Lab 3's `orchestrator.py` now renders a 3-series grouped bar chart
-(`scorecard_chart.png`, committed alongside `scorecard.json`) of error margin by task family across
+(`scorecard_chart.png`, regenerated gitignored output alongside `scorecard.json`) of error margin by
+task family across
 its three local-policy providers, with the PowerFM baseline row deliberately excluded (no shared
 units/task_family to compare against) and that exclusion noted both in-image and in the README. All
 three are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
-convention, not just printed. Lab 2's contingency chart and Lab 5's stretch-tier symbolic
+convention, not just printed (Lab 3's chart specifically via
+`test_lab3.py::test_lab3_report_renders_scorecard_chart` exercising `report_step()` directly —
+`check_step()` never touches the uncommitted file). Lab 2's contingency chart and Lab 5's stretch-tier symbolic
 single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remain open — see
 `docs/backlog/README.md` for the current per-item status.
 
@@ -461,8 +464,8 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   symbolic/single-line-diagram options outside pandapower (`powsybl-diagram`/`pypowsybl`,
   `GridCal`, `Grid2Op.PlotGrid`, and others), tiered by whether they need a new dependency.
 - [`docs/backlog/0003-lab3-scorecard-visualization.md`](backlog/0003-lab3-scorecard-visualization.md)
-  — **Done.** Lab 3's committed bar chart from the already-committed scorecard, zero new
-  dependencies.
+  — **Done.** Lab 3's bar chart rendering of its scorecard (both regenerated gitignored output —
+  the committed fixture is `expected_scorecard.json`), zero new dependencies.
 - [`docs/backlog/0004-lab4-lab5-visualization-options.md`](backlog/0004-lab4-lab5-visualization-options.md)
   — **Lab 4's reconciliation chart: done.** **Lab 5's topology drawing: done.** Lab 5's stretch tier
   (real IEC-style symbolic single-line rendering) remains open, gated on a CIM/CGMES export step
