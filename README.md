@@ -62,7 +62,8 @@ and why.
 - `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
   real CSIRO `snemSA.m` data.
 - `labs/02-medium-interconnection-screening/` — **implemented.** Sequential + genuinely-concurrent
-  N-1 contingency screen against real CSIRO `snem1803.m` data, with a human-in-the-loop memo gate
+  N-1 contingency screen against real CSIRO `snem1803.m` data, a committed
+  `sample_contingency_chart.png` rendering the limit checks, and a human-in-the-loop memo gate
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
   a non-agentic forecasting-baseline row, scored into a diffable `expected_scorecard.json` fixture.

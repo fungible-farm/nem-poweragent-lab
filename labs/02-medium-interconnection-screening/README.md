@@ -13,7 +13,10 @@
    genuinely parallel OS processes (`concurrent.futures.ProcessPoolExecutor`); collect results.
 4. Sequential step: check each contingency against a simplified planning voltage/thermal band;
    produce a pass/fail table.
-5. Final step: draft a plain-English screening memo; a human-in-the-loop checkpoint genuinely
+5. `--step check-limits` also renders a committed `sample_contingency_chart.png` (two panels: worst
+   line-loading % vs the 100% thermal limit, and worst bus-voltage pu vs the 0.90–1.10 pu band),
+   so the N-1 screen can be looked at, not just read as a table.
+6. Final step: draft a plain-English screening memo; a human-in-the-loop checkpoint genuinely
    blocks before the memo is marked final.
 
 ## Why an AEMO modeller should care
@@ -49,7 +52,13 @@ Two more things worth knowing before you read the output:
   all, independent of the candidate connection), not something these contingencies caused.
   `workflow.py`'s `check_limits()` labels this explicitly ("pre-existing in base case, not caused
   by this contingency") rather than letting a real-data quirk look like a bug. No contingency in
-  this screen introduces a *new* breach beyond that pre-existing one.
+  this screen introduces a *new* breach beyond that pre-existing one. That same honesty carries
+  into `sample_contingency_chart.png`: the two panels plot the exact per-contingency numbers
+  `check_limits()` already evaluates (worst loading vs the 100% limit, worst voltage vs the
+  0.90–1.10 band), and because every contingency lands on the *same* pre-existing worst point the
+  bars are flat — the footnote on the chart says so, matching the printed table. The PNG is a
+  committed sample artifact (deterministic: same case + same lines => same pixels), regenerated on
+  every `--step check-limits` run and asserted to exist by `--step check`, never pixel-diffed.
 
 ## Command
 
@@ -80,9 +89,11 @@ uv run python -m pytest labs/02-medium-interconnection-screening/test_lab2.py
    — You should see: a table — line, from/to bus, worst bus voltage, worst line loading, pass/fail
    — with every row FAIL, each annotated "(pre-existing in base case, not caused by this
    contingency)" — see Sandbox notes above for why that's the honest, expected result here, not a
-   bug.
+   bug. The step also ends with `[chart] wrote sample_contingency_chart.png`, a committed
+   two-panel rendering of those same numbers (worst loading % vs the 100% thermal limit; worst
+   voltage pu vs the 0.90–1.10 pu band).
    — Why it matters: this is the actual engineering judgment call, made deterministically against
-   documented criteria, not eyeballed.
+   documented criteria, not eyeballed — and now it can be glanced at, not just read as a table.
 4. **`uv run labs/02-medium-interconnection-screening/workflow.py --step memo --approve APPROVE`**
    — You should see: the drafted plain-English screening memo printed to the terminal, then
    `Human-in-the-loop checkpoint: APPROVE received -> MEMO FINALIZED.`

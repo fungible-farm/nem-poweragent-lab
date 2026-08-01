@@ -13,7 +13,7 @@ research notes.
 
 | # | Title | Status |
 |---|-------|--------|
-| [0001](0001-topology-and-results-visualization-gap.md) | No lab renders a topology diagram or a results chart — matplotlib is used in 1 of ~15 scripts | partially done (free-tier charts landed for Labs 3/4/5; Lab 2 contingency chart still open) |
+| [0001](0001-topology-and-results-visualization-gap.md) | No lab renders a topology diagram or a results chart — matplotlib is used in 1 of ~15 scripts | partially done (charts landed for Labs 2/3/4/5; Lab 1 visual + a `pandapower.plotting` topology diagram remain) |
 | [0002](0002-pandapower-diagram-and-symbolic-representation-options.md) | Research: pandapower's own advanced diagram options, and open-source symbolic/single-line-diagram packages | done (research consumed by 0003/0004; free tier implemented, stretch tier gated on CIM/CGMES export) |
 | [0003](0003-lab3-scorecard-visualization.md) | Lab 3: bake-off scorecard has zero charts despite being the one dataset built to be compared | done |
 | [0004](0004-lab4-lab5-visualization-options.md) | Lab 4 & Lab 5: visualization options (reconciliation chart; chaos-net topology + symbolic single-line) | partially done (Lab 4 chart + Lab 5 topology drawing done; Lab 5 symbolic single-line still open) |
