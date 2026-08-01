@@ -1,0 +1,58 @@
+# Containerfile.powermcp -- builds powermcp-pandapower:local, the image
+# kube/powermcp-pandapower-pod.yaml runs (docs/VISION.md §4's
+# "powermcp-pandapower MCP server pod" box; install.sh step 6 in §10).
+#
+# Named Containerfile.powermcp, not the bare `Containerfile`, matching
+# Containerfile.bakeoff's own naming rationale (this repo's root may grow
+# more than one Containerfile; see that file's header).
+#
+# Build:
+#   podman build -t powermcp-pandapower:local -f Containerfile.powermcp .
+#
+# Base: python:3.12-slim, same choice/rationale as Containerfile.bakeoff.
+FROM docker.io/library/python:3.12-slim
+
+# Same "install uv by copying astral's own published static binary" trick as
+# Containerfile.bakeoff. This Containerfile builds a *separate* container
+# image (its own Python environment, not this repo's own uv-managed venv),
+# so AGENTS.md's "uv run / uv add only" rule -- which governs commands run
+# against this repo's own checked-out environment -- does not apply to what
+# happens inside this image; `uv pip install` here is simply the fastest
+# resolver available, used the same way Containerfile.bakeoff already uses
+# uv for its own image-internal installs. A bare `pip install` would be
+# equally acceptable per this task's own instructions.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /workspace
+
+# powermcp's own pyproject.toml declares `mcp>=1.0` with no upper bound.
+# Confirmed by direct experiment this session: mcp 2.0.0 (the current PyPI
+# `LATEST`) removed the `mcp.server.fastmcp` module (renamed internally to
+# `mcp.server.mcpserver.MCPServer`, a different class/API) that
+# PowerMCP/pandapower/panda_mcp.py imports verbatim
+# (`from mcp.server.fastmcp import FastMCP`) -- so an unpinned
+# `pip install powermcp` on or after mcp 2.0.0's release breaks
+# `powermcp run pandapower` with `ModuleNotFoundError: No module named
+# 'mcp.server.fastmcp'`. Verified working range by bisection: mcp 1.6.0
+# through 1.12.2 (the last pre-2.0 release at build time) all still expose
+# `mcp.server.fastmcp.FastMCP`; mcp 1.0.0 predates it entirely. Pinning to
+# the newest confirmed-working release rather than floating.
+RUN uv pip install --system --no-cache \
+    "mcp==1.12.2" \
+    "powermcp" \
+    "powerio"
+
+# This wrapper does not modify PowerMCP's own source; see its own module
+# docstring for exactly why it exists and what it does (PowerMCP's shipped
+# CLI only launches the pandapower server over stdio, which cannot be
+# reached from outside this container -- streamable-HTTP is required for the
+# "reachable from outside the pod" requirement in
+# docs/DEFINITION_OF_DONE.md's Composition section).
+COPY kube/powermcp_serve_http.py /workspace/powermcp_serve_http.py
+
+ENV PYTHONUNBUFFERED=1
+
+# No shell-form CMD/ENTRYPOINT split games: this image only ever runs one
+# thing. Port/host are read from POWERMCP_PORT (default 8000, the mcp SDK's
+# own FastMCP default) inside the wrapper script itself -- see its header.
+ENTRYPOINT ["python", "/workspace/powermcp_serve_http.py"]

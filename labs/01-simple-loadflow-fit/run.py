@@ -9,12 +9,17 @@ See README.md in this directory for the full walkthrough. Three steps:
 
 Sandbox note: docs/VISION.md's Lab 1 has a local Phi-4-mini LLM (served by
 llama.cpp in a podman pod) choosing each trial load-scaling value over MCP.
-This sandbox has no podman and no budget to download/serve a GGUF model, so
-the "propose next trial" decision is `gridfit.bisection_fit`'s deterministic
-bisection policy instead -- named explicitly here and in gridfit.py, not
-hidden. The physics on every iteration is a real `pandapower.runpp()` call
-either way; that split (LLM/policy proposes, pandapower disposes) is the
-actual point of the lab and is unaffected by the swap.
+A real Phi-4-mini-instruct pod now exists and runs in this sandbox
+(kube/llamacpp-phi-pod.yaml, podman-verified -- see kube/README.md), but
+this script was not rewired to call it -- docs/VISION.md section 9 names
+this lab specifically as the one where "a container is pure overhead," so
+the "propose next trial" decision below stays `gridfit.bisection_fit`'s
+deterministic bisection policy, named explicitly here and in gridfit.py,
+not hidden. The physics on every iteration is a real `pandapower.runpp()`
+call either way; that split (LLM/policy proposes, pandapower disposes) is
+the actual point of the lab and is unaffected by the swap. Wiring this
+script to call the real pod instead is a named, undone follow-up, not a
+sandbox impossibility.
 """
 from __future__ import annotations
 

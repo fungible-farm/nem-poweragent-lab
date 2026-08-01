@@ -21,6 +21,23 @@ laptop-portable core and an optional hardware-validated extension.
 **Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
 is being built against.
 
+## Install
+
+```
+./install.sh
+```
+
+One command, checks-then-acts (never silently reinstalls `uv`/`cargo`/`podman` if already
+present): installs `uv` if missing, requires `podman` to already be present (prints distro
+install instructions and stops otherwise — this script does not install a container runtime with
+root on your behalf), `uv sync`, fetches the CSIRO case data and the Phi-4-mini-instruct GGUF,
+brings up the `llamacpp-phi-pod` and `powermcp-pandapower-pod` pods via `podman kube play`, and
+finishes with `scripts/install_smoke_test.py` — a real chat completion through the LLM pod and a
+real `pandapower.runpp()` through the MCP pod, printing a final `PASS`/`FAIL` line. Measured on
+this build machine: **~43s on a re-run** with everything already cached, **~4m30s** on a fully
+cold run (dominated by the one-time ~2.3GB GGUF download over this machine's link — see
+`docs/VISION.md` §10 for the full step list).
+
 ## Status
 
 **Labs 1-3 are implemented and self-checking.** Run the whole thing end to end, with proof:
@@ -31,9 +48,16 @@ is being built against.
 
 That one committed script — not a transcript of anyone running commands by hand — is the proof
 these labs work: it fetches the real CSIRO case data, runs every step of Labs 1-3, runs the pytest
-suite, and prints a final PASS/FAIL summary. Every lab's `README.md` documents where this sandbox's
-implementation deviates from `docs/VISION.md`'s full spec (no `podman`, no live local LLM server —
-see each lab's "Sandbox notes" section for exactly what stands in for what, and why).
+suite, and prints a final PASS/FAIL summary. `podman`, a real Phi-4-mini-instruct pod, and a real
+PowerMCP pandapower pod all now genuinely exist and run in this build environment (`./install.sh`,
+`kube/llamacpp-phi-pod.yaml`, `kube/powermcp-pandapower-pod.yaml` — see `kube/README.md`), but
+Labs 1-3's own scripts were not rewired this round to call them instead of their original
+in-process stand-ins (a deterministic bisection policy standing in for the LLM's "propose next
+trial" role, direct pandapower calls standing in for an MCP tool call) — `docs/VISION.md` §9
+itself names Lab 1 as the one case where wiring in a container is intentionally *not* worth it;
+Labs 2-3 rewiring to the now-real pods is a named, undone follow-up, not a sandbox impossibility.
+See each lab's own `README.md` "Sandbox notes" section for exactly what stands in for what today,
+and why.
 
 - `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
   real CSIRO `snemSA.m` data.
@@ -57,12 +81,15 @@ see each lab's "Sandbox notes" section for exactly what stands in for what, and 
   `README.md` for exactly which node-type (`socket`/UDP/JSON, not `iec61850-9-2` — compiled into
   the image but fails to actually start in this sandbox even under `--privileged`) and transport
   (file, not a live `dpsimpyvillas` socket) had to be substituted, and why.
-- `kube/` — `benchmark-runner-job.yaml` is a written, valid (not yet podman-executed in this
-  sandbox) Job manifest for Lab 3; `villasnode-tap-pod.yaml` (Lab 5) is written **and actually run**
-  via real `podman kube play` in this sandbox; the LLM-server/PowerMCP pods remain spec only.
+- `kube/` — all four manifests are written **and real-podman-executed**: `llamacpp-phi-pod.yaml`,
+  `powermcp-pandapower-pod.yaml`, `villasnode-tap-pod.yaml` (Lab 5), and `benchmark-runner-job.yaml`
+  (Lab 3 — with one documented `podman kube play` limitation: v5.4.2 doesn't implement Kubernetes
+  Job's `completions`/`parallelism` fields, so it runs as a single pod rather than 3; the actual
+  matrix-partitioning logic was verified for real via 3 directly-launched `podman run` containers
+  instead — see the manifest's own header). See `kube/README.md` for the full status of each.
 - `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, committed output.
-- `scripts/` — `fetch_csiro_nem_data.py` and `run_labs_1_3.sh` are real; `record_asciinema_demo.sh`
-  is not yet built.
+- `scripts/` — `fetch_csiro_nem_data.py`, `fetch_phi4_model.py`, `install_smoke_test.py`, and
+  `run_labs_1_3.sh` are real; `record_asciinema_demo.sh` is not yet built.
 
 ## What this is built from (all upstream, none of it written here)
 

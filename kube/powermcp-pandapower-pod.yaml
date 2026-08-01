@@ -1,0 +1,84 @@
+# Kubernetes Pod manifest for the PowerMCP pandapower MCP tool server
+# (docs/VISION.md §4's "powermcp-pandapower MCP server pod" box; install.sh
+# step 6 in §10).
+#
+# Status: WRITTEN AND PODMAN-EXECUTED in this sandbox -- see kube/README.md
+# and this session's report for the full log. Confirmed real:
+#
+#   podman build -t powermcp-pandapower:local -f Containerfile.powermcp .
+#   podman kube play kube/powermcp-pandapower-pod.yaml
+#   podman ps                             # powermcp-pandapower-pod-powermcp Up
+#   uv run --with mcp==1.12.2 python -c '<see kube/README.md for the full
+#       list_tools + run_power_flow client script>'
+#   podman kube play --down kube/powermcp-pandapower-pod.yaml
+#
+# Image: powermcp-pandapower:local, built from Containerfile.powermcp (repo
+# root) -- there is no pre-built upstream image for PowerMCP
+# (https://github.com/Power-Agent/PowerMCP), so this repo builds its own,
+# same pattern as kube/benchmark-runner-job.yaml's power-agent-bench-lite
+# image. See Containerfile.powermcp's own header for the build and the
+# mcp==1.12.2 pin rationale (mcp>=2.0.0 breaks PowerMCP's pandapower server
+# import -- a real, verified-by-bisection compatibility finding, not a
+# guess).
+#
+# NAMED LIMITATION (per AGENTS.md's "sandbox stand-ins must be named, not
+# hidden" rule): PowerMCP's shipped `powermcp run pandapower` CLI only
+# starts its pandapower tool server over stdio
+# (pandapower/panda_mcp.py: `if __name__ == "__main__": mcp.run(transport=
+# "stdio")`) -- a parent-process-pipe transport, unreachable from outside
+# the container it runs in. This pod does NOT run that CLI entry point.
+# Instead it runs kube/powermcp_serve_http.py, a small wrapper (committed in
+# this repo, does not modify PowerMCP's own source) that loads the exact
+# same panda_mcp.py file via PowerMCP's own registry API, skips its
+# stdio-launching `__main__` guard, and calls the resulting FastMCP server's
+# `.run(transport="streamable-http")` directly -- confirmed a real,
+# externally-reachable MCP endpoint by direct experiment (see this pod's own
+# verification session in kube/README.md). See
+# kube/powermcp_serve_http.py's own module docstring for the full
+# explanation. This is exactly the kind of substitution AGENTS.md requires
+# naming at the call site rather than silently faking a pass -- a future
+# contributor with a PowerMCP release that adds native HTTP transport
+# support needs to find this exact file to delete.
+#
+# Port: 8000 (mcp Python SDK's own FastMCP default) published to the host as
+# 8001 via hostPort, to avoid the same "shared sandbox host, port already
+# claimed by an unrelated container" issue documented in
+# kube/llamacpp-phi-pod.yaml's header -- 8000 itself was free at build time,
+# but 8001 was chosen defensively; edit hostPort below if 8001 is taken on
+# your machine. hostNetwork is not needed here for the same reason as the
+# llamacpp pod: this server only accepts inbound HTTP, it makes no outbound
+# connections of its own.
+#
+# /data hostPath mount (read-only): panda_mcp.py's `load_network_from_any`
+# tool takes a file_path argument that it opens on whatever filesystem the
+# *server process* runs on, not the caller's -- so verifying the tool with a
+# real CSIRO case file (rather than only the trivial no-argument
+# `create_empty_network`/`list_tools` calls) requires the case file to
+# exist inside this container. Mounts this repo's own data/ (the same
+# scripts/fetch_csiro_nem_data.py output Labs 1-2 use) at /data. Absolute
+# hostPath, same reason and same "edit this for your own checkout location"
+# note as kube/villasnode-tap-pod.yaml and kube/llamacpp-phi-pod.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: powermcp-pandapower-pod
+  labels:
+    app: poweragent-lab
+    component: mcp-tool-server
+spec:
+  restartPolicy: Never
+  containers:
+    - name: powermcp
+      image: localhost/powermcp-pandapower:local
+      ports:
+        - containerPort: 8000
+          hostPort: 8001
+      volumeMounts:
+        - name: case-data
+          mountPath: /data
+          readOnly: true
+  volumes:
+    - name: case-data
+      hostPath:
+        path: /home/brianh/promptexecution/aemo/nem-poweragent-lab/data
+        type: Directory

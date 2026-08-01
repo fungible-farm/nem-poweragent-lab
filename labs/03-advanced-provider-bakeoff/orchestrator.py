@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
 """Lab 3 (Advanced) -- Multi-Provider Bake-off, Podman-Scaled.
 
-See README.md in this directory for the full walkthrough. Two steps:
+See README.md in this directory for the full walkthrough. Four steps:
 
     uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep
     uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report
     uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step check
+    uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step collect
+
+`--step sweep` scores every provider in one process by default (the serial
+reference path `check`/`report` also use). Setting the `PROVIDER_FILTER` env
+var (a provider name, or an integer index into PROVIDERS -- see
+_select_providers()) restricts a single `--step sweep` invocation to one
+provider and persists its 3 rows to a distinct partial-scorecard file; this
+is what kube/benchmark-runner-job.yaml's 3 indexed Job completions do so the
+matrix is genuinely partitioned across concurrent pods instead of each pod
+redundantly scoring all 3 providers. `--step collect` merges those partial
+files (plus a freshly-computed PowerFM baseline row) back into one scorecard
+in the same shape `--step report` writes for the serial path -- see
+collect_step().
 
 Sandbox note (the most significant deviation from docs/VISION.md of any lab
 in this repo -- read this before trusting the "provider" column):
@@ -13,8 +26,13 @@ docs/VISION.md's Lab 3 swaps three *live* local LLMs (Phi-4-mini-instruct,
 Gemma-4, Llama-3.2-3B) through a single llama.cpp pod via
 `podman kube play --replace`, orchestrated with Agent Framework's
 Magentic/group-chat pattern, plus a PowerFM OpenPowerBench checkpoint
-pulled from Hugging Face Hub. This sandbox has no podman, no GPU, and no
-budget to download and serve three GGUF models or a PowerFM checkpoint. So:
+pulled from Hugging Face Hub. A real Phi-4-mini-instruct pod now exists and
+runs in this sandbox (kube/llamacpp-phi-pod.yaml, podman-verified -- see
+kube/README.md, and `podman kube play --replace` genuinely works, confirmed
+independently swapping that pod without touching a concurrently-running
+powermcp pod), but this script was not rewired to call it, and no GPU or
+budget exists to also download/serve Gemma-4, Llama-3.2-3B, or a real
+PowerFM checkpoint. So:
 
   - PROVIDER_A/B/C below are three deterministic search *policies*
     (see gridfit.bisection_fit, _regula_falsi_fit, _perturbed_bisection_fit)
@@ -39,6 +57,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import random
 import sys
 import time
@@ -316,17 +335,94 @@ PROVIDERS: dict[str, Callable[..., FitResult]] = {
     "local-policy-C": _perturbed_bisection_fit,
 }
 
+# Env var read by _select_providers() to partition PROVIDERS across
+# concurrent processes -- kube/benchmark-runner-job.yaml's 3 indexed Job
+# completions each set this from `batch.kubernetes.io/job-completion-index`
+# (always an integer 0, 1, 2, ... under Indexed completion mode), and a
+# human can equally run `PROVIDER_FILTER=local-policy-B uv run
+# orchestrator.py --step sweep` directly. Unset (the default) means "run
+# every provider" -- the original serial reference path, unchanged, which
+# is what expected_scorecard.json / test_lab3.py exercise.
+PROVIDER_FILTER_ENV_VAR: str = "PROVIDER_FILTER"
 
-def run_sweep(verbose: bool = True) -> list[TaskFamilyResult]:
+# Glob for the per-provider partial scorecards written by a
+# PROVIDER_FILTER-restricted `--step sweep` (write_partial_scorecard()) and
+# read back by `--step collect` (collect_step()).
+PARTIAL_SCORECARD_GLOB: str = "scorecard.partial.*.json"
+
+
+def _select_providers() -> dict[str, Callable[..., FitResult]]:
+    """Resolve which entries of PROVIDERS this invocation should score.
+
+    Reads PROVIDER_FILTER_ENV_VAR from the environment:
+      - unset or empty: every provider (the serial reference path;
+        preserves expected_scorecard.json / test_lab3.py's behaviour
+        exactly).
+      - a literal key of PROVIDERS (e.g. "local-policy-B"): just that one.
+      - an integer string (what
+        kube/benchmark-runner-job.yaml's `batch.kubernetes.io/job-
+        completion-index` fieldRef actually provides): resolved
+        positionally against PROVIDERS' iteration order (stable dict order,
+        guaranteed since Python 3.7) -- completion index 0 -> the first
+        provider, 1 -> the second, 2 -> the third.
+
+    Returns:
+        A dict with exactly the PROVIDERS entries to score this run. When
+        the filter is unset, this is PROVIDERS itself (not a copy), so
+        callers can use `providers is PROVIDERS` to detect the unfiltered
+        (serial) case.
+
+    Raises:
+        SystemExit: PROVIDER_FILTER_ENV_VAR is set but names neither a
+        valid provider nor a valid index -- fail fast rather than silently
+        scoring zero or the wrong provider.
+    """
+    raw = os.environ.get(PROVIDER_FILTER_ENV_VAR)
+    if not raw:
+        return PROVIDERS
+    if raw in PROVIDERS:
+        return {raw: PROVIDERS[raw]}
+    provider_names = list(PROVIDERS)
+    try:
+        idx = int(raw)
+    except ValueError:
+        print(
+            f"[FAIL] {PROVIDER_FILTER_ENV_VAR}={raw!r} is neither a provider "
+            f"name {provider_names} nor an integer index",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not (0 <= idx < len(provider_names)):
+        print(
+            f"[FAIL] {PROVIDER_FILTER_ENV_VAR}={raw!r} out of range for "
+            f"{len(provider_names)} providers {provider_names}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    name = provider_names[idx]
+    return {name: PROVIDERS[name]}
+
+
+def run_sweep(
+    providers: Optional[dict[str, Callable[..., FitResult]]] = None,
+    verbose: bool = True,
+) -> list[TaskFamilyResult]:
     """Run every (provider, task family) pair and collect results.
 
     Args:
+        providers: which providers to score; defaults to all of PROVIDERS
+            (the serial reference path). kube/benchmark-runner-job.yaml's
+            partitioned pods pass a single-entry dict via _select_providers().
         verbose: if True, print one row as each pair completes.
 
     Returns:
-        3 providers x 3 task families = 9 TaskFamilyResult rows (tokens is
-        always None: no live model server ran, see module docstring).
+        len(providers) x 3 task families TaskFamilyResult rows (9 in the
+        unfiltered/default case; 3 when `providers` is restricted to one
+        entry). tokens is always None: no live model server ran, see module
+        docstring.
     """
+    if providers is None:
+        providers = PROVIDERS
     if not DATA_FILE.exists():
         print(
             f"[FAIL] {DATA_FILE} not found -- run "
@@ -339,7 +435,7 @@ def run_sweep(verbose: bool = True) -> list[TaskFamilyResult]:
     families = _make_task_families(net)
 
     rows: list[TaskFamilyResult] = []
-    for provider_name, search_fn in PROVIDERS.items():
+    for provider_name, search_fn in providers.items():
         for family in families:
             start = time.perf_counter()
             result = search_fn(
@@ -441,12 +537,108 @@ def powerfm_baseline_row(verbose: bool = True) -> TaskFamilyResult:
 
 
 def sweep_step(verbose: bool = True) -> list[TaskFamilyResult]:
-    """Run the full matrix: 3 providers x 3 task families, plus the PowerFM
-    baseline row, appended last (per docs/VISION.md's presenter walkthrough:
-    "ending with the PowerFM ... baseline row")."""
-    rows = run_sweep(verbose=verbose)
-    rows.append(powerfm_baseline_row(verbose=verbose))
+    """Run the matrix selected by PROVIDER_FILTER_ENV_VAR (see
+    _select_providers()): 3 providers x 3 task families, plus the PowerFM
+    baseline row appended last (per docs/VISION.md's presenter walkthrough:
+    "ending with the PowerFM ... baseline row") -- unless the filter
+    restricts this run to a single provider, in which case only that
+    provider's 3 rows are returned and the PowerFM row is *not* appended:
+    it isn't part of any single provider's partition of the matrix, so a
+    partitioned run would otherwise triplicate it across kube/benchmark-
+    runner-job.yaml's 3 completions. collect_step() adds it back in exactly
+    once when merging partial runs."""
+    providers = _select_providers()
+    rows = run_sweep(providers=providers, verbose=verbose)
+    if providers is PROVIDERS:
+        rows.append(powerfm_baseline_row(verbose=verbose))
     return rows
+
+
+def write_partial_scorecard(rows: list[TaskFamilyResult]) -> Path:
+    """Write one partitioned provider's rows to their own file in
+    RESULTS_DIR, so multiple concurrent PROVIDER_FILTER-restricted
+    `--step sweep` runs (kube/benchmark-runner-job.yaml's 3 indexed Job
+    completions, sharing one results volume) don't clobber each other.
+    collect_step() reads every such file back and merges them into one
+    scorecard.
+
+    Args:
+        rows: this run's rows -- expected to be exactly one provider's 3
+            task-family rows, i.e. sweep_step() called with
+            PROVIDER_FILTER_ENV_VAR set.
+
+    Returns:
+        The path written.
+
+    Raises:
+        ValueError: if `rows` is empty or spans more than one provider --
+            this function only ever writes a single partitioned provider's
+            output, never a mix.
+    """
+    if not rows:
+        raise ValueError("write_partial_scorecard: rows is empty")
+    providers_seen = {row["provider"] for row in rows}
+    if len(providers_seen) != 1:
+        raise ValueError(
+            f"write_partial_scorecard expects exactly one provider's rows, "
+            f"got {providers_seen}"
+        )
+    provider_name = providers_seen.pop()
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    partial_file = RESULTS_DIR / f"scorecard.partial.{provider_name}.json"
+    partial_file.write_text(json.dumps(rows, indent=2))
+    print(f"Partial scorecard for {provider_name} written to {partial_file}")
+    return partial_file
+
+
+def collect_step() -> list[TaskFamilyResult]:
+    """Merge distinct per-provider partial scorecards (written by
+    PROVIDER_FILTER-restricted `--step sweep` runs, e.g.
+    kube/benchmark-runner-job.yaml's 3 indexed completions, via
+    write_partial_scorecard()) back into one scorecard matching the shape
+    report_step() writes for the serial reference path.
+
+    This is the collection half of the "farm the matrix out instead of a
+    for-loop" path named in docs/VISION.md section 9: it reads every
+    RESULTS_DIR / "scorecard.partial.*.json" file present, orders the rows
+    by PROVIDERS' own iteration order (so the merged result is directly
+    comparable, row for row, to the serial run_sweep() path -- each
+    provider's search is deterministic and independent of the others, so
+    partitioned rows have the same values as the serial run, not just the
+    same shape), computes the PowerFM baseline row itself (not part of any
+    partitioned provider's file -- see powerfm_baseline_row()), and writes
+    the combined scorecard via report_step().
+
+    Returns:
+        The merged rows, in the same provider/task_family order as
+        sweep_step()'s unfiltered (serial) output.
+
+    Raises:
+        SystemExit: a provider named in PROVIDERS has no partial file in
+            RESULTS_DIR -- a genuinely missing/failed completion should
+            fail this step loudly, not silently produce a short scorecard.
+    """
+    rows_by_provider: dict[str, list[TaskFamilyResult]] = {}
+    for partial_file in sorted(RESULTS_DIR.glob(PARTIAL_SCORECARD_GLOB)):
+        provider_rows: list[TaskFamilyResult] = json.loads(partial_file.read_text())
+        for row in provider_rows:
+            rows_by_provider.setdefault(row["provider"], []).append(row)
+
+    missing = [name for name in PROVIDERS if name not in rows_by_provider]
+    if missing:
+        print(
+            f"[FAIL] no partial scorecard found for provider(s) {missing} in "
+            f"{RESULTS_DIR} (expected files matching {PARTIAL_SCORECARD_GLOB}) "
+            "-- run the partitioned sweep for every provider before collecting",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    merged: list[TaskFamilyResult] = []
+    for provider_name in PROVIDERS:
+        merged.extend(rows_by_provider[provider_name])
+    merged.append(powerfm_baseline_row(verbose=False))
+    return report_step(merged)
 
 
 def report_step(rows: Optional[list[TaskFamilyResult]] = None) -> list[TaskFamilyResult]:
@@ -515,17 +707,25 @@ def main() -> None:
     """CLI entry point: dispatches to sweep/report/check per --step."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--step", choices=["sweep", "report", "check"], default="check"
+        "--step", choices=["sweep", "report", "check", "collect"], default="check"
     )
     args = parser.parse_args()
 
     if args.step == "sweep":
-        sweep_step()
+        rows = sweep_step()
+        # A PROVIDER_FILTER-restricted run is one partition of the matrix
+        # (kube/benchmark-runner-job.yaml's indexed pods) -- persist it so
+        # `--step collect` can merge it with the other partitions. The
+        # unfiltered/serial path prints only, unchanged from before.
+        if os.environ.get(PROVIDER_FILTER_ENV_VAR):
+            write_partial_scorecard(rows)
     elif args.step == "report":
         report_step()
     elif args.step == "check":
         ok = check_step()
         sys.exit(0 if ok else 1)
+    elif args.step == "collect":
+        collect_step()
 
 
 if __name__ == "__main__":

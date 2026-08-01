@@ -1,0 +1,53 @@
+# Containerfile.bakeoff -- builds power-agent-bench-lite:local, the image
+# kube/benchmark-runner-job.yaml runs for Lab 3's provider x task-family
+# bake-off (labs/03-advanced-provider-bakeoff/orchestrator.py).
+#
+# Named Containerfile.bakeoff, not the bare `Containerfile`, so it doesn't
+# collide with any other root-level Containerfile this repo may grow (e.g.
+# a future llama.cpp/PowerMCP image being built concurrently elsewhere in
+# this session) -- see kube/benchmark-runner-job.yaml's own header for the
+# exact build/run/teardown commands and this file's real, podman-verified
+# build/run session.
+#
+# Build:
+#   podman build -t power-agent-bench-lite:local -f Containerfile.bakeoff .
+#
+# Base: python:3.12-slim (this repo's pyproject.toml pins
+# requires-python = ">=3.11"; 3.12 was already present locally as of this
+# build -- confirmed via `podman images`, no extra pull needed).
+FROM docker.io/library/python:3.12-slim
+
+# Install uv itself by copying the official static binary out of astral's
+# own published image (already present locally too) -- this is the
+# Containerfile's own internal build step for a fresh container
+# filesystem, a different environment from this repo's own dev venv, so
+# AGENTS.md's "uv run / uv add only" convention (which governs commands
+# run against *this repo's own checked-out environment*) does not apply to
+# how uv itself gets installed inside the image.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /workspace
+
+# Copy dependency manifests first so `uv sync` is Docker/Podman-layer
+# cached across rebuilds that only touch lab code, not dependencies.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+# Now copy the rest of the repo. .containerignore (repo root) excludes
+# .venv/, .git/, logs/, __pycache__/, and data/nemosis_cache/ -- see that
+# file's own header for why data/*.m (the CSIRO case files this lab's
+# orchestrator.py needs) is deliberately *not* excluded.
+COPY . .
+RUN uv sync --frozen
+
+ENV PYTHONUNBUFFERED=1
+
+# No shell-form CMD/ENTRYPOINT split games: the kube manifest supplies its
+# own `command`/`args` (["uv", "run", "labs/.../orchestrator.py"] /
+# ["--step", "sweep"]), so this default is only what runs if the image is
+# invoked directly with no override -- the same sweep the manifest runs,
+# with no PROVIDER_FILTER set (i.e. every provider, the serial reference
+# path), useful for a quick `podman run --rm power-agent-bench-lite:local`
+# smoke test.
+ENTRYPOINT ["uv", "run", "labs/03-advanced-provider-bakeoff/orchestrator.py"]
+CMD ["--step", "sweep"]

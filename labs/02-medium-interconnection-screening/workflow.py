@@ -10,18 +10,21 @@ See README.md in this directory for the full walkthrough. Four steps:
 
 Sandbox note: docs/VISION.md's Lab 2 runs this as a Microsoft Agent Framework
 Sequential+Concurrent workflow, calling a podman-hosted PowerMCP pandapower
-server for every physics step. This sandbox has no podman, so there is no
-running PowerMCP pod to call over MCP -- the four steps below are the same
-sequential/concurrent shape (a sequential base-case solve, a *genuinely*
-concurrent N-1 fan-out via ProcessPoolExecutor, a sequential limit-check,
-then a gated memo step) implemented as direct pandapower calls in-process
-instead of MCP tool calls. The physics, the parallelism, and the
-human-in-the-loop gate are all real; only the transport (MCP-over-a-pod vs.
-an in-process function call) is swapped, and that swap is the one named in
-docs/VISION.md section 9 itself ("for a single interactive fit... a
-container is pure overhead") -- Lab 2 is the first place a live PowerMCP pod
-would earn its keep, and this file is written so dropping in an MCP client
-call in place of `run_contingency()` is the only change needed later.
+server for every physics step. A real PowerMCP pandapower pod now exists and
+runs in this sandbox (kube/powermcp-pandapower-pod.yaml, podman-verified --
+see kube/README.md), but this script was not rewired to call it over MCP --
+that rewiring is a named, undone follow-up, not a sandbox impossibility. The
+four steps below are the same sequential/concurrent shape (a sequential
+base-case solve, a *genuinely* concurrent N-1 fan-out via
+ProcessPoolExecutor, a sequential limit-check, then a gated memo step)
+implemented as direct pandapower calls in-process instead of MCP tool calls.
+The physics, the parallelism, and the human-in-the-loop gate are all real;
+only the transport (MCP-over-a-pod vs. an in-process function call) is
+swapped, and that swap is the one named in docs/VISION.md section 9 itself
+("for a single interactive fit... a container is pure overhead") -- Lab 2 is
+the first place a live PowerMCP pod would earn its keep, and this file is
+written so dropping in an MCP client call in place of `run_contingency()` is
+the only change needed later.
 """
 from __future__ import annotations
 
