@@ -419,3 +419,62 @@ it, so the walkthrough can't drift out of sync with the actual code the way a sl
 - No new Rust code (see §8) — we consume `powerio`, we don't fork it.
 - Not a sales artifact — no ROI slide, no competitor comparison; the labs either reproduce the
   claimed behaviour on the reader's own machine or they don't.
+
+## 13. Known gaps / backlog
+
+Everything above is the plan as designed. This section is the honest gap between that plan and
+what auditing the actually-committed code found, once all 5 labs were already marked
+"implemented." Detail lives in `docs/backlog/`, indexed at
+[`docs/backlog/README.md`](backlog/README.md); this section is the pointer, kept current as items
+open/close.
+
+**Original state (as of the audit that opened these items): visualization was essentially absent.**
+`matplotlib` was a hard dependency imported in exactly one of roughly fifteen lab/script files
+(`labs/05-spartan-chaosnet-transient-stream/verify_stream.py`, one fault-transient waveform plot).
+No lab called `pandapower.plotting`. Lab 5 built and perturbed a real `networkx` graph every run and
+never drew it. Lab 3's provider-bake-off scorecard — a dataset whose entire purpose is comparison —
+was JSON-only. Lab 2's contingency screen and Lab 4's reconciliation were both printed-text/memo
+only. None of this was a deliberate non-goal (contrast with §12 above); it was an oversight, tracked
+so it doesn't get silently mistaken for "done" the way `AGENTS.md`'s own self-checking convention
+exists to prevent for correctness, not just for visuals.
+
+**Current state: Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
+`generate_topology.py` now draws the generated chaos-net topology to a committed
+`sample_topology_plot.png` (tap-point buses highlighted/labelled), gated the same way its JSON
+fixtures are so ad-hoc seeds never touch the committed artifact. Lab 4's `reconcile.py` now renders
+a grouped bar chart (`sample_reconciliation_chart.png`) of modelled-vs-actual interconnector flow
+and synthetic-vs-actual network losses — the same two numbers the printed reconciliation memo
+already discusses — gated on `date == LAB4_DATE` so the optional Part C (2016 SA Black System) run
+never overwrites it. Lab 3's `orchestrator.py` now renders a 3-series grouped bar chart
+(`scorecard_chart.png`, regenerated gitignored output alongside `scorecard.json`) of error margin by
+task family across
+its three local-policy providers, with the PowerFM baseline row deliberately excluded (no shared
+units/task_family to compare against) and that exclusion noted both in-image and in the README. All
+three are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
+convention, not just printed (Lab 3's chart specifically via
+`test_lab3.py::test_lab3_report_renders_scorecard_chart` exercising `report_step()` directly —
+`check_step()` never touches the uncommitted file). Lab 2's contingency chart and Lab 5's stretch-tier symbolic
+single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remain open — see
+`docs/backlog/README.md` for the current per-item status.
+
+- [`docs/backlog/0001-topology-and-results-visualization-gap.md`](backlog/0001-topology-and-results-visualization-gap.md)
+  — the gap itself, with the grep evidence above expanded per-lab.
+- [`docs/backlog/0002-pandapower-diagram-and-symbolic-representation-options.md`](backlog/0002-pandapower-diagram-and-symbolic-representation-options.md)
+  — what `pandapower.plotting` already offers beyond `simple_plot()`, and a survey of open-source
+  symbolic/single-line-diagram options outside pandapower (`powsybl-diagram`/`pypowsybl`,
+  `GridCal`, `Grid2Op.PlotGrid`, and others), tiered by whether they need a new dependency.
+- [`docs/backlog/0003-lab3-scorecard-visualization.md`](backlog/0003-lab3-scorecard-visualization.md)
+  — **Done.** Lab 3's bar chart rendering of its scorecard (both regenerated gitignored output —
+  the committed fixture is `expected_scorecard.json`), zero new dependencies.
+- [`docs/backlog/0004-lab4-lab5-visualization-options.md`](backlog/0004-lab4-lab5-visualization-options.md)
+  — **Lab 4's reconciliation chart: done.** **Lab 5's topology drawing: done.** Lab 5's stretch tier
+  (real IEC-style symbolic single-line rendering) remains open, gated on a CIM/CGMES export step
+  Lab 5 doesn't have yet.
+- [`docs/backlog/0005-unified-notebook-playbook.md`](backlog/0005-unified-notebook-playbook.md) —
+  a proposed jupytext-based notebook that narrates all 5 labs' charts in one linear document
+  *without* becoming a second, ad hoc source of truth alongside the existing `--step check` proof
+  scripts (`AGENTS.md`'s "the proof scripts are the proof, not a transcript" applies to this
+  exactly as much as to anything else in the repo).
+
+None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
+unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.

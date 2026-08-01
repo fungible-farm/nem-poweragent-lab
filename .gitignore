@@ -6,7 +6,6 @@ data/*
 !data/README.md
 benchmarks/power-agent-bench-lite/results/*
 !benchmarks/power-agent-bench-lite/results/.gitkeep
-!benchmarks/power-agent-bench-lite/results/scorecard.json
 *.cast
 *.gguf
 

@@ -65,7 +65,7 @@ and why.
   N-1 contingency screen against real CSIRO `snem1803.m` data, with a human-in-the-loop memo gate
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
-  a non-agentic forecasting-baseline row, scored into a committed, diffable scorecard.
+  a non-agentic forecasting-baseline row, scored into a diffable `expected_scorecard.json` fixture.
 - `labs/04-aemo-digital-twin-reconciliation/` — **implemented** (Part A + Part B required, Part C
   optional — also implemented). Real `NEMOSIS` pulls of AEMO's live NEMWeb MMS archive (no fixture
   fallback needed — the live pull worked), a committed auditable DUID→synthetic-generator mapping,
@@ -87,7 +87,9 @@ and why.
   Job's `completions`/`parallelism` fields, so it runs as a single pod rather than 3; the actual
   matrix-partitioning logic was verified for real via 3 directly-launched `podman run` containers
   instead — see the manifest's own header). See `kube/README.md` for the full status of each.
-- `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, committed output.
+- `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, regenerated
+  (gitignored) output; the committed, diffable fixture is
+  `labs/03-advanced-provider-bakeoff/expected_scorecard.json`.
 - `scripts/` — `fetch_csiro_nem_data.py`, `fetch_phi4_model.py`, `install_smoke_test.py`,
   `record_asciinema_demo.sh`, and `run_labs_1_3.sh` are real.
 

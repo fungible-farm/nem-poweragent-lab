@@ -26,13 +26,65 @@ import sys
 from pathlib import Path
 from typing import TypedDict
 
-import pandapower as pp
+import matplotlib
 
-import chaosnet
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import networkx as nx  # noqa: E402
+import pandapower as pp  # noqa: E402
+
+import chaosnet  # noqa: E402
 
 LAB_DIR = Path(__file__).resolve().parent
 SAMPLE_TOPOLOGY_FILE = LAB_DIR / "sample_topology.json"
 EXPECTED_FILE = LAB_DIR / "expected_topology.json"
+SAMPLE_TOPOLOGY_PLOT_FILE = LAB_DIR / "sample_topology_plot.png"
+
+# nx.spring_layout()'s force-directed node placement is itself randomized;
+# this is a fixed, arbitrary seed for *that* placement RNG only -- kept
+# separate from chaosnet.build_chaos_topology()'s own `seed` (which selects
+# the real buses drawn from SimBench and the Watts-Strogatz perturbation) so
+# a plot of a given topology renders identically across repeated runs
+# without coupling the layout algorithm's randomness to the topology
+# generation's.
+TOPOLOGY_LAYOUT_SEED: int = 7
+
+# Node/edge colors for _plot_topology(). Chosen via the dataviz skill's
+# `references/palette.md` categorical palette (slot 1 blue / slot 8 red) and
+# confirmed colorblind-safe as a pair by that skill's own
+# `validate_palette.js "#2a78d6,#e34948" --mode light` (and `--mode dark`)
+# tool (not a script in this repo): CVD separation 21.6 (protan),
+# normal-vision separation 32.3, both well clear of the skill's floors. Also
+# a close match to this
+# lab's existing verify_stream.py plot convention (`#3b6fa0`-ish blue for the
+# main series, `#c0392b`-ish red for the highlighted/fault element).
+TOPOLOGY_BUS_NODE_COLOR: str = "#2a78d6"
+TOPOLOGY_TAP_NODE_COLOR: str = "#e34948"
+# Muted axis/gridline ink (dataviz skill's palette.md "Muted (axis/labels)"
+# role) so edges read as structure without competing with the two node
+# colors above.
+TOPOLOGY_EDGE_COLOR: str = "#898781"
+
+# Ordinary-bus vs tap-substation marker size (nx.draw node_size units,
+# points^2). Taps are drawn 2x larger -- deliberate visual emphasis so the
+# NUM_TAP_SUBSTATIONS=3 tagged substations (one of which,
+# chaos_schedule.yaml's SUB-3, is this lab's actual fault target) are
+# obviously distinguishable from the other buses at a glance, not just by
+# color.
+TOPOLOGY_BUS_NODE_SIZE: int = 260
+TOPOLOGY_TAP_NODE_SIZE: int = 520
+
+# spring_layout's output coordinates sit roughly in [-1, 1] per axis
+# (NetworkX's own documented convention for its force-directed layouts);
+# this nudges a tap's text label just above its node so the label doesn't
+# sit on top of (and obscure) the marker it names.
+TOPOLOGY_LABEL_Y_OFFSET: float = 0.08
+
+# Matches verify_stream.py's SAMPLE_PLOT_FILE figure/dpi convention, sized
+# slightly more square (8x6 vs 9x4) since this is a graph layout, not a
+# wide time-series plot.
+TOPOLOGY_PLOT_FIGSIZE: tuple[float, float] = (8.0, 6.0)
+TOPOLOGY_PLOT_DPI: int = 130
 
 # Only --seed 42's output overwrites the committed sample_topology.json /
 # expected_topology.json fixtures (docs/LAB5_SPARTAN_CHAOSNET.md step 1's
@@ -54,6 +106,90 @@ class TopologyCheckSummary(TypedDict):
     tap_names: list[str]
     pandapower_converged: bool
     mean_vm_pu: float
+
+
+def _plot_topology(topology: chaosnet.ChaosTopology, path: Path) -> None:
+    """Render the generated chaos-net graph structure -- until now this lab's
+    entire premise ("a new topology each run") was only ever visible as a
+    bus/line count printed as text (docs/backlog/0004-lab4-lab5-
+    visualization-options.md, Lab 5 item 1 / docs/backlog/0001-topology-and-
+    results-visualization-gap.md item 1).
+
+    Reconstructs a small nx.Graph directly from the ChaosTopology's
+    buses/lines lists rather than threading through
+    build_chaos_topology()'s internal nx.connected_watts_strogatz_graph
+    object -- simpler, and keeps this function decoupled from that internal
+    graph-building state (it can plot any ChaosTopology, including one
+    read back from sample_topology.json, not just a freshly-built one).
+
+    Tap-point buses (chaos_schedule.yaml's fault target, SUB-3, is one of
+    them) are drawn larger, in a different color, and labelled with their
+    tap_name so a reader can immediately spot the fault target on the
+    picture; ordinary buses are smaller, unlabelled dots.
+
+    Args:
+        topology: output of chaosnet.build_chaos_topology() (or
+            chaosnet.read_topology_json()).
+        path: output PNG path.
+    """
+    graph = nx.Graph()
+    for bus in topology["buses"]:
+        graph.add_node(bus["index"])
+    for line in topology["lines"]:
+        graph.add_edge(line["from_bus"], line["to_bus"])
+
+    pos = nx.spring_layout(graph, seed=TOPOLOGY_LAYOUT_SEED)
+
+    is_tap_by_index = {bus["index"]: bus["is_tap"] for bus in topology["buses"]}
+    nodelist = list(graph.nodes())
+    node_color = [
+        TOPOLOGY_TAP_NODE_COLOR if is_tap_by_index[n] else TOPOLOGY_BUS_NODE_COLOR
+        for n in nodelist
+    ]
+    node_size = [
+        TOPOLOGY_TAP_NODE_SIZE if is_tap_by_index[n] else TOPOLOGY_BUS_NODE_SIZE
+        for n in nodelist
+    ]
+
+    fig, ax = plt.subplots(figsize=TOPOLOGY_PLOT_FIGSIZE)
+    nx.draw(
+        graph,
+        pos=pos,
+        ax=ax,
+        nodelist=nodelist,
+        node_color=node_color,
+        node_size=node_size,
+        edge_color=TOPOLOGY_EDGE_COLOR,
+        width=1.0,
+        with_labels=False,
+    )
+
+    tap_labels = {
+        bus["index"]: bus["tap_name"]
+        for bus in topology["buses"]
+        if bus["tap_name"] is not None
+    }
+    label_pos = {
+        n: (x, y + TOPOLOGY_LABEL_Y_OFFSET) for n, (x, y) in pos.items() if n in tap_labels
+    }
+    nx.draw_networkx_labels(
+        graph,
+        label_pos,
+        ax=ax,
+        labels=tap_labels,
+        font_size=9,
+        font_weight="bold",
+        font_color=TOPOLOGY_TAP_NODE_COLOR,
+    )
+
+    ax.set_title(
+        f"Lab 5 chaos-net topology -- seed {topology['seed']}, "
+        f"{topology['simbench_code']}"
+    )
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(path, dpi=TOPOLOGY_PLOT_DPI)
+    plt.close(fig)
 
 
 def generate_step(
@@ -109,6 +245,12 @@ def generate_step(
                 f"[fixtures] wrote {SAMPLE_TOPOLOGY_FILE.name} and "
                 f"{EXPECTED_FILE.name} (seed == FIXTURE_SEED={FIXTURE_SEED})"
             )
+        _plot_topology(topology, SAMPLE_TOPOLOGY_PLOT_FILE)
+        if verbose:
+            print(
+                f"[fixtures] wrote {SAMPLE_TOPOLOGY_PLOT_FILE.name} "
+                f"(seed == FIXTURE_SEED={FIXTURE_SEED})"
+            )
 
     return summary
 
@@ -117,10 +259,15 @@ def check_step() -> bool:
     """Re-run generate_step(FIXTURE_SEED) (without touching the committed
     fixtures) and diff it against expected_topology.json.
 
+    Also asserts the committed sample_topology_plot.png artifact exists
+    (mirroring verify_stream.py's own SAMPLE_PLOT_FILE.exists() check) so
+    the self-check gate actually covers the topology plot per AGENTS.md's
+    "every lab is self-checking" convention, not just the JSON fixtures.
+
     Returns:
         True if bus/line/tap counts, tap names, and convergence match
-        exactly, and mean_vm_pu matches within FIXTURE_VM_ATOL; False
-        otherwise.
+        exactly, mean_vm_pu matches within FIXTURE_VM_ATOL, and the
+        committed topology plot PNG exists; False otherwise.
     """
     if not EXPECTED_FILE.exists():
         print(f"[FAIL] no fixture at {EXPECTED_FILE}", file=sys.stderr)
@@ -138,6 +285,9 @@ def check_step() -> bool:
             f"FAIL: mean_vm_pu: expected={expected['mean_vm_pu']} "
             f"actual={actual['mean_vm_pu']}"
         )
+        ok = False
+    if not SAMPLE_TOPOLOGY_PLOT_FILE.exists():
+        print(f"FAIL: no plot at {SAMPLE_TOPOLOGY_PLOT_FILE}")
         ok = False
 
     if ok:

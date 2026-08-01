@@ -16,7 +16,11 @@
 3. Add a fourth, non-agentic row: a seasonal-persistence forecast against a synthetic regional
    demand trace, standing in for a PowerFM OpenPowerBench checkpoint (see Sandbox notes).
 4. Write a single scorecard (JSON + printed table) to
-   `benchmarks/power-agent-bench-lite/results/scorecard.json`.
+   `benchmarks/power-agent-bench-lite/results/scorecard.json`, plus a grouped bar chart PNG
+   (`scorecard_chart.png`, next to the JSON) so the 3-provider comparison can actually be looked
+   at, not just read as a JSON array. Both are regenerated, gitignored local output (not
+   committed) — `wall_clock_s` differs every real run, so the committed, diffable fixture is
+   `expected_scorecard.json` instead (see "Backup" below).
 
 ## Why an AEMO modeller should care
 
@@ -72,15 +76,22 @@ uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py
    `local-policy-A | load-scale-fit   | PASS | err=0.0013 | 0.57s`, ending with the PowerFM
    baseline row, which prints `n/a tokens/latency-per-call (single forward pass)` since it's a
    single forecast, not a search loop.
-   — *Backup if you'd rather not run it live*: the committed
-   `benchmarks/power-agent-bench-lite/results/scorecard.json` (and this directory's
-   `expected_scorecard.json`) has one full pre-run sweep; load and print it, saying plainly "this
-   is a pre-recorded run, not live."
+   — *Backup if you'd rather not run it live*: this directory's committed
+   `expected_scorecard.json` has one full pre-run sweep (the `scorecard.json` written into
+   `benchmarks/power-agent-bench-lite/results/` is regenerated, gitignored output, not committed —
+   see "What you'll do" step 4); load and print `expected_scorecard.json` instead, saying plainly
+   "this is a pre-recorded run, not live."
 2. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report`**
    — You should see: the final scorecard table (10 rows: 3 providers × 3 task families + 1
-   baseline), plus `Scorecard written to .../scorecard.json`.
+   baseline), plus `Scorecard written to .../scorecard.json`. This step also (re)renders
+   `benchmarks/power-agent-bench-lite/results/scorecard_chart.png` — a grouped bar chart,
+   one group per task family, one bar per local-policy provider, bar height = `error_margin` (the
+   PowerFM baseline is excluded from this chart: its task family has no local-policy peer to
+   compare against in the same units — it stays in the JSON/table above). Neither the JSON nor the
+   PNG is committed — both regenerate locally each time this step runs.
    — Why it matters: this is the "which local approach is actually good enough, and how would you
-   know" question answered with a re-runnable artifact instead of an anecdote.
+   know" question answered with a re-runnable artifact instead of an anecdote — and now one that
+   can be glanced at, not just read as a JSON array.
 3. **`uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py`**
    — You should see: `1 passed` — the full sweep re-run and diffed against
    `expected_scorecard.json` (wall-clock excluded from the comparison, since it's machine-dependent
