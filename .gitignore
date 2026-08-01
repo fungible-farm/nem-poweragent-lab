@@ -7,6 +7,7 @@ data/*
 benchmarks/power-agent-bench-lite/results/*
 !benchmarks/power-agent-bench-lite/results/.gitkeep
 !benchmarks/power-agent-bench-lite/results/scorecard.json
+!benchmarks/power-agent-bench-lite/results/scorecard_chart.png
 *.cast
 *.gguf
 

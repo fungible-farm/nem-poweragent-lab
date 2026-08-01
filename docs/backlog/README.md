@@ -15,6 +15,6 @@ research notes.
 |---|-------|--------|
 | [0001](0001-topology-and-results-visualization-gap.md) | No lab renders a topology diagram or a results chart — matplotlib is used in 1 of ~15 scripts | open |
 | [0002](0002-pandapower-diagram-and-symbolic-representation-options.md) | Research: pandapower's own advanced diagram options, and open-source symbolic/single-line-diagram packages | open |
-| [0003](0003-lab3-scorecard-visualization.md) | Lab 3: bake-off scorecard has zero charts despite being the one dataset built to be compared | open |
+| [0003](0003-lab3-scorecard-visualization.md) | Lab 3: bake-off scorecard has zero charts despite being the one dataset built to be compared | done |
 | [0004](0004-lab4-lab5-visualization-options.md) | Lab 4 & Lab 5: visualization options (reconciliation chart; chaos-net topology + symbolic single-line) | partially done (Lab 4 chart + Lab 5 topology drawing done; Lab 5 symbolic single-line still open) |
 | [0005](0005-unified-notebook-playbook.md) | Suggestion: a jupytext/Jupyter playbook binding all 5 labs' visual outputs into one narrative, without becoming a second source of truth | proposed |

@@ -1,6 +1,6 @@
 # 0003 — Lab 3: bake-off scorecard has zero charts
 
-- **Status:** open
+- **Status:** done.
 - **Depends on:** 0001 (gap), 0002 (options research, "free tier")
 - **Lab:** `labs/03-advanced-provider-bakeoff/`
 
@@ -29,6 +29,42 @@ Add a chart-emitting step to `orchestrator.py` (it already has `--step {sweep,re
   into `--step check` only to the extent of "does the file get produced," not a pixel diff — a
   visual output doesn't fit the existing numeric-tolerance fixture-diff pattern and shouldn't be
   forced into one.
+
+Implemented: `orchestrator.py` now has a `_plot_scorecard()` helper -- a 3-series grouped bar
+chart (one group per task_family, one bar per local-policy provider, bar height = `error_margin`,
+each bar value-labeled via `ax.bar_label()`), reading directly from the `rows` already passed to
+`report_step()` -- nothing recomputed. The 4th row (`PowerFM-OpenPowerBench-stub`, task_family
+`load-forecast-24h`) is deliberately excluded from the chart: it has no local-policy peer sharing
+its task_family/units (MAPE% vs pu/loading-%), so it would render as an incomparable lone 4th
+group rather than a genuine 3-way comparison; it remains visible in the printed table and
+`scorecard.json`. `wall_clock_s` was *not* added as a second panel: in this sandbox's stand-in
+(three deterministic search policies, not live LLM calls — see `orchestrator.py`'s module
+docstring) wall-clock is small (~0.2-0.6s), dominated by `pandapower.runpp()` solver overhead
+rather than genuine per-provider variation, and is already excluded from `check_step()`'s fixture
+diff as machine-dependent — a second panel built on a number this noisy would add chart complexity
+without a real second signal; `error_margin` alone is the chart worth having for a first pass.
+Output: `scorecard_chart.png`, committed alongside `scorecard.json` in
+`benchmarks/power-agent-bench-lite/results/` (an explicit `!`-exception was needed in `.gitignore`,
+which otherwise ignores everything in that directory except `.gitkeep`/`scorecard.json`).
+`report_step()` writes the chart unconditionally (not gated behind a Lab 4/5-style `refresh_chart`
+flag): `check_step()` calls `sweep_step()` directly and never calls `report_step()`, so there is no
+self-check code path that could route through here and overwrite the committed PNG with a
+machine-dependent re-derivation -- `report_step()` only runs via an explicit `--step report` or
+`--step collect`, both already-deliberate "regenerate the committed scorecard" actions. `check_step()`
+asserts `SCORECARD_CHART_FILE.exists()` (mirroring Lab 4/5's pattern), confirmed by temporarily
+removing the PNG and re-running `--step check`, which failed with `[FAIL] no chart at ...`, then
+restoring it and re-running (`MATCH: all 10 scorecard rows match expected_scorecard.json`).
+`test_lab3.py::test_lab3_scorecard_matches_fixture` therefore transitively covers the new PNG gate
+too, since it asserts `--step check`'s exit code. Colors (`#2a78d6` blue / `#eb6834` orange /
+`#1baf7a` aqua -- the dataviz skill's default palette's first three categorical slots) were
+validated as a 3-way *all-pairs* set (not just adjacent pairs, since all three bars in a 3-bar
+group are visually adjacent to the reader) via `node scripts/validate_palette.js
+"#2a78d6,#eb6834,#1baf7a" --mode light --pairs all` and the dark-mode hex triplet
+`"#3987e5,#d95926,#199e70" --mode dark --pairs all`: both ALL CHECKS PASS (worst all-pairs CVD
+9.2 light / 9.4 dark, worst all-pairs normal-vision 24.0 light / 20.9 dark); light mode WARNs on
+the aqua slot's contrast against the chart surface (2.74:1), satisfied by the skill's "relief
+rule" since every bar is already value-labeled. See
+`labs/03-advanced-provider-bakeoff/README.md`'s walkthrough step 2 and "What you'll do" step 4.
 
 ## Stretch option
 

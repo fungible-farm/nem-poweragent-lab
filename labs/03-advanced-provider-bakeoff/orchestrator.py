@@ -67,8 +67,12 @@ from typing import Callable, Optional, TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pandapower as pp
-from _shared.gridfit import (
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import pandapower as pp  # noqa: E402
+from _shared.gridfit import (  # noqa: E402
     DEFAULT_MAX_ITER,
     FitIteration,
     FitResult,
@@ -82,6 +86,63 @@ DATA_FILE = LAB_DIR.parent.parent / "data" / "snem1803.m"
 RESULTS_DIR = LAB_DIR.parent.parent / "benchmarks" / "power-agent-bench-lite" / "results"
 SCORECARD_FILE = RESULTS_DIR / "scorecard.json"
 EXPECTED_FILE = LAB_DIR / "expected_scorecard.json"
+SCORECARD_CHART_FILE = RESULTS_DIR / "scorecard_chart.png"  # committed alongside
+# SCORECARD_FILE, per docs/backlog/0003-lab3-scorecard-visualization.md --
+# "Save as a committed PNG (matching Lab 5's sample_transient_plot.png
+# precedent)". Lives in RESULTS_DIR (not LAB_DIR) because it is a rendering
+# of SCORECARD_FILE, which itself already lives there -- keeping the chart
+# next to the data it renders, same locality principle as Lab 4's CHART_FILE
+# sitting next to EXPECTED_FILE in LAB_DIR.
+
+# Bar colors for _plot_scorecard()'s 3-series grouped bar chart (one series
+# per local-policy provider; the PowerFM baseline row is excluded from this
+# chart, see _plot_scorecard()'s docstring). Categorical slots 1-3 (blue,
+# orange, aqua) from the dataviz skill's default palette
+# (references/palette.md), validated here as a 3-way *all-pairs* set (not
+# just adjacent-pairs, since a 3-bar group means every pair of bars is
+# visually adjacent to the reader) via the skill's own validator:
+# `node scripts/validate_palette.js "#2a78d6,#eb6834,#1baf7a" --mode light
+# --pairs all` and `node scripts/validate_palette.js
+# "#3987e5,#d95926,#199e70" --mode dark --pairs all` (run directly, not
+# estimated) both report ALL CHECKS PASS -- worst all-pairs CVD separation
+# 9.2 (light, deutan) / 9.4 (dark, deutan), worst all-pairs normal-vision
+# separation 24.0 (light) / 20.9 (dark), contrast >=3:1 in dark mode. Light
+# mode WARNs on slot 3 (aqua, #1baf7a) vs the light chart surface (2.74:1,
+# below the 3:1 floor) -- the skill's documented "relief rule" for that WARN
+# is satisfied here because every bar is already value-labeled via
+# ax.bar_label() (see below), so the WARN does not block shipping. This PNG
+# is rendered once, on matplotlib's default (light) surface -- like Lab 4/5's
+# charts, there is no dark-mode PNG variant; the dark-mode hexes are
+# validated only so this palette stays swappable without re-deriving colors.
+SCORECARD_CHART_PROVIDER_COLORS: dict[str, str] = {
+    "local-policy-A": "#2a78d6",
+    "local-policy-B": "#eb6834",
+    "local-policy-C": "#1baf7a",
+}
+
+# In-image footnote ink (the PowerFM-exclusion note, see _plot_scorecard()).
+# Same "Muted (axis/labels)" palette.md role, same hex, as Lab 5's
+# TOPOLOGY_EDGE_COLOR -- already-validated muted ink, reused rather than
+# re-deriving a new one for a single small caption.
+SCORECARD_CHART_FOOTNOTE_COLOR: str = "#898781"
+
+# Matches Lab 4/5's matplotlib convention (Agg backend, fig/ax, tight_layout,
+# dpi=130, plt.close(fig)). Figure sized wider than Lab 4's 2-series (7, 5)
+# to leave room for 3 task-family groups x 3 bars plus a 3-entry legend.
+SCORECARD_CHART_FIGSIZE: tuple[float, float] = (9.0, 5.0)
+SCORECARD_CHART_DPI: int = 130
+
+# Total x-width allotted to one task_family's group of bars (matplotlib's
+# own documented grouped-bar-with-N-series idiom: divide the group width by
+# the series count, then center each series' slot on an offset from the
+# group's x position) -- 0.8 leaves a 0.2 visual gap before the next group,
+# same ratio Lab 4's RECONCILIATION_CHART_BAR_WIDTH (0.35 out of a 1.0-wide
+# group slot) uses. SCORECARD_CHART_BAR_FILL_FRACTION shrinks each bar's
+# drawn width below its full slot so a visible surface gap survives between
+# adjacent bars within a group, same rationale as Lab 4's
+# RECONCILIATION_CHART_BAR_FILL_FRACTION.
+SCORECARD_CHART_GROUP_WIDTH: float = 0.8
+SCORECARD_CHART_BAR_FILL_FRACTION: float = 0.85
 
 # ---------------------------------------------------------------------------
 # Task family targets. Each was picked (by a one-off exploration script, not
@@ -641,9 +702,105 @@ def collect_step() -> list[TaskFamilyResult]:
     return report_step(merged)
 
 
+def _plot_scorecard(rows: list[TaskFamilyResult], path: Path) -> None:
+    """Render the bake-off's core comparison as a grouped bar chart: one
+    group per task_family, one bar per local-policy provider within the
+    group, bar height = error_margin
+    (docs/backlog/0003-lab3-scorecard-visualization.md's proposed fix).
+
+    Only the 3 PROVIDERS entries (local-policy-A/B/C) and the 3 task
+    families they share (load-scale-fit, line-rating-fit, gen-droop-fit) are
+    plotted -- both are derived from `rows` itself (filtering to
+    `row["provider"] in PROVIDERS`, then taking task_family in first-seen
+    order), not hard-coded, so this stays in sync with PROVIDERS/
+    _make_task_families() without a second source of truth. The
+    PowerFM-OpenPowerBench-stub baseline row is deliberately excluded: its
+    task_family (load-forecast-24h) has no local-policy peer to compare
+    against in the same units (MAPE% vs pu/loading-%), so it would render as
+    a lone, incomparable 4th group rather than a genuine 3-way comparison --
+    the entire point of a bake-off chart. It remains visible in the printed
+    table and scorecard.json this function's caller already writes.
+
+    error_margin's unit differs by task_family (pu for load-scale-fit, % for
+    the other two -- see TaskFamily.describe_unit in _make_task_families())
+    so bars are only meaningfully comparable *within* a group, never across
+    groups; the y-axis label says so explicitly rather than implying a
+    single shared unit.
+
+    Args:
+        rows: scorecard rows, e.g. from report_step()'s own `rows` argument
+            -- read directly, nothing recomputed here.
+        path: output PNG path (SCORECARD_CHART_FILE).
+    """
+    provider_names = [name for name in PROVIDERS if any(
+        r["provider"] == name for r in rows
+    )]
+    task_families: list[str] = []
+    for row in rows:
+        if row["provider"] not in PROVIDERS:
+            continue
+        if row["task_family"] not in task_families:
+            task_families.append(row["task_family"])
+
+    margin_by_family_provider: dict[str, dict[str, float]] = {
+        family: {} for family in task_families
+    }
+    for row in rows:
+        if row["provider"] not in PROVIDERS:
+            continue
+        margin_by_family_provider[row["task_family"]][row["provider"]] = row["error_margin"]
+
+    n_series = len(provider_names)
+    slot_width = SCORECARD_CHART_GROUP_WIDTH / n_series
+    bar_render_width = slot_width * SCORECARD_CHART_BAR_FILL_FRACTION
+    offsets = [(i - (n_series - 1) / 2) * slot_width for i in range(n_series)]
+    x_positions = range(len(task_families))
+
+    fig, ax = plt.subplots(figsize=SCORECARD_CHART_FIGSIZE)
+    for i, provider_name in enumerate(provider_names):
+        values = [margin_by_family_provider[family][provider_name] for family in task_families]
+        xs = [x + offsets[i] for x in x_positions]
+        bars = ax.bar(
+            xs, values, bar_render_width, label=provider_name,
+            color=SCORECARD_CHART_PROVIDER_COLORS[provider_name],
+        )
+        ax.bar_label(bars, fmt="%.4f", padding=3, fontsize=8)
+
+    ax.set_xticks(list(x_positions))
+    ax.set_xticklabels(task_families)
+    ax.set_ylabel("error margin (units vary by task family -- compare within a group only)")
+    ax.set_title("Lab 3 provider bake-off -- error margin by task family")
+    ax.legend()
+    ax.grid(True, axis="y", linewidth=0.4, alpha=0.4)
+    fig.tight_layout()
+    # Reserve room below the x-axis labels for the footnote added next --
+    # tight_layout() alone only accounts for the axes already on the figure,
+    # not the fig.text() added after it.
+    fig.subplots_adjust(bottom=0.16)
+    # In-image footnote (not just README/docstring prose): a reader who only
+    # ever sees the raw PNG (a PR diff, a slide, a file browser) has no other
+    # way to learn the PowerFM row was left out on purpose, not missed.
+    fig.text(
+        0.5, 0.02,
+        "PowerFM-OpenPowerBench-stub excluded: no local-policy peer shares "
+        "its task_family/units -- see scorecard.json for its row.",
+        ha="center", fontsize=7, color=SCORECARD_CHART_FOOTNOTE_COLOR,
+    )
+    fig.savefig(path, dpi=SCORECARD_CHART_DPI)
+    plt.close(fig)
+
+
 def report_step(rows: Optional[list[TaskFamilyResult]] = None) -> list[TaskFamilyResult]:
-    """Write the scorecard to benchmarks/power-agent-bench-lite/results/ and
-    print it as a table.
+    """Write the scorecard to benchmarks/power-agent-bench-lite/results/,
+    print it as a table, and (re)render the committed scorecard chart PNG.
+
+    The chart write is unconditional here (unlike Lab 4/5's
+    `refresh_chart`-gated pattern): check_step() below calls sweep_step()
+    directly and never calls report_step(), so there is no self-check code
+    path that could route through here and clobber the committed PNG with a
+    machine-dependent re-derivation -- report_step() only ever runs via an
+    explicit `--step report` or `--step collect` invocation, both of which
+    are already deliberate "regenerate the committed scorecard" actions.
 
     Args:
         rows: scorecard rows; runs sweep_step() if not supplied.
@@ -656,6 +813,7 @@ def report_step(rows: Optional[list[TaskFamilyResult]] = None) -> list[TaskFamil
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     SCORECARD_FILE.write_text(json.dumps(rows, indent=2))
+    _plot_scorecard(rows, SCORECARD_CHART_FILE)
 
     header = f"{'provider':<28} {'task_family':<18} {'pass':>5} {'err_margin':>11} {'wall_s':>8}"
     print(header)
@@ -675,15 +833,24 @@ def check_step() -> bool:
     """Self-check gate: re-run the full sweep and diff pass/fail + error
     margins against expected_scorecard.json. Wall-clock is intentionally
     excluded from the comparison (machine-dependent, not a correctness
-    signal).
+    signal). Also asserts the committed scorecard chart PNG exists
+    (mirroring Lab 4/5's `..._FILE.exists()` pattern) -- a pixel diff isn't
+    attempted, per docs/backlog/0003-lab3-scorecard-visualization.md ("wire
+    it into --step check only to the extent of 'does the file get
+    produced'"). This step never regenerates SCORECARD_CHART_FILE itself
+    (see report_step()'s docstring for why there is nothing to gate here).
 
     Returns:
         True if every row's provider/task_family/passed/error_margin
-        matches the fixture within FIXTURE_FLOAT_ATOL; False otherwise.
+        matches the fixture within FIXTURE_FLOAT_ATOL and the chart PNG
+        exists; False otherwise.
     """
     actual = sweep_step(verbose=False)
     if not EXPECTED_FILE.exists():
         print(f"[FAIL] no fixture at {EXPECTED_FILE}", file=sys.stderr)
+        return False
+    if not SCORECARD_CHART_FILE.exists():
+        print(f"[FAIL] no chart at {SCORECARD_CHART_FILE}", file=sys.stderr)
         return False
     expected = json.loads(EXPECTED_FILE.read_text())
 

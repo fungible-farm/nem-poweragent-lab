@@ -438,17 +438,21 @@ only. None of this was a deliberate non-goal (contrast with §12 above); it was 
 so it doesn't get silently mistaken for "done" the way `AGENTS.md`'s own self-checking convention
 exists to prevent for correctness, not just for visuals.
 
-**Current state: Lab 4 and Lab 5's free-tier fixes (0004) are done.** Lab 5's
+**Current state: Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
 `generate_topology.py` now draws the generated chaos-net topology to a committed
 `sample_topology_plot.png` (tap-point buses highlighted/labelled), gated the same way its JSON
 fixtures are so ad-hoc seeds never touch the committed artifact. Lab 4's `reconcile.py` now renders
 a grouped bar chart (`sample_reconciliation_chart.png`) of modelled-vs-actual interconnector flow
 and synthetic-vs-actual network losses — the same two numbers the printed reconciliation memo
 already discusses — gated on `date == LAB4_DATE` so the optional Part C (2016 SA Black System) run
-never overwrites it. Both are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's
-self-checking convention, not just printed. Lab 3's scorecard chart (0003), Lab 2's contingency
-chart, and Lab 5's stretch-tier symbolic single-line rendering (gated on a CIM/CGMES export step
-Lab 5 doesn't have yet) remain open — see `docs/backlog/README.md` for the current per-item status.
+never overwrites it. Lab 3's `orchestrator.py` now renders a 3-series grouped bar chart
+(`scorecard_chart.png`, committed alongside `scorecard.json`) of error margin by task family across
+its three local-policy providers, with the PowerFM baseline row deliberately excluded (no shared
+units/task_family to compare against) and that exclusion noted both in-image and in the README. All
+three are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
+convention, not just printed. Lab 2's contingency chart and Lab 5's stretch-tier symbolic
+single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remain open — see
+`docs/backlog/README.md` for the current per-item status.
 
 - [`docs/backlog/0001-topology-and-results-visualization-gap.md`](backlog/0001-topology-and-results-visualization-gap.md)
   — the gap itself, with the grep evidence above expanded per-lab.
@@ -457,8 +461,8 @@ Lab 5 doesn't have yet) remain open — see `docs/backlog/README.md` for the cur
   symbolic/single-line-diagram options outside pandapower (`powsybl-diagram`/`pypowsybl`,
   `GridCal`, `Grid2Op.PlotGrid`, and others), tiered by whether they need a new dependency.
 - [`docs/backlog/0003-lab3-scorecard-visualization.md`](backlog/0003-lab3-scorecard-visualization.md)
-  — Lab 3's concrete fix (a committed bar chart from the already-committed scorecard, zero new
-  dependencies).
+  — **Done.** Lab 3's committed bar chart from the already-committed scorecard, zero new
+  dependencies.
 - [`docs/backlog/0004-lab4-lab5-visualization-options.md`](backlog/0004-lab4-lab5-visualization-options.md)
   — **Lab 4's reconciliation chart: done.** **Lab 5's topology drawing: done.** Lab 5's stretch tier
   (real IEC-style symbolic single-line rendering) remains open, gated on a CIM/CGMES export step
