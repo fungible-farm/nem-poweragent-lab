@@ -22,6 +22,7 @@ declare -A ANIMATIONS=(
   [convergence]="labs/01-simple-loadflow-fit/animate_convergence.mp4"
   [contingencies]="labs/02-medium-interconnection-screening/animate_contingencies.mp4"
   [transient]="labs/05-spartan-chaosnet-transient-stream/animate_transient.mp4"
+  [transient-rates]="labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.mp4"
 )
 
 # Window size for windowed playback (mpv --geometry). Override with $WATCH_SIZE.

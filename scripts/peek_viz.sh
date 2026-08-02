@@ -26,6 +26,7 @@ declare -A CHARTS=(
   [reconciliation]="labs/04-aemo-digital-twin-reconciliation/sample_reconciliation_chart.png"
   [topology]="labs/05-spartan-chaosnet-transient-stream/sample_topology_plot.png"
   [transient]="labs/05-spartan-chaosnet-transient-stream/sample_transient_plot.png"
+  [transient-3d]="labs/05-spartan-chaosnet-transient-stream/sample_transient_3d.png"
   [scorecard]="benchmarks/power-agent-bench-lite/results/scorecard_chart.png"
 )
 

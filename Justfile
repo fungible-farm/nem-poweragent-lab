@@ -136,6 +136,18 @@ render-lab2:
 render-lab5:
     uv run python labs/05-spartan-chaosnet-transient-stream/animate_transient.py
 
+# Lab 5 KISS viewer: isometric 3D phase-space PNG (committed sample) + a
+# 3-channel WAV sonification (playable with mpv) + prints the peak-deviation
+# anomaly bins (per 1 s / 5 s) that seed the anomaly classifier.
+view-lab5:
+    uv run python labs/05-spartan-chaosnet-transient-stream/view_3d_audio.py
+
+# Lab 5 telemetry-rate views: static stacked still (sample_telemetry_rates.png,
+# committed) + the animated isolated time-aligned feeds MP4 (gitignored).
+view-lab5-rates:
+    uv run python labs/05-spartan-chaosnet-transient-stream/view_telemetry_rates.py
+    uv run python labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.py
+
 # --- demo: display without file transfer ------------------------------------
 # chafa-render a named committed chart straight into the SSH terminal.
 # `just peek` lists the named charts; `just peek <name>` renders one.

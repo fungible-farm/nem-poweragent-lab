@@ -12,6 +12,8 @@ benchmarks/power-agent-bench-lite/results/*
 # scripts from real physics/fixture data on demand, never committed (the
 # script is the artifact, the MP4 is a render).
 *.mp4
+# Sonification render (view_3d_audio.py) -- regenerated from real data.
+*.wav
 # pyinfra writes a debug log to CWD on a crashed run.
 pyinfra-debug.log
 # b00t session artifacts -- this box runs b00t tooling (b00t learn/mcp), but
