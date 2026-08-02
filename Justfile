@@ -159,6 +159,11 @@ rust-test:
 rust-wasm:
     cargo build --manifest-path rust/Cargo.toml -p phase-model --target wasm32-unknown-unknown
 
+# Build the Dioxus web app -> scripts/demo_dist/ (served by `just demo`).
+# Requires trunk + wasm-bindgen-cli (see docs/PSCADOSSE.md).
+rust-web:
+    trunk build --manifest-path rust/demo-app/Trunk.toml
+
 # --- demo: browser dashboard + display without file transfer ----------------
 # One command: starts a local HTTP server and opens the demo dashboard in your
 # browser (WSL3/Windows capable -- no X, no WSLg dependency, full-res video +
