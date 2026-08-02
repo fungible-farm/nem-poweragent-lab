@@ -66,3 +66,26 @@ PowerAgent ecosystem (PowerAgentBench is already referenced in
 `benchmarks/README.md`). This is the stated direction; the concrete seeds so
 far are `phase_model.py` (one-source-of-truth generation) and the telemetry
 views that consume it.
+
+## Local Grafana live dashboard (future direction)
+
+The same feeds the animations render — raw 5 kHz, C37.118 100 Hz phasors +
+positive sequence, SCADA/EMS 4 s — should ultimately appear as **live panels on
+a local Grafana server** (deployed as a pod via `podman kube play`; not yet
+installed). Planned shape:
+
+```
+phase_model (ThreePhaseWaveform) -> ingest bridge -> time-series store -> Grafana
+```
+
+- **Datasource** (all policy-compliant, per the license map): Prometheus
+  (Apache-2.0, pull model) or InfluxDB (MIT, push model) for the live feeds;
+  Postgres/TimescaleDB (PostgreSQL license / Apache-2.0) or SQLite if the
+  stored-log replay view matters more than live.
+- **Feed fit:** the phasor 100 Hz + SCADA 4 s feeds are the natural Grafana
+  panels (light, live). The raw 5 kHz feed is heavy for a dashboard — plan to
+  decimate or keep it in the scope animations, not Grafana.
+- **Licensing note:** Grafana itself is **AGPL-3.0** (strong copyleft). It is
+  an external service, not linked into the golden-path API surface — the same
+  category as the display CLIs — so it does not change the golden-path posture,
+  but it should be recorded at adoption like any other component.
