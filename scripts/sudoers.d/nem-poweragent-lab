@@ -1,0 +1,15 @@
+# Scoped per-command sudo authorization for the demo/display tooling.
+#
+# The ONLY root surface granted NOPASSWD is the committed, reviewed deploy
+# script below. The script itself whitelists its operations (mpv + chafa via
+# apt-get); nothing outside it may escalate without a password. Never widen
+# this to a bare binary or to /usr/bin/env or /bin/sh (that would be blanket
+# root -- pyinfra's sh/env wrap is exactly why this boundary exists: it is
+# a single authorized path, so the wrapper never matters).
+#
+# <REPO_USER> and <REPO_ROOT> are placeholders filled in by `just authorize`
+# (this file is committed as a template because paths are machine-specific).
+#
+# Install:   just authorize          (runs as your user, prompts for sudo once)
+# Verify:    sudo visudo -c
+<REPO_USER> ALL=(root) NOPASSWD: <REPO_ROOT>/scripts/deploy_demo_tools.sh

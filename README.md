@@ -21,6 +21,9 @@ laptop-portable core and an optional hardware-validated extension.
 **Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
 is being built against.
 
+**Governance: [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md)** — the golden-path licensing policy and the
+"one waveform state machine generates every view" principle for Australian NEM capability.
+
 ## Install
 
 ```
@@ -37,6 +40,17 @@ real `pandapower.runpp()` through the MCP pod, printing a final `PASS`/`FAIL` li
 this build machine: **~43s on a re-run** with everything already cached, **~4m30s** on a fully
 cold run (dominated by the one-time ~2.3GB GGUF download over this machine's link — see
 `docs/VISION.md` §10 for the full step list).
+
+`install.sh` also best-effort installs the demo/display tools `mpv` + `chafa` (step 7; non-fatal —
+the labs don't need them). The canonical per-command path is the scoped-sudoers authorized-script
+boundary: `scripts/deploy_demo_tools.sh` is the only NOPASSWD root surface (granted by
+`scripts/sudoers.d/nem-poweragent-lab` via `just authorize`), and `just deploy` runs it as root
+with no password anywhere.
+
+**`just --list` is the canonical command index** — `just sync`, `just fetch`, `just test`,
+`just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and
+the zero-file-transfer display recipes `just peek <chart>` (chafa, in-terminal) and
+`just watch <anim>` (mpv, windowed over WSLg/ssh -X, or `just watch-tct` in-terminal).
 
 ## Status
 
@@ -62,7 +76,8 @@ and why.
 - `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
   real CSIRO `snemSA.m` data.
 - `labs/02-medium-interconnection-screening/` — **implemented.** Sequential + genuinely-concurrent
-  N-1 contingency screen against real CSIRO `snem1803.m` data, with a human-in-the-loop memo gate
+  N-1 contingency screen against real CSIRO `snem1803.m` data, a committed
+  `sample_contingency_chart.png` rendering the limit checks, and a human-in-the-loop memo gate
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
   a non-agentic forecasting-baseline row, scored into a diffable `expected_scorecard.json` fixture.

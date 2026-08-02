@@ -397,8 +397,18 @@ One command, POSIX shell, checks-then-acts (never silently reinstalls something 
    checksums the download).
 6. `podman kube play kube/llamacpp-phi-pod.yaml` then `kube/powermcp-pandapower-pod.yaml` —
    downloads the Phi-4-mini GGUF on first run (documented size/time), starts both pods.
-7. Smoke test: one `uv run` call that does a trivial power flow through the running pods and
-   prints PASS/FAIL — this is the "did the install actually work" gate before anyone opens a lab.
+7. Best-effort install of the display/demo tools `mpv` + `chafa` via a direct `sudo apt-get`
+   (checks-then-acts) -- the viewers behind the root Justfile's `watch`/`peek` recipes that show
+   animations and charts over SSH with zero file transfer. This step is *not* a gate: the labs
+   run headless, and on hosts where non-interactive sudo isn't available it warns and continues.
+   The canonical per-command path is the committed authorized-script boundary
+   (`scripts/deploy_demo_tools.sh`, the only NOPASSWD root surface, granted by
+   `scripts/sudoers.d/nem-poweragent-lab` via `just authorize`) -- `just deploy` runs it as root
+   with no password anywhere, and the `just` workflow never hard-stops (a missing rule prints the
+   exact `just authorize` step).
+8. Smoke test: one `uv run` call that does a trivial power flow through the running pods (and
+   reports the display tools' presence, informational only) and prints PASS/FAIL -- this is the
+   "did the install actually work" gate before anyone opens a lab.
 
 ## 11. asciinema training recording
 
@@ -438,7 +448,7 @@ only. None of this was a deliberate non-goal (contrast with §12 above); it was 
 so it doesn't get silently mistaken for "done" the way `AGENTS.md`'s own self-checking convention
 exists to prevent for correctness, not just for visuals.
 
-**Current state: Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
+**Current state: Lab 2, Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
 `generate_topology.py` now draws the generated chaos-net topology to a committed
 `sample_topology_plot.png` (tap-point buses highlighted/labelled), gated the same way its JSON
 fixtures are so ad-hoc seeds never touch the committed artifact. Lab 4's `reconcile.py` now renders
@@ -449,12 +459,17 @@ never overwrites it. Lab 3's `orchestrator.py` now renders a 3-series grouped ba
 (`scorecard_chart.png`, regenerated gitignored output alongside `scorecard.json`) of error margin by
 task family across
 its three local-policy providers, with the PowerFM baseline row deliberately excluded (no shared
-units/task_family to compare against) and that exclusion noted both in-image and in the README. All
-three are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
+units/task_family to compare against) and that exclusion noted both in-image and in the README. Lab
+2's `workflow.py` now renders `sample_contingency_chart.png` (two panels: worst line-loading % vs
+the 100% thermal limit, and worst bus-voltage pu vs the 0.90–1.10 pu band) from the same per-
+contingency numbers `check_limits()` already evaluates, regenerated deterministically by
+`--step check-limits`. All
+four are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
 convention, not just printed (Lab 3's chart specifically via
 `test_lab3.py::test_lab3_report_renders_scorecard_chart` exercising `report_step()` directly —
-`check_step()` never touches the uncommitted file). Lab 2's contingency chart and Lab 5's stretch-tier symbolic
-single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remain open — see
+`check_step()` never touches the uncommitted file; Lab 2's chart is asserted to exist by
+`--step check` while `--step check-limits` regenerates it). Lab 5's stretch-tier symbolic
+single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remains open — see
 `docs/backlog/README.md` for the current per-item status.
 
 - [`docs/backlog/0001-topology-and-results-visualization-gap.md`](backlog/0001-topology-and-results-visualization-gap.md)

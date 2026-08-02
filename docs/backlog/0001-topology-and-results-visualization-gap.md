@@ -1,7 +1,8 @@
 # 0001 — No lab renders a topology diagram or a results chart
 
-- **Status:** partially done — free-tier charts landed for Labs 3, 4, and 5 (via 0003/0004);
-  Lab 2's contingency chart is still open.
+- **Status:** partially done — charts landed for Labs 2, 3, 4, and 5 (0002's free tier via
+  0003/0004, plus this item's Lab 2 contingency screen); still open: item 2's
+  `pandapower.plotting` topology-diagram miss and Lab 1's visual evidence.
 - **Found:** 2026-08-01, auditing the repo after all 5 labs were already marked "implemented" in
   `AGENTS.md`.
 - **Linked as vision:** this item is referenced from `docs/VISION.md` §13 "Known gaps / backlog" —
