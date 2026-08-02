@@ -12,6 +12,12 @@ benchmarks/power-agent-bench-lite/results/*
 # scripts from real physics/fixture data on demand, never committed (the
 # script is the artifact, the MP4 is a render).
 *.mp4
+# pyinfra writes a debug log to CWD on a crashed run.
+pyinfra-debug.log
+# b00t session artifacts -- this box runs b00t tooling (b00t learn/mcp), but
+# the repo itself has no b00t dependency; keep its session files out of git.
+.b00tignore
+_b00t_.toml
 
 # Lab 5: dpsimpy's own per-component logging (any component/Simulation
 # built with LogLevel above `warn`) writes here by default -- defensive

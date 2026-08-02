@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""install.sh step 7 -- docs/VISION.md section 9: "one uv run call that does
+"""install.sh step 8 -- docs/VISION.md section 9: "one uv run call that does
 a trivial power flow through the running pods and prints PASS/FAIL."
 
 Assumes kube/llamacpp-phi-pod.yaml and kube/powermcp-pandapower-pod.yaml are
-already up (install.sh's own job, not this script's). Does two checks:
+already up (install.sh's own job, not this script's). Does three checks:
 
 1. llamacpp pod: a trivial OpenAI-compatible chat completion.
 2. powermcp pod: a real MCP list_tools call, then load the CSIRO snemSA.m
    case (already fetched by scripts/fetch_csiro_nem_data.py) and run a real
    pandapower.runpp() through the pod's run_power_flow tool.
+3. display/demo tools: mpv and chafa are on PATH (installed by install.sh
+   step 7; the root Justfile's `watch`/`peek` recipes call them).
 
-Exits 0 and prints "PASS: install smoke test" only if both succeed;
+Exits 0 and prints "PASS: install smoke test" only if all three succeed;
 otherwise prints "FAIL: install smoke test" with the specific failure and
 exits 1 -- this is the literal gate docs/VISION.md section 9 describes: "did
 the install actually work" before anyone opens a lab.
@@ -19,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import sys
 import time
 import urllib.error
@@ -142,12 +145,45 @@ def check_powermcp() -> str | None:
     return failure
 
 
+# The display/demo tools install.sh step 7 installs (apt: mpv, chafa) and the
+# root Justfile's `watch`/`peek` recipes call -- their presence is part of the
+# install gate since the demo workflow depends on them.
+DISPLAY_TOOLS: tuple[str, ...] = ("mpv", "chafa")
+
+
+def check_display_tools() -> str | None:
+    """Report mpv + chafa presence.
+
+    Informational, not part of the PASS/FAIL gate: install.sh step 7 installs
+    them best-effort and the physics labs run headless without them, so their
+    absence must not fail an otherwise-correct install (run `just deploy` to
+    bring them in via pyinfra).
+
+    Returns:
+        None (never a gate failure); prints the finding.
+    """
+    present = [t for t in DISPLAY_TOOLS if shutil.which(t) is not None]
+    missing = [t for t in DISPLAY_TOOLS if t not in present]
+    if present:
+        print(f"  display tools: {', '.join(shutil.which(t) for t in present)}")
+    if missing:
+        print(
+            "  [note] display tools missing from PATH: "
+            + ", ".join(missing)
+            + " -- the labs don't need them; run `just deploy` to install them"
+        )
+    return None
+
+
 def main() -> None:
     print("install smoke test: checking llamacpp-phi-pod...")
     llamacpp_failure = check_llamacpp()
 
     print("install smoke test: checking powermcp-pandapower-pod...")
     powermcp_failure = check_powermcp()
+
+    print("install smoke test: checking display/demo tools...")
+    check_display_tools()
 
     failures = [f for f in (llamacpp_failure, powermcp_failure) if f]
     if failures:

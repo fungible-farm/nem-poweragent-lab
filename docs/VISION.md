@@ -397,8 +397,15 @@ One command, POSIX shell, checks-then-acts (never silently reinstalls something 
    checksums the download).
 6. `podman kube play kube/llamacpp-phi-pod.yaml` then `kube/powermcp-pandapower-pod.yaml` —
    downloads the Phi-4-mini GGUF on first run (documented size/time), starts both pods.
-7. Smoke test: one `uv run` call that does a trivial power flow through the running pods and
-   prints PASS/FAIL — this is the "did the install actually work" gate before anyone opens a lab.
+7. Best-effort install of the display/demo tools `mpv` + `chafa` via a direct `sudo apt-get`
+   (checks-then-acts) -- the viewers behind the root Justfile's `watch`/`peek` recipes that show
+   animations and charts over SSH with zero file transfer. This step is *not* a gate: the labs
+   run headless, and on hosts where non-interactive sudo isn't available it warns and continues.
+   The canonical, idempotent, declarative path for this host state is a pyinfra deploy
+   (`scripts/deploy_demo_tools.py`, run via `just deploy`), which prompts for sudo once.
+8. Smoke test: one `uv run` call that does a trivial power flow through the running pods (and
+   reports the display tools' presence, informational only) and prints PASS/FAIL -- this is the
+   "did the install actually work" gate before anyone opens a lab.
 
 ## 11. asciinema training recording
 

@@ -42,6 +42,10 @@ uv run python -m pytest labs/  # run the test suite
 
 ## Running the labs
 
+**Canonical commands live in the root `Justfile` — `just --list` is the index** (install, sync,
+fetch, proof, test, per-lab check gates, per-lab walkthrough steps, animation render, and the
+`peek`/`watch` display recipes). The equivalent bare commands, for reference:
+
 ```
 uv run scripts/fetch_csiro_nem_data.py   # once: fetch + checksum-verify CSIRO case data into data/
 ./scripts/run_labs_1_3.sh                # the committed end-to-end proof: fetch -> Labs 1-3 -> pytest -> PASS/FAIL

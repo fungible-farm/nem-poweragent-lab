@@ -38,6 +38,15 @@ this build machine: **~43s on a re-run** with everything already cached, **~4m30
 cold run (dominated by the one-time ~2.3GB GGUF download over this machine's link — see
 `docs/VISION.md` §10 for the full step list).
 
+`install.sh` also best-effort installs the demo/display tools `mpv` + `chafa` (step 7; non-fatal —
+the labs don't need them). The declarative, idempotent way to maintain that host state is
+`just deploy` (a pyinfra deploy; see `scripts/deploy_demo_tools.py`).
+
+**`just --list` is the canonical command index** — `just sync`, `just fetch`, `just test`,
+`just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and
+the zero-file-transfer display recipes `just peek <chart>` (chafa, in-terminal) and
+`just watch <anim>` (mpv, windowed over WSLg/ssh -X, or `just watch-tct` in-terminal).
+
 ## Status
 
 **Labs 1-3 are implemented and self-checking.** Run the whole thing end to end, with proof:

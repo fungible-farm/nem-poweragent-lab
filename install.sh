@@ -16,7 +16,10 @@
 #      scripts/fetch_phi4_model.py (Phi-4-mini GGUF).
 #   6. `podman kube play` both kube/llamacpp-phi-pod.yaml and
 #      kube/powermcp-pandapower-pod.yaml.
-#   7. scripts/install_smoke_test.py -- prints the final PASS/FAIL gate.
+#   7. Install the display/demo tools mpv + chafa (apt) if absent -- the
+#      "just watch/just peek" animation/static-chart viewers the demo
+#      workflow uses (see the root Justfile's `watch`/`peek` recipes).
+#   8. scripts/install_smoke_test.py -- prints the final PASS/FAIL gate.
 #
 # SANDBOX NOTE (AGENTS.md "sandbox stand-ins must be named" rule): step 3 as
 # literally specified in docs/VISION.md section 10 is "check for cargo/rustc
@@ -74,7 +77,7 @@ else
 fi
 
 # --- Step 4: uv sync -------------------------------------------------------
-log "step 4/7: uv sync"
+log "step 4/8: uv sync"
 if ! uv sync; then
     if [ "$CARGO_PRESENT" -eq 0 ]; then
         fail "uv sync failed, and cargo/rustc were not present -- this is
@@ -86,21 +89,68 @@ platform. Install a Rust toolchain (https://rustup.rs) and re-run
 fi
 
 # --- Step 5: data + model fetch -------------------------------------------
-log "step 5/7: fetching CSIRO case data"
+log "step 5/8: fetching CSIRO case data"
 uv run scripts/fetch_csiro_nem_data.py
 
-log "step 5/7: fetching Phi-4-mini-instruct GGUF (~2.3GB, one-time)"
+log "step 5/8: fetching Phi-4-mini-instruct GGUF (~2.3GB, one-time)"
 uv run scripts/fetch_phi4_model.py
 
 # --- Step 6: bring up the two pods -----------------------------------------
-log "step 6/7: podman kube play kube/llamacpp-phi-pod.yaml"
+log "step 6/8: podman kube play kube/llamacpp-phi-pod.yaml"
 podman kube play kube/llamacpp-phi-pod.yaml --replace
 
-log "step 6/7: podman kube play kube/powermcp-pandapower-pod.yaml"
+log "step 6/8: podman kube play kube/powermcp-pandapower-pod.yaml"
 podman kube play kube/powermcp-pandapower-pod.yaml --replace
 
-# --- Step 7: smoke test -----------------------------------------------------
-log "step 7/7: smoke test"
+# --- Step 7: display/demo tools (mpv, chafa) --------------------------------
+# The demo workflow's viewers: `just watch <anim>` (mpv -- mp4 playback,
+# windowed over X11/WSLg or --vo=tct in-terminal) and `just peek <chart>`
+# (chafa -- true-color ANSI rendering of a committed PNG straight in the
+# SSH terminal). Same checks-then-acts rule as the rest of this script:
+# never silently reinstall something already present.
+#
+# BEST-EFFORT, not a gate: the physics labs run headless, so mpv/chafa are
+# only needed by the demo/display workflow. The direct `sudo apt-get` below
+# is the one invocation that works non-interactively on a box like fung1
+# whose sudoers grants NOPASSWD for apt-get specifically; a *declarative*
+# pyinfra deploy (scripts/deploy_demo_tools.py, idempotent and extensible)
+# is the canonical way to maintain this host state, but pyinfra wraps its
+# sudo'd commands in `sh`/`env` and would demand a password on that same
+# box -- so the deploy is the `just deploy` path, not this bootstrap. If
+# this step cannot install the tools (non-interactive + no NOPASSWD apt),
+# it warns and continues rather than failing the physics install.
+log "step 7/8: checking display/demo tools (mpv, chafa)"
+DISPLAY_TOOLS_MISSING=0
+for tool in mpv chafa; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        log "  $tool already present ($(command -v "$tool")) -- skipping"
+    else
+        DISPLAY_TOOLS_MISSING=1
+    fi
+done
+if [ "$DISPLAY_TOOLS_MISSING" -eq 1 ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+        log "installing missing display tools via apt (may prompt for sudo)"
+        if ! sudo apt-get install -y mpv chafa; then
+            log "WARN: could not install mpv/chafa non-interactively (sudo likely"
+            log "  needs a password here). The labs do not need these -- the demo"
+            log "  display workflow does. Install them later with:"
+            log "    just deploy    # pyinfra, declarative, prompts for sudo once"
+        fi
+    else
+        log "WARN: no apt-get on this system -- cannot auto-install mpv/chafa."
+        log "  Install them yourself (Fedora/RHEL: sudo dnf install -y mpv chafa),"
+        log "  or run: just deploy"
+    fi
+    for tool in mpv chafa; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log "  $tool still not on PATH after the attempt (see WARN above)"
+        fi
+    done
+fi
+
+# --- Step 8: smoke test ------------------------------------------------------
+log "step 8/8: smoke test"
 uv run scripts/install_smoke_test.py
 
 END_TS=$(date +%s)
