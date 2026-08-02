@@ -4,10 +4,13 @@
 Renders run_dpsim.py's real `dpsim_transient_log.json` (the ~5 kHz EMT
 voltage recording from the real DPsim solve -- see run_dpsim.py) as a
 "waveform drawing itself across time" animation: a growing reveal sweeps
-from the first sample through the scheduled fault's dip and recovery, then
-holds on the full waveform so a presenter can narrate the pre-fault
-oscillation, the fault onset at `trigger_time_s`, and the recovery at
-`clear_time_s` before the clip ends.
+from the first sample through the scheduled fault's dip, then holds on the
+full recording so a presenter can narrate the pre-fault oscillation, the
+fault onset at `trigger_time_s`, and what follows `clear_time_s`. Note that
+what follows the clear is a *post-fault voltage swell*, not a clean
+recovery: the recorded peak after clearing exceeds the pre-fault peak (the
+log ends before the transient settles -- see the footnote, which is computed
+from the real data, never a caption assumption).
 
 Everything drawn is the real recorded data: the reveal mask is
 `times <= current_reveal_time` over the actual `times`/`va`/`vb`/`vc`
@@ -104,10 +107,13 @@ PRE_FAULT_SWEEP_S: float = 2.5
 # past.
 FAULT_DWELL_SWEEP_S: float = 4.0
 # Post-fault sweep: ~488 recorded samples/s (~16.3 samples/frame) -- fast,
-# since this section is the plain recovery back to nominal.
+# since this section is the post-clear voltage swell, not a plain return to
+# nominal (the recorded post-clear peak exceeds the pre-fault peak; see the
+# footnote computed in animate_transient()).
 POST_FAULT_SWEEP_S: float = 2.0
-# Ending hold: freezes the fully revealed, recovered waveform so the
-# presenter can narrate the final state; keeps the whole clip ~12 s.
+# Ending hold: freezes the fully revealed waveform so a presenter can narrate
+# the post-fault swell the recording ends on -- the log stops at ~0.55 s,
+# before the transient has settled.
 FINAL_HOLD_S: float = 2.7
 # Total animation length (s): the sum of the five phases above.
 VIDEO_DURATION_S: float = (
@@ -356,6 +362,21 @@ def animate_transient(log: TransientLog, output: Path) -> None:
     for spine in ax.spines.values():
         spine.set_color(COLOR_INK)
     ax.tick_params(colors=COLOR_INK)
+
+    # Data-driven post-clear swell footnote (never a caption assumption): the
+    # recorded phase-A peak after `clear_time_s` vs before `trigger_time_s`.
+    # For this log the post-clear peak (~19 kV) exceeds the pre-fault peak
+    # (~13 kV), so the ending is honestly labeled a swell the recording ends
+    # mid-transient on, not a recovery.
+    va_pre_peak = float(np.max(np.abs(phase_series["va"][times <= trigger_s])))
+    va_post_peak = float(np.max(np.abs(phase_series["va"][times >= clear_s])))
+    fig.text(
+        0.5, 0.008,
+        f"post-clear peak {va_post_peak:.0f} V vs {va_pre_peak:.0f} V pre-fault "
+        f"-- post-fault voltage swell; log ends at {final_s:.2f} s, before the "
+        f"transient settles",
+        ha="center", fontsize=8, color=COLOR_INK,
+    )
 
     artists: list[plt.Artist] = [line_va, line_vb, line_vc, now_line, now_dot, status_text]
 
