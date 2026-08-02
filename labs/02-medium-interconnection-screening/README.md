@@ -51,14 +51,22 @@ Two more things worth knowing before you read the output:
   **pre-existing base-case condition** (bus 1126 sits at 0.899 pu even with no line dropped at
   all, independent of the candidate connection), not something these contingencies caused.
   `workflow.py`'s `check_limits()` labels this explicitly ("pre-existing in base case, not caused
-  by this contingency") rather than letting a real-data quirk look like a bug. No contingency in
-  this screen introduces a *new* breach beyond that pre-existing one. That same honesty carries
-  into `sample_contingency_chart.png`: the two panels plot the exact per-contingency numbers
-  `check_limits()` already evaluates (worst loading vs the 100% limit, worst voltage vs the
-  0.90–1.10 band), and because every contingency lands on the *same* pre-existing worst point the
-  bars are flat — the footnote on the chart says so, matching the printed table. The PNG is a
-  committed sample artifact (deterministic: same case + same lines => same pixels), regenerated on
-  every `--step check-limits` run and asserted to exist by `--step check`, never pixel-diffed.
+  by this contingency") rather than letting a real-data quirk look like a bug.
+- There ARE two **genuinely contingency-induced** breaches, and this screen exists to catch exactly
+  them: lines 151 and 152 are a parallel pair (both `[175-608]`, ~55-56% loaded in the base
+  case), so dropping either one forces the surviving twin to carry both circuits — line 152 to
+  **113.0%** when 151 is out, line 151 to **111.4%** when 152 is out. `check_limits()` marks both
+  rows FAIL with a "contingency-induced" thermal clause, and `draft_memo()` reports them as "2
+  contingency(ies) BREACH limits as a direct result of the outage" (this was a real finding, not a
+  cosmetic one: the memo previously keyed on the word "pre-existing" appearing anywhere in a
+  row's reason and mislabeled these rows as entirely pre-existing — fixed, see `draft_memo()`).
+  That same honesty carries into `sample_contingency_chart.png`: the two panels plot the exact
+  per-contingency numbers `check_limits()` already evaluates (worst loading vs the 100% limit,
+  worst voltage vs the 0.90–1.10 band), so 19 of 21 bars sit flat at the pre-existing ~97.8% /
+  0.899 pu point while the 151/152 bars visibly cross the 100% limit — the footnote states both
+  findings. The PNG is a committed sample artifact (deterministic: same case + same lines => same
+  pixels), regenerated on every `--step check-limits` run and asserted to exist by `--step check`,
+  never pixel-diffed.
 
 ## Command
 
@@ -87,15 +95,19 @@ uv run python -m pytest labs/02-medium-interconnection-screening/test_lab2.py
    step produces."
 3. **`uv run labs/02-medium-interconnection-screening/workflow.py --step check-limits`**
    — You should see: a table — line, from/to bus, worst bus voltage, worst line loading, pass/fail
-   — with every row FAIL, each annotated "(pre-existing in base case, not caused by this
-   contingency)" — see Sandbox notes above for why that's the honest, expected result here, not a
-   bug. The step also ends with `[chart] wrote sample_contingency_chart.png`, a committed
-   two-panel rendering of those same numbers (worst loading % vs the 100% thermal limit; worst
-   voltage pu vs the 0.90–1.10 pu band).
+   — with every row FAIL. 19 rows show only the "(pre-existing in base case, not caused by this
+   contingency)" voltage annotation; the rows for lines 151 and 152 additionally carry a
+   "loading 113.0%/111.4% on line 152/151 exceeds 100.0% (contingency-induced)" clause — see
+   Sandbox notes above for the parallel-pair story, and why the pre-existing-only reading of this
+   screen was a bug, not a result. The step also ends with `[chart] wrote
+   sample_contingency_chart.png`, a committed two-panel rendering of those same numbers (worst
+   loading % vs the 100% thermal limit; worst voltage pu vs the 0.90–1.10 pu band).
    — Why it matters: this is the actual engineering judgment call, made deterministically against
    documented criteria, not eyeballed — and now it can be glanced at, not just read as a table.
 4. **`uv run labs/02-medium-interconnection-screening/workflow.py --step memo --approve APPROVE`**
-   — You should see: the drafted plain-English screening memo printed to the terminal, then
+   — You should see: the drafted plain-English screening memo (now reporting the real
+   contingency-induced finding: "RESULT: 2 contingency(ies) BREACH limits as a direct result of
+   the outage: line 151/152 ..." — the parallel-pair overload from Sandbox notes), then
    `Human-in-the-loop checkpoint: APPROVE received -> MEMO FINALIZED.`
    — Run the same command *without* `--approve APPROVE` (and without a TTY, e.g. piped from
    `/dev/null`) to see the other half: `Human-in-the-loop checkpoint: BLOCKED, awaiting human
