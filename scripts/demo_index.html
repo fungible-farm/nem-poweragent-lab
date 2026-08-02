@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nem-poweragent-lab demo</title>
+<style>
+  :root {
+    --ink: #898781; --fg: #d8d8d8; --bg: #101418;
+    --phase-a: #2a78d6; --fault: #e34948; --accent: #4e9a63;
+  }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  header { padding: 18px 24px; border-bottom: 1px solid #222; }
+  h1 { margin: 0; font-size: 20px; color: #fff; }
+  header p { margin: 4px 0 0; font-size: 13px; color: var(--ink); }
+  main { padding: 20px 24px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 26px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #161b21; border: 1px solid #232a33; border-radius: 8px; padding: 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 14px; color: #fff; font-weight: 600; }
+  .card p { margin: 6px 0 0; font-size: 12px; color: var(--ink); }
+  video, img, audio { width: 100%; border-radius: 6px; background: #000; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>nem-poweragent-lab &mdash; demo</h1>
+  <p>Real physics, real DPsim/CSIRO data. Pick a feed; each player is independent and time-aligned to the same fault event where labelled.</p>
+</header>
+<main>
+
+  <h2>Animations (Lab 1, 2, 5)</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Lab 1 &mdash; bisection convergence</h3>
+      <video controls muted loop><source src="labs/01-simple-loadflow-fit/animate_convergence.mp4" type="video/mp4"></video>
+      <p>Load-scale search converging on the 0.9422 pu target at bus 2008.</p>
+    </div>
+    <div class="card">
+      <h3>Lab 2 &mdash; N-1 contingency screen</h3>
+      <video controls muted loop><source src="labs/02-medium-interconnection-screening/animate_contingencies.mp4" type="video/mp4"></video>
+      <p>21 contingencies, local-line re-routing; 151/152 parallel pair overloads.</p>
+    </div>
+    <div class="card">
+      <h3>Lab 5 &mdash; fault transient</h3>
+      <video controls muted loop><source src="labs/05-spartan-chaosnet-transient-stream/animate_transient.mp4" type="video/mp4"></video>
+      <p>SUB-3 line-to-ground at 0.2s, clears 0.35s &mdash; post-fault swell, not recovery.</p>
+    </div>
+    <div class="card">
+      <h3>Lab 5 &mdash; telemetry feeds (raw / phasor / SCADA)</h3>
+      <video controls muted loop><source src="labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.mp4" type="video/mp4"></video>
+      <p>Same event at 5 kHz, C37.118 100 Hz (3-phase + |V1|), and SCADA 4 s &mdash; the SCADA feed never moves.</p>
+    </div>
+  </div>
+
+  <h2>Audio &mdash; hear the fault</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Lab 5 &mdash; 3-channel sonification</h3>
+      <audio controls src="labs/05-spartan-chaosnet-transient-stream/dpsim_transient_3ch.wav"></audio>
+      <p>va/vb/vc as a 3-channel WAV, pitch-shifted 8x so the 50 Hz transient is audible.</p>
+    </div>
+  </div>
+
+  <h2>Charts</h2>
+  <div class="grid">
+    <div class="card"><h3>Lab 2 &mdash; contingency chart</h3><img src="labs/02-medium-interconnection-screening/sample_contingency_chart.png" alt="contingency"></div>
+    <div class="card"><h3>Lab 4 &mdash; AEMO reconciliation</h3><img src="labs/04-aemo-digital-twin-reconciliation/sample_reconciliation_chart.png" alt="reconciliation"></div>
+    <div class="card"><h3>Lab 5 &mdash; chaos-net topology</h3><img src="labs/05-spartan-chaosnet-transient-stream/sample_topology_plot.png" alt="topology"></div>
+    <div class="card"><h3>Lab 5 &mdash; fault transient (static)</h3><img src="labs/05-spartan-chaosnet-transient-stream/sample_transient_plot.png" alt="transient"></div>
+    <div class="card"><h3>Lab 5 &mdash; 3D phase-space</h3><img src="labs/05-spartan-chaosnet-transient-stream/sample_transient_3d.png" alt="3d"></div>
+    <div class="card"><h3>Lab 5 &mdash; telemetry rates</h3><img src="labs/05-spartan-chaosnet-transient-stream/sample_telemetry_rates.png" alt="rates"></div>
+    <div class="card"><h3>Lab 3 &mdash; provider scorecard</h3><img src="benchmarks/power-agent-bench-lite/results/scorecard_chart.png" alt="scorecard"><p>Regenerated output &mdash; present after Lab 3's <code>just report</code>.</p></div>
+  </div>
+
+</main>
+</body>
+</html>

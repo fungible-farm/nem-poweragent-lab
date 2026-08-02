@@ -148,11 +148,26 @@ view-lab5-rates:
     uv run python labs/05-spartan-chaosnet-transient-stream/view_telemetry_rates.py
     uv run python labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.py
 
-# --- demo: interactive launcher + display without file transfer --------------
-# One command: an fzf menu on the user's screen listing every lab
-# visualization; pick one and the right viewer launches it (mpv windowed /
-# chafa in-terminal / mpv audio). No remembered names (KISS/DMMT).
+# --- demo: browser dashboard + display without file transfer ----------------
+# One command: starts a local HTTP server and opens the demo dashboard in your
+# browser (WSL3/Windows capable -- no X, no WSLg dependency, full-res video +
+# audio). `just demo-stop` stops it; `just demo-tui` is the terminal fzf
+# fallback for an SSH-only session.
 demo:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkill -f serve_demo.py 2>/dev/null || true
+    nohup python3 scripts/serve_demo.py --open >/tmp/demo_server.log 2>&1 &
+    sleep 1
+    grep -m1 "http://" /tmp/demo_server.log
+
+demo-stop:
+    pkill -f serve_demo.py 2>/dev/null || true
+    echo "demo server stopped (if it was running)."
+
+# Terminal fallback: fzf menu of every visualization, launched in the SSH
+# terminal (no browser needed).
+demo-tui:
     ./scripts/demo.sh
 
 # chafa-render a named committed chart straight into the SSH terminal.
