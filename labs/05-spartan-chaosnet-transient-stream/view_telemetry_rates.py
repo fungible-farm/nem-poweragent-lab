@@ -95,25 +95,24 @@ def _load_log() -> TransientLog:
 
 
 def synchrophasor_100hz(
-    times: np.ndarray, phase: np.ndarray, trigger_s: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """C37.118-style synchrophasor estimates at 100 Hz (magnitude, angle).
+    times: np.ndarray, phase: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """C37.118-style synchrophasor estimates at 100 Hz (complex phasors).
 
     One-cycle DFT at the 50 Hz fundamental, frame centered every 1/100 s
     (overlapping windows -- a PMU's standard estimate, not naive decimation):
-    X = (2/N) * sum(x[n] * exp(-j*2*pi*(n - n0)/N)) over one cycle, magnitude
-    = |X| (V, peak), angle = arg(X) (degrees, referenced to the frame's
-    nominal 50 Hz phase). The fault window is where magnitude dips and the
-    angle steps.
+    X = (2/N) * sum(x[n] * exp(-j*2*pi*(n - n0)/N)) over one cycle. Magnitude
+    = |X| (V, peak), angle = arg(X). Returned as complex so callers derive
+    magnitude/angle and compute sequence components (positive-sequence) from
+    the same complex values -- every phase goes through the identical
+    estimator, so the phasor view is literally the same data as the raw view.
 
     Args:
         times: recorded sample times (s).
         phase: one phase's instantaneous voltage (V).
-        trigger_s: fault trigger time (s), used only for the pre-fault angle
-            reference (0 reference is the first frame).
 
     Returns:
-        (frame_times_s, magnitude_V, angle_deg).
+        (frame_times_s, complex_phasors).
     """
     fs = SAMPLE_RATE_HZ
     n_cycle = int(round(fs / FUNDAMENTAL_HZ))  # 100 samples/cycle @ 5 kHz
@@ -123,20 +122,33 @@ def synchrophasor_100hz(
     weights = np.exp(-2j * np.pi * k_cycle / n_cycle)
 
     frame_times: list[float] = []
-    mags: list[float] = []
-    angles: list[float] = []
-    # Reference angle: first frame's angle, so the pre-fault phase reads ~0.
-    ref_angle: float | None = None
+    phasors: list[complex] = []
     for center in range(n0, len(times) - n0, stride):
         win = phase[center - n0: center - n0 + n_cycle]
-        x = float(np.abs(np.sum(win * weights))) * (2.0 / n_cycle)
-        ang = float(np.angle(np.sum(win * weights)))
-        if ref_angle is None:
-            ref_angle = ang
         frame_times.append(float(times[center]))
-        mags.append(x)
-        angles.append(np.degrees(ang - ref_angle))
-    return np.asarray(frame_times), np.asarray(mags), np.asarray(angles)
+        phasors.append(complex(np.sum(win * weights)) * (2.0 / n_cycle))
+    return np.asarray(frame_times), np.asarray(phasors)
+
+
+def positive_sequence_magnitude(
+    va: np.ndarray, vb: np.ndarray, vc: np.ndarray,
+) -> np.ndarray:
+    """Positive-sequence phasor magnitude (symmetrical components).
+
+    V1 = (Va + a*Vb + a^2*Vc) / 3 with a = e^(j 120 deg) -- the standard
+    C37.118 sequence quantity. A balanced system keeps |V1| at the phase
+    amplitude; a line-to-ground fault drops it (the faulted phase collapses
+    while the others swell), so |V1| is the cleanest single anomaly signal.
+
+    Args:
+        va/vb/vc: complex phasor arrays for the three phases (same frame
+            times, as returned by synchrophasor_100hz()).
+
+    Returns:
+        |V1| per frame (V, peak).
+    """
+    a = np.exp(2j * np.pi / 3)
+    return np.abs((va + a * vb + a**2 * vc) / 3.0)
 
 
 def scada_4s_rms(
@@ -178,7 +190,10 @@ def render(log: TransientLog, path: Path) -> None:
     clear_s = float(log["clear_time_s"])
     final_s = float(t[-1])
 
-    ft, mag, ang = synchrophasor_100hz(t, va, trigger_s)
+    ft_a, ph_a = synchrophasor_100hz(t, va)
+    ft_b, ph_b = synchrophasor_100hz(t, vb)
+    ft_c, ph_c = synchrophasor_100hz(t, vc)
+    v1 = positive_sequence_magnitude(ph_a, ph_b, ph_c)
     scada = scada_4s_rms(t, va)
 
     fig, (ax_raw, ax_phase, ax_scada) = plt.subplots(
@@ -195,16 +210,21 @@ def render(log: TransientLog, path: Path) -> None:
     )
     ax_raw.legend(loc="upper right", fontsize=8)
 
-    # --- Panel 2: C37.118 synchrophasor at 100 Hz ---------------------------
-    ax_mag = ax_phase
-    ax_mag.plot(ft, mag / 1000.0, color=COLOR_MAGNITUDE, lw=1.2, marker=".", ms=3)
-    ax_mag.set_ylabel("phasor |V| (kV)", color=COLOR_MAGNITUDE)
-    ax_mag.tick_params(axis="y", labelcolor=COLOR_MAGNITUDE)
-    ax_ang = ax_mag.twinx()
-    ax_ang.plot(ft, ang, color=COLOR_ANGLE, lw=1.0, marker=".", ms=3)
-    ax_ang.set_ylabel("phase angle (deg)", color=COLOR_ANGLE)
-    ax_ang.tick_params(axis="y", labelcolor=COLOR_ANGLE)
-    ax_phase.set_title(f"C37.118 PDU output @ {PHASOR_RATE_HZ} Hz (phase A phasor)")
+    # --- Panel 2: C37.118 synchrophasor at 100 Hz, all three phases ---------
+    # Same three phases as panel 1, estimated by the identical one-cycle DFT:
+    # |Va|,|Vb|,|Vc| plus the positive-sequence magnitude |V1| (dashed). The
+    # fault collapses phase A and swells B/C, so |V1| dips -- one number that
+    # sees the event.
+    ax_phase.plot(ft_a, np.abs(ph_a) / 1000.0, color=COLOR_PHASE_A, lw=1.2, marker=".", ms=3, label="|Va|")
+    ax_phase.plot(ft_b, np.abs(ph_b) / 1000.0, color=COLOR_PHASE_B, lw=1.2, marker=".", ms=3, label="|Vb|")
+    ax_phase.plot(ft_c, np.abs(ph_c) / 1000.0, color=COLOR_PHASE_C, lw=1.2, marker=".", ms=3, label="|Vc|")
+    ax_phase.plot(ft_a, v1 / 1000.0, color=COLOR_INK, lw=1.6, ls="--", label="|V1| pos-seq")
+    ax_phase.set_ylabel("phasor magnitude (kV)")
+    ax_phase.legend(loc="lower left", fontsize=8)
+    ax_phase.set_title(
+        f"C37.118 PDU output @ {PHASOR_RATE_HZ} Hz -- three phases + "
+        f"positive sequence"
+    )
 
     # --- Panel 3: SCADA/EMS at 4 s ------------------------------------------
     for start, stop, rms in scada:
@@ -235,10 +255,15 @@ def main() -> None:
     render(log, OUTPUT_PNG)
     t = np.asarray(log["times"], dtype=float)
     va = np.asarray(log["va"], dtype=float)
-    _, mag, _ = synchrophasor_100hz(t, va, float(log["trigger_time_s"]))
+    vb = np.asarray(log["vb"], dtype=float)
+    vc = np.asarray(log["vc"], dtype=float)
+    ft, ph_a = synchrophasor_100hz(t, va)
+    _, ph_b = synchrophasor_100hz(t, vb)
+    _, ph_c = synchrophasor_100hz(t, vc)
     print(f"[rates] wrote {OUTPUT_PNG}")
     print(f"  raw 5 kHz:        {len(t)} samples over {t[-1]:.2f} s")
-    print(f"  C37.118 @100 Hz:  {len(mag)} phasor frames")
+    print(f"  C37.118 @100 Hz:  {len(ft)} phasor frames x 3 phases "
+          f"(+ pos-seq |V1|)")
     print(f"  SCADA @{SCADA_UPDATE_S:.0f} s:   {len(scada_4s_rms(t, va))} "
           f"update interval(s) -- the whole event fits inside one")
 
