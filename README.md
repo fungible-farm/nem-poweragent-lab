@@ -21,6 +21,9 @@ laptop-portable core and an optional hardware-validated extension.
 **Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
 is being built against.
 
+**Governance: [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md)** — the golden-path licensing policy and the
+"one waveform state machine generates every view" principle for Australian NEM capability.
+
 ## Install
 
 ```

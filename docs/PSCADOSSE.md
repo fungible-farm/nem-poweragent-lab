@@ -1,0 +1,68 @@
+# PSCADOSSE — charter
+
+**PSCADOSSE** = *PS/CAD and Open Systems Simulation Engineering*: the EMT /
+phasor domain and capability set that commercial PS/CAD exemplifies, implemented
+in this repo with the **open variants** it recommends. Using commercial PSCAD
+(or any commercial engine) is a modeller's own choice; it is **never required**
+on this repo's golden path (AGENTS.md non-goal: no commercial engines on the
+golden path).
+
+This repo assimilates that domain for Australian NEM capability: real CSIRO
+Synthetic-NEM network models, real AEMO reconciliation, and 50 Hz NEM-domain
+physics throughout.
+
+## Golden-path licensing policy
+
+The golden path prefers **foundational, OSI-approved, permissively licensed**
+components — Apache-2.0, MIT, BSD — ideally foundation-backed. Where such a
+component exists for a needed capability, this repo assimilates it rather than
+reaching for a proprietary or novel re-implementation.
+
+### Verified license map (checked from installed metadata / vendored files, not assumed)
+
+| Component | Role on the golden path | License | Notes |
+|---|---|---|---|
+| pandapower | power-flow engine (Labs 1-4) | BSD | OSI-approved BSD (classifier-confirmed) |
+| powerio | MATPOWER .m parsing | MIT OR Apache-2.0 | dual |
+| networkx | graph (Lab 5) | BSD-3-Clause | |
+| numpy / scipy / numba | numeric stack | BSD-3 / BSD-3 / BSD-2 | |
+| matplotlib | charts/animations | PSF / BSD-style | |
+| mcp | MCP SDK (smoke test) | MIT | |
+| DPsim | EMT engine (Lab 5) | **MPL-2.0** | the golden path's one exception — OSI-approved, file-level copyleft only, foundation-friendly; documented so nobody mistakes it for Apache |
+| simbench | Lab 5 seed grid dataset | university license (Kassel / TU Dortmund / RWTH) | dataset attribution terms |
+| just / uv | command runner / env | CC0 / MIT-or-Apache | |
+| CSIRO Synthetic-NEM data | Labs 1-5 case files | CC-BY-4.0 | fetched by scripts/fetch_csiro_nem_data.py |
+| AEMO NEM constraints | Lab 4 constraint decode | MIT (vendored, LICENSE-NEM_constraints) | |
+| mpv / chafa / ffmpeg | demo display/render (CLIs) | GPL-2.0+ / LGPL-3.0+ / LGPL-GPL | copyleft, but invoked as external CLIs — **not** part of the linked API surface, so they don't constrain the golden-path license posture |
+
+### The distinction that keeps the policy honest
+
+- **Golden-path *library/API* surface**: permissive (BSD/MIT/Apache) with
+  DPsim/MPL-2.0 as the documented single exception.
+- **External CLIs used for display/rendering** (mpv, chafa, ffmpeg): copyleft,
+  fine — they are subprocess-invoked tools, never linked into the deliverable.
+- **Data**: CC-BY-4.0 (CSIRO) and MIT (AEMO constraints vendor) carry their own
+  attribution terms, preserved in the fetch/vendoring paths.
+
+New golden-path dependencies MUST satisfy the policy (foundational +
+permissive OSI license, or a documented exception); record the license at the
+point of adoption.
+
+## One waveform state machine generates every view
+
+The single source of truth for a fault event is the ordered 3-phase
+instantaneous-voltage state sequence (`labs/05-.../phase_model.py`,
+`ThreePhaseWaveform`). Raw 5 kHz, C37.118 phasors, positive sequence, SCADA
+RMS, and the anomaly signal are all *generated* from that one model — no view
+re-implements its own math, so they can never disagree about what the waveform
+was. See `phase_model.py`'s docstring for the PSCADOSSE framing.
+
+## Generative design & agent skills (ambition, adjacent to the open PowerAgent ecosystem)
+
+High-level, domain-specific, idiomatic abstracts modeled on PSCAD-style
+component/template patterns, expressed in the open stack (pandapower/DPsim),
+accompanied by loadable agent skills — sitting adjacent to the open-source
+PowerAgent ecosystem (PowerAgentBench is already referenced in
+`benchmarks/README.md`). This is the stated direction; the concrete seeds so
+far are `phase_model.py` (one-source-of-truth generation) and the telemetry
+views that consume it.
