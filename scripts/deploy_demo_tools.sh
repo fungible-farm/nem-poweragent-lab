@@ -32,4 +32,4 @@ fi
 
 # Idempotent: apt only touches absent packages. Same package set as
 # install.sh step 7 / scripts/install_smoke_test.py's DISPLAY_TOOLS.
-apt-get install -y mpv chafa
+apt-get install -y mpv chafa fzf

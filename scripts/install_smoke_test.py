@@ -145,10 +145,10 @@ def check_powermcp() -> str | None:
     return failure
 
 
-# The display/demo tools install.sh step 7 installs (apt: mpv, chafa) and the
-# root Justfile's `watch`/`peek` recipes call -- their presence is part of the
-# install gate since the demo workflow depends on them.
-DISPLAY_TOOLS: tuple[str, ...] = ("mpv", "chafa")
+# The display/demo tools install.sh step 7 installs (apt: mpv, chafa, fzf) and
+# the root Justfile's `watch`/`peek`/`demo` recipes call -- their presence is
+# part of the install gate since the demo workflow depends on them.
+DISPLAY_TOOLS: tuple[str, ...] = ("mpv", "chafa", "fzf")
 
 
 def check_display_tools() -> str | None:

@@ -148,7 +148,13 @@ view-lab5-rates:
     uv run python labs/05-spartan-chaosnet-transient-stream/view_telemetry_rates.py
     uv run python labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.py
 
-# --- demo: display without file transfer ------------------------------------
+# --- demo: interactive launcher + display without file transfer --------------
+# One command: an fzf menu on the user's screen listing every lab
+# visualization; pick one and the right viewer launches it (mpv windowed /
+# chafa in-terminal / mpv audio). No remembered names (KISS/DMMT).
+demo:
+    ./scripts/demo.sh
+
 # chafa-render a named committed chart straight into the SSH terminal.
 # `just peek` lists the named charts; `just peek <name>` renders one.
 peek name="list":

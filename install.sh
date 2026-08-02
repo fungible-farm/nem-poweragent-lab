@@ -120,7 +120,7 @@ podman kube play kube/powermcp-pandapower-pod.yaml --replace
 # failing the physics install.
 log "step 7/8: checking display/demo tools (mpv, chafa)"
 DISPLAY_TOOLS_MISSING=0
-for tool in mpv chafa; do
+for tool in mpv chafa fzf; do
     if command -v "$tool" >/dev/null 2>&1; then
         log "  $tool already present ($(command -v "$tool")) -- skipping"
     else
@@ -130,7 +130,7 @@ done
 if [ "$DISPLAY_TOOLS_MISSING" -eq 1 ]; then
     if command -v apt-get >/dev/null 2>&1; then
         log "installing missing display tools via apt (may prompt for sudo)"
-        if ! sudo apt-get install -y mpv chafa; then
+        if ! sudo apt-get install -y mpv chafa fzf; then
             log "WARN: could not install mpv/chafa non-interactively (sudo likely"
             log "  needs a password here). The labs do not need these -- the demo"
             log "  display workflow does. Install them later with:"
@@ -139,10 +139,10 @@ if [ "$DISPLAY_TOOLS_MISSING" -eq 1 ]; then
         fi
     else
         log "WARN: no apt-get on this system -- cannot auto-install mpv/chafa."
-        log "  Install them yourself (Fedora/RHEL: sudo dnf install -y mpv chafa),"
+        log "  Install them yourself (Fedora/RHEL: sudo dnf install -y mpv chafa fzf),"
         log "  or run: just authorize && just deploy"
     fi
-    for tool in mpv chafa; do
+    for tool in mpv chafa fzf; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             log "  $tool still not on PATH after the attempt (see WARN above)"
         fi
