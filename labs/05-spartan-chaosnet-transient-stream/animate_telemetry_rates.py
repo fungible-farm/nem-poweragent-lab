@@ -37,12 +37,15 @@ from view_telemetry_rates import (  # noqa: E402
     COLOR_PHASE_B,
     COLOR_PHASE_C,
     OUTPUT_PNG,
+    _load_log,
+)
+from phase_model import (  # noqa: E402
     PHASOR_RATE_HZ,
     SCADA_UPDATE_S,
-    _load_log,
-    positive_sequence_magnitude,
-    scada_4s_rms,
-    synchrophasor_100hz,
+    ThreePhaseWaveform,
+    phasor_frames,
+    positive_sequence,
+    scada_rms,
 )
 
 LAB_DIR = Path(__file__).resolve().parent
@@ -125,26 +128,23 @@ def _narration(
 
 def animate(log: dict, output: Path) -> None:
     """Render the isolated, narrated, time-aligned feeds as a 1920x1080 MP4."""
-    t = np.asarray(log["times"], dtype=float)
-    va = np.asarray(log["va"], dtype=float)
-    vb = np.asarray(log["vb"], dtype=float)
-    vc = np.asarray(log["vc"], dtype=float)
+    wave = ThreePhaseWaveform.from_log(log)
+    t = wave.times
+    va, vb, vc = wave.va, wave.vb, wave.vc
     trigger_s = float(log["trigger_time_s"])
     clear_s = float(log["clear_time_s"])
-    final_s = float(t[-1])
+    final_s = wave.duration_s
 
-    ft_a, ph_a = synchrophasor_100hz(t, va)
-    _, ph_b = synchrophasor_100hz(t, vb)
-    _, ph_c = synchrophasor_100hz(t, vc)
+    ft, ph_a, ph_b, ph_c = phasor_frames(wave)
     mag_a, mag_b, mag_c = np.abs(ph_a), np.abs(ph_b), np.abs(ph_c)
-    v1 = positive_sequence_magnitude(ph_a, ph_b, ph_c)
-    scada = scada_4s_rms(t, va)
+    v1 = np.abs(positive_sequence(ph_a, ph_b, ph_c))
+    scada = scada_rms(wave)
     scada_times = np.asarray([(s + e) / 2.0 for s, e, _ in scada])
     scada_vals = np.asarray([r for _, _, r in scada])
 
     # Narration numbers from the real log.
     pre_peak_kv = float(np.max(np.abs(va[t < trigger_s]))) / 1000.0
-    in_fault = (ft_a >= trigger_s) & (ft_a <= clear_s)
+    in_fault = (ft >= trigger_s) & (ft <= clear_s)
     fault_dip_kv = float(mag_a[in_fault].min()) / 1000.0
     v1_dip_kv = float(v1[in_fault].min()) / 1000.0
     post_peak_kv = float(np.max(np.abs(va[t >= clear_s]))) / 1000.0
@@ -215,11 +215,11 @@ def animate(log: dict, output: Path) -> None:
         win_lo = max(0.0, now - RAW_ZOOM_S)
         ax_raw.set_xlim(win_lo, now if now > win_lo else win_lo + RAW_ZOOM_S)
 
-        pmask = ft_a <= now
-        line_mag_a.set_data(ft_a[pmask], mag_a[pmask] / 1000.0)
-        line_mag_b.set_data(ft_a[pmask], mag_b[pmask] / 1000.0)
-        line_mag_c.set_data(ft_a[pmask], mag_c[pmask] / 1000.0)
-        line_v1.set_data(ft_a[pmask], v1[pmask] / 1000.0)
+        pmask = ft <= now
+        line_mag_a.set_data(ft[pmask], mag_a[pmask] / 1000.0)
+        line_mag_b.set_data(ft[pmask], mag_b[pmask] / 1000.0)
+        line_mag_c.set_data(ft[pmask], mag_c[pmask] / 1000.0)
+        line_v1.set_data(ft[pmask], v1[pmask] / 1000.0)
 
         smask = scada_times <= now
         line_scada.set_data(scada_times[smask], scada_vals[smask] / 1000.0)
@@ -251,17 +251,16 @@ def main() -> None:
     """Load the real log, render the MP4, print the per-rate summary."""
     log = _load_log()
     animate(log, OUTPUT_MP4)
-    t = np.asarray(log["times"], dtype=float)
-    va = np.asarray(log["va"], dtype=float)
-    ft, _ = synchrophasor_100hz(t, va)
+    wave = ThreePhaseWaveform.from_log(log)
+    ft, _, _, _ = phasor_frames(wave)
     print(
         f"[feeds] wrote {OUTPUT_MP4}: {N_FRAMES} frames, "
         f"{VIDEO_DURATION_S:.1f}s at {ANIMATION_FPS} fps (1920x1080)"
     )
-    print(f"  raw 5 kHz:        {len(t)} samples over {t[-1]:.2f} s "
-          f"(scope window {RAW_ZOOM_S * 1000:.0f} ms)")
+    print(f"  raw 5 kHz:        {len(wave.times)} samples over "
+          f"{wave.duration_s:.2f} s (scope window {RAW_ZOOM_S * 1000:.0f} ms)")
     print(f"  C37.118 @100 Hz:  {len(ft)} phasor frames x 3 phases (+ pos-seq)")
-    print(f"  SCADA @{SCADA_UPDATE_S:.0f} s:   {len(scada_4s_rms(t, va))} "
+    print(f"  SCADA @{SCADA_UPDATE_S:.0f} s:   {len(scada_rms(wave))} "
           f"update interval(s) -- the whole event fits inside one")
     print(f"  static still:     {OUTPUT_PNG}")
 

@@ -35,6 +35,11 @@ import numpy as np
 from scipy.io import wavfile
 from scipy.signal import resample
 
+from phase_model import (  # noqa: E402
+    ThreePhaseWaveform,
+    peak_deviation_bins,
+)
+
 LAB_DIR = Path(__file__).resolve().parent
 TRANSIENT_LOG_JSON = LAB_DIR / "dpsim_transient_log.json"
 OUTPUT_3D_PNG = LAB_DIR / "sample_transient_3d.png"
@@ -191,48 +196,11 @@ def _write_3ch_wav(log: TransientLog, path: Path) -> None:
     wavfile.write(path, WAV_SAMPLE_RATE_HZ, scaled)
 
 
-def peak_deviation_bins(
-    log: TransientLog, window_s: float,
-) -> list[tuple[float, float, float]]:
-    """Peak deviation magnitude per window -- the classifier's anomaly rate.
-
-    Deviation(t) = max over phases of max(0, |v_phase(t)| - reference_peak),
-    where reference_peak is that phase's pre-fault peak (the KISS "beyond
-    nominal" measure). The bin's value is the peak of deviation(t) within the
-    window. With this log (~0.55 s) a 1 s bin and a 5 s window each contain
-    the whole recording as one partial bin -- the metric is ready for a
-    longer stream, which is when per-window anomaly rate becomes meaningful.
-
-    Args:
-        log: the validated transient log.
-        window_s: aggregation window length in seconds.
-
-    Returns:
-        Sorted [(window_start_s, window_end_s, peak_deviation_V)].
-    """
-    t = np.asarray(log["times"], dtype=float)
-    trigger_s = float(log["trigger_time_s"])
-    phases = np.stack(
-        [np.asarray(log[key], dtype=float) for key in ("va", "vb", "vc")], axis=1
-    )
-    pre = t < trigger_s
-    ref_peaks = np.abs(phases[pre]).max(axis=0)
-    deviation = np.max(np.maximum(0.0, np.abs(phases) - ref_peaks), axis=1)
-
-    bins: list[tuple[float, float, float]] = []
-    start = 0.0
-    end = float(t[-1])
-    while start < end:
-        win_end = min(start + window_s, end)
-        m = (t >= start) & (t < win_end)
-        bins.append((start, win_end, float(deviation[m].max()) if m.any() else 0.0))
-        start = win_end
-    return bins
-
-
 def main() -> None:
     """Render the 3D PNG + 3-channel WAV and print the anomaly bins."""
     log = _load_log()
+    wave = ThreePhaseWaveform.from_log(log)
+    trigger_s = float(log["trigger_time_s"])
 
     _render_3d(log, OUTPUT_3D_PNG)
     _write_3ch_wav(log, OUTPUT_WAV)
@@ -242,7 +210,7 @@ def main() -> None:
 
     for window_s in ANOMALY_WINDOWS_S:
         print(f"peak deviation magnitude, {window_s:.0f} s windows:")
-        for start, win_end, peak_dev in peak_deviation_bins(log, window_s):
+        for start, win_end, peak_dev in peak_deviation_bins(wave, trigger_s, window_s):
             note = (
                 " (partial window -- log is only "
                 f"{float(log['times'][-1]):.2f} s long)"
