@@ -109,6 +109,20 @@ hardware customization. The phase-model types currently in `phase_model.py`
 positive-sequence transforms) are the intended first **oxidized** crates —
 consumed from Python via PyO3, or directly by the classifier / Grafana bridge.
 
+**Status:** the first oxidized crate is done — `rust/phase-model`
+(MIT OR Apache-2.0) ports the Python state machine, ring buffer, and phasor
+transforms; its `real_log_matches_python` test proves the numbers are
+bit-consistent with Python on the real DPsim log, and it compiles to
+`wasm32-unknown-unknown` (`just rust-test` / `just rust-wasm`).
+
+**Dynamic browser dashboard (the "Vue-in-Rust" direction):** the static
+`scripts/demo_index.html` page is a stopgap. The target is a **Dioxus** app
+(rsx DSL, WASM target, canvas/WebGL rendering; MIT/Apache-2.0 — golden-path
+compliant) that loads the `phase-model` WASM and runs the simulation
+client-side: it fetches the real log JSON, computes phasors/sequence/SCADA in
+the browser, and streams the feeds to canvas — dynamic, not static. The
+static page stays until the Dioxus bundle replaces it.
+
 **Revision of VISION §8 ("We are **not** writing a new Rust crate"):** that
 stance was written for the parsing layer — `powerio` already covers it, so the
 golden path still consumes `powerio` and does not fork it. The oxidation

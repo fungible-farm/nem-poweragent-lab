@@ -148,6 +148,17 @@ view-lab5-rates:
     uv run python labs/05-spartan-chaosnet-transient-stream/view_telemetry_rates.py
     uv run python labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.py
 
+# --- Rust / WASM (the oxidized phase_model, PSCADOSSE) -----------------------
+# Native tests (includes real_log_matches_python: the Rust port must match
+# the Python numbers exactly on the real DPsim log).
+rust-test:
+    cargo test --manifest-path rust/Cargo.toml
+
+# Build the simulation crate to WASM (the "sim compiled into wasm, shipped to
+# the browser" piece the Dioxus UI will load client-side).
+rust-wasm:
+    cargo build --manifest-path rust/Cargo.toml -p phase-model --target wasm32-unknown-unknown
+
 # --- demo: browser dashboard + display without file transfer ----------------
 # One command: starts a local HTTP server and opens the demo dashboard in your
 # browser (WSL3/Windows capable -- no X, no WSLg dependency, full-res video +
