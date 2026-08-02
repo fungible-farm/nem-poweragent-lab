@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ring buffer — lock per consumer</title>
+<style>
+  :root { --ink:#898781; --fg:#d8d8d8; --bg:#101418; --panel:#161b21;
+          --border:#232a33; --green:#4e9a63; --red:#e34948; --blue:#2a78d6; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 22px; border-bottom:1px solid var(--border); }
+  h1 { margin:0; font-size:18px; color:#fff; }
+  p { font-size:13px; color:var(--ink); margin:4px 0 0; }
+  main { padding:18px 22px; display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:var(--panel); border:1px solid var(--border); border-radius:10px; }
+  .controls { display:flex; flex-direction:column; gap:10px; min-width:260px; }
+  button { background:#1d242c; color:var(--fg); border:1px solid var(--border);
+           padding:8px 12px; border-radius:6px; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--green); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .status { font-family:ui-monospace,monospace; font-size:12px; color:var(--ink);
+            background:var(--panel); border:1px solid var(--border); padding:10px; border-radius:6px; }
+  .legend { font-size:12px; color:var(--ink); line-height:1.7; }
+  .legend b { font-family:ui-monospace,monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ring buffer — lock per consumer</h1>
+  <p>The distribution primitive (docs/PSCADOSSE.md). One producer writes logical indices into a
+     ring; each consumer holds its own cursor. A slow consumer lags; items behind the drop-oldest
+     frontier are lost by it, but the producer and other consumers are never blocked.</p>
+</header>
+<main>
+  <canvas id="cv" width="560" height="560"></canvas>
+  <div class="controls">
+    <div class="row">
+      <button id="btnWrite">Write</button>
+      <button id="btnReadFast">Read fast</button>
+      <button id="btnReadSlow">Read slow</button>
+      <button id="btnAdd">+ reader</button>
+      <button id="btnReset">Reset</button>
+    </div>
+    <label>Auto-play <input id="chkAuto" type="checkbox" checked></label>
+    <label>Speed <input id="rngSpeed" type="range" min="40" max="1200" value="400"></label>
+    <div id="status" class="status"></div>
+    <div class="legend">
+      <b style="color:var(--green)">▲</b> producer frontier (next write)<br>
+      <b style="color:var(--red)">▍</b> drop-oldest frontier — older indices already overwritten<br>
+      <b style="color:var(--blue)">●</b> fast consumer cursor &nbsp;
+      <b style="color:#e5a13b">●</b> slow consumer cursor<br>
+      boxes = the logical index currently in each slot (<b>·</b> = never written)
+    </div>
+  </div>
+</main>
+<script>
+const N = 8, CX = 280, CY = 280, R = 200;
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const statusEl = document.getElementById("status");
+
+let written = 0, dropped = 0;
+let slots = new Array(N).fill(null);
+let readers = [
+  { next: 0, color: "#2a78d6", name: "fast" },
+  { next: 0, color: "#e5a13b", name: "slow" },
+];
+let auto = true, speed = 400, timer = null;
+
+function writeItem() {
+  const slot = written % N;
+  slots[slot] = written;
+  written++;
+  if (written > N) dropped = written - N;
+}
+function readItem(r) {
+  let k = r.next;
+  if (k >= written) return null;
+  if (k < dropped) { k = dropped; r.next = k; } // skip overwritten
+  const v = slots[k % N];
+  r.next = k + 1;
+  return v;
+}
+
+function slotPos(i) {
+  const a = -Math.PI / 2 + i * (2 * Math.PI / N);
+  return [CX + R * Math.cos(a), CY + R * Math.sin(a)];
+}
+function draw() {
+  ctx.clearRect(0, 0, 560, 560);
+  ctx.strokeStyle = "#232a33"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, R + 34, 0, 2 * Math.PI); ctx.stroke();
+
+  // overwritten (dropped) region shading
+  if (dropped > 0) {
+    const from = ((dropped - 1) % N + N) % N, to = ((written - 1) % N + N) % N;
+    ctx.fillStyle = "rgba(227,73,72,0.10)";
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    for (let i = from, c = 0; c < N; i = (i + 1) % N, c++) {
+      const [x, y] = slotPos(i);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+
+  for (let i = 0; i < N; i++) {
+    const [x, y] = slotPos(i);
+    ctx.fillStyle = slots[i] === null ? "#1d242c" : "#232a33";
+    ctx.strokeStyle = slots[i] === null ? "#2a3140" : "#3a4555";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.rect(x - 24, y - 24, 48, 48); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = slots[i] === null ? "#555f70" : "#fff";
+    ctx.font = "13px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(slots[i] === null ? "·" : String(slots[i]), x, y);
+  }
+
+  // producer frontier arrow (green)
+  {
+    const [x, y] = slotPos(written % N);
+    ctx.strokeStyle = "#4e9a63"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 30, 0, 2 * Math.PI); ctx.stroke();
+  }
+  // drop-oldest frontier tick (red)
+  if (dropped > 0) {
+    const [x, y] = slotPos(dropped % N);
+    ctx.strokeStyle = "#e34948"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, 2 * Math.PI); ctx.stroke();
+  }
+  // readers
+  readers.forEach((r, idx) => {
+    const [x, y] = slotPos(r.next % N);
+    ctx.fillStyle = r.color;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = "#101418"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(String(idx), x, y + 0.5);
+  });
+
+  statusEl.textContent =
+    `written=${written}  dropped=${dropped}  ` +
+    readers.map((r, i) => `${r.name}.next=${r.next}`).join("  ") +
+    `\nslots: ${slots.map((s, i) => `[${i}]=${s ?? "·"}`).join(" ")}`;
+}
+
+function stepAuto() {
+  writeItem();
+  if (written % 1 === 0) readItem(readers[0]);      // fast reads every tick
+  if (written % 3 === 0) readItem(readers[1]);      // slow reads every 3rd
+  draw();
+}
+function schedule() {
+  clearInterval(timer);
+  if (auto) timer = setInterval(stepAuto, speed);
+}
+
+document.getElementById("btnWrite").onclick   = () => { writeItem(); draw(); };
+document.getElementById("btnReadFast").onclick= () => { readItem(readers[0]); draw(); };
+document.getElementById("btnReadSlow").onclick= () => { readItem(readers[1]); draw(); };
+document.getElementById("btnAdd").onclick     = () => {
+  readers.push({ next: dropped, color: "#9b6fd8", name: `r${readers.length}` });
+  draw();
+};
+document.getElementById("btnReset").onclick   = () => {
+  written = 0; dropped = 0; slots = new Array(N).fill(null);
+  readers = [{ next: 0, color: "#2a78d6", name: "fast" },
+             { next: 0, color: "#e5a13b", name: "slow" }];
+  draw();
+};
+document.getElementById("chkAuto").onchange   = e => { auto = e.target.checked; schedule(); };
+document.getElementById("rngSpeed").oninput   = e => { speed = +e.target.value; schedule(); };
+
+schedule(); draw();
+</script>
+</body>
+</html>
