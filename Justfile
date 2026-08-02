@@ -1,7 +1,7 @@
 # Canonical command entry point for nem-poweragent-lab -- the repo's "just
 # does this" truth (see AGENTS.md "Running the labs"). Recipes are the
 # canonical example commands; anything non-trivial lives in a committed
-# script (./install.sh, scripts/run_labs_1_3.sh, scripts/deploy_demo_tools.py,
+# script (./install.sh, scripts/run_labs_1_3.sh, scripts/deploy_demo_tools.sh,
 # scripts/peek_viz.sh, scripts/watch_viz.sh) that a recipe simply RUNS -- just
 # is the index, not a re-implementation. `just --list` for everything.
 #
@@ -33,13 +33,45 @@ sync:
 fetch:
     uv run scripts/fetch_csiro_nem_data.py
 
-# Declarative host-state deploy for the demo/display tools (pyinfra @local).
-# Idempotent; prompts for sudo once, or export SUDO_PASSWORD for scripted
-# runs (see scripts/deploy_demo_tools.py). Bootstraps pyinfra itself if
-# absent (uv tool install -- the user-global tool, not a repo dependency).
-deploy:
-    command -v pyinfra >/dev/null 2>&1 || uv tool install pyinfra
-    pyinfra @local scripts/deploy_demo_tools.py
+# Declarative host-state deploy for the demo/display tools.
+#
+# Per-command authorization model (scoped sudoers, no password anywhere):
+# the ONLY NOPASSWD root surface is the committed, reviewed
+# scripts/deploy_demo_tools.sh (see scripts/sudoers.d/nem-poweragent-lab,
+# installed by `just authorize`). `deploy` runs that script as root and, if
+# the rule isn't installed yet, tells you exactly what to run instead of
+# stopping dead -- the just workflow is never the blocker.
+#
+# Future-just note: this pattern is a candidate for an upstream `just`
+# feature -- a recipe attribute like `[elevated]` that routes a recipe's
+# commands through a configured elevation boundary (the authorized script
+# here). Filed as an idea, not needed for today.
+deploy args="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    script="{{justfile_directory()}}/scripts/deploy_demo_tools.sh"
+    if ! sudo -n "$script" {{args}}; then
+        echo "deploy: not authorized to run the deploy script as root (yet)."
+        echo "  One-time setup -- run:  just authorize"
+        echo "  (installs scripts/sudoers.d/nem-poweragent-lab: NOPASSWD for"
+        echo "   exactly $script and nothing else.)"
+        exit 1
+    fi
+
+# One-time install of the scoped sudoers rule (prompts for your sudo password
+# once). Fills the <REPO_USER>/<REPO_ROOT> placeholders from this checkout and
+# validates the result with visudo. Re-run after moving the repo.
+authorize:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo_root="{{justfile_directory()}}"
+    tmp="/tmp/nem-poweragent-lab.sudoers.$$"
+    sed -e "s|<REPO_USER>|$(id -un)|" -e "s|<REPO_ROOT>|${repo_root}|g" \
+        "$repo_root/scripts/sudoers.d/nem-poweragent-lab" > "$tmp"
+    sudo cp "$tmp" /etc/sudoers.d/nem-poweragent-lab
+    sudo chmod 0440 /etc/sudoers.d/nem-poweragent-lab
+    rm -f "$tmp"
+    sudo visudo -c
 
 # --- proof / test ----------------------------------------------------------
 # The committed end-to-end proofs (the proof scripts are the proof, not a

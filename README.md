@@ -39,8 +39,10 @@ cold run (dominated by the one-time ~2.3GB GGUF download over this machine's lin
 `docs/VISION.md` §10 for the full step list).
 
 `install.sh` also best-effort installs the demo/display tools `mpv` + `chafa` (step 7; non-fatal —
-the labs don't need them). The declarative, idempotent way to maintain that host state is
-`just deploy` (a pyinfra deploy; see `scripts/deploy_demo_tools.py`).
+the labs don't need them). The canonical per-command path is the scoped-sudoers authorized-script
+boundary: `scripts/deploy_demo_tools.sh` is the only NOPASSWD root surface (granted by
+`scripts/sudoers.d/nem-poweragent-lab` via `just authorize`), and `just deploy` runs it as root
+with no password anywhere.
 
 **`just --list` is the canonical command index** — `just sync`, `just fetch`, `just test`,
 `just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and

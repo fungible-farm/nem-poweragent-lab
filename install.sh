@@ -111,14 +111,13 @@ podman kube play kube/powermcp-pandapower-pod.yaml --replace
 #
 # BEST-EFFORT, not a gate: the physics labs run headless, so mpv/chafa are
 # only needed by the demo/display workflow. The direct `sudo apt-get` below
-# is the one invocation that works non-interactively on a box like fung1
-# whose sudoers grants NOPASSWD for apt-get specifically; a *declarative*
-# pyinfra deploy (scripts/deploy_demo_tools.py, idempotent and extensible)
-# is the canonical way to maintain this host state, but pyinfra wraps its
-# sudo'd commands in `sh`/`env` and would demand a password on that same
-# box -- so the deploy is the `just deploy` path, not this bootstrap. If
-# this step cannot install the tools (non-interactive + no NOPASSWD apt),
-# it warns and continues rather than failing the physics install.
+# works non-interactively on a box like fung1 whose sudoers grants NOPASSWD
+# for apt-get specifically; the canonical per-command path is the committed
+# authorized-script boundary (scripts/deploy_demo_tools.sh + `just
+# authorize`/`just deploy`), which needs no password and grants NOPASSWD to
+# exactly that one script. If this step cannot install the tools
+# (non-interactive + no NOPASSWD apt), it warns and continues rather than
+# failing the physics install.
 log "step 7/8: checking display/demo tools (mpv, chafa)"
 DISPLAY_TOOLS_MISSING=0
 for tool in mpv chafa; do
@@ -135,12 +134,13 @@ if [ "$DISPLAY_TOOLS_MISSING" -eq 1 ]; then
             log "WARN: could not install mpv/chafa non-interactively (sudo likely"
             log "  needs a password here). The labs do not need these -- the demo"
             log "  display workflow does. Install them later with:"
-            log "    just deploy    # pyinfra, declarative, prompts for sudo once"
+            log "    just authorize   # one-time: scoped NOPASSWD for the deploy script"
+            log "    just deploy      # runs the authorized script as root"
         fi
     else
         log "WARN: no apt-get on this system -- cannot auto-install mpv/chafa."
         log "  Install them yourself (Fedora/RHEL: sudo dnf install -y mpv chafa),"
-        log "  or run: just deploy"
+        log "  or run: just authorize && just deploy"
     fi
     for tool in mpv chafa; do
         if ! command -v "$tool" >/dev/null 2>&1; then

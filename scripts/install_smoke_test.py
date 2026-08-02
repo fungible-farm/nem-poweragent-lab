@@ -156,8 +156,9 @@ def check_display_tools() -> str | None:
 
     Informational, not part of the PASS/FAIL gate: install.sh step 7 installs
     them best-effort and the physics labs run headless without them, so their
-    absence must not fail an otherwise-correct install (run `just deploy` to
-    bring them in via pyinfra).
+    absence must not fail an otherwise-correct install (run `just authorize`
+    then `just deploy` to install them via the scoped-sudoers authorized
+    script).
 
     Returns:
         None (never a gate failure); prints the finding.
@@ -170,7 +171,8 @@ def check_display_tools() -> str | None:
         print(
             "  [note] display tools missing from PATH: "
             + ", ".join(missing)
-            + " -- the labs don't need them; run `just deploy` to install them"
+            + " -- the labs don't need them; run `just authorize` then `just deploy`"
+            " to install them via the scoped-sudoers authorized script"
         )
     return None
 
