@@ -157,7 +157,7 @@ demo:
     #!/usr/bin/env bash
     set -euo pipefail
     pkill -f serve_demo.py 2>/dev/null || true
-    nohup python3 scripts/serve_demo.py --open >/tmp/demo_server.log 2>&1 &
+    nohup python3 -u scripts/serve_demo.py --open >/tmp/demo_server.log 2>&1 &
     sleep 1
     grep -m1 "http://" /tmp/demo_server.log
 
