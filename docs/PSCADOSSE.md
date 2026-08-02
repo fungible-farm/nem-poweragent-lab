@@ -89,3 +89,29 @@ phase_model (ThreePhaseWaveform) -> ingest bridge -> time-series store -> Grafan
   an external service, not linked into the golden-path API surface — the same
   category as the display CLIs — so it does not change the golden-path posture,
   but it should be recorded at adoption like any other component.
+
+## Distribution & performance: a common ring buffer, lock per consumer
+
+Distribution of the live feeds is a **single common ring buffer** the producer
+(a live DPsim solve, or the log replay) writes time-indexed samples into.
+Every consumer — raw 5 kHz view, C37.118 phasor feed, SCADA/EMS, the anomaly
+classifier, and the future Grafana bridge — holds **its own read cursor /
+lock**, so one slow consumer lags on its own cursor without blocking the
+producer or its peers. The derived feeds remain *transforms of the same ring*
+(phasor = decimation + one-cycle DFT; SCADA = aggregation), preserving the
+one-source-of-truth principle from the state machine.
+
+## Rust preference & the oxidation roadmap
+
+At some point the hot path **prefers Rust over Python** for performance and
+hardware customization. The phase-model types currently in `phase_model.py`
+(ThreePhaseWaveform, the per-consumer-cursor ring buffer, the C37.118 phasor /
+positive-sequence transforms) are the intended first **oxidized** crates —
+consumed from Python via PyO3, or directly by the classifier / Grafana bridge.
+
+**Revision of VISION §8 ("We are **not** writing a new Rust crate"):** that
+stance was written for the parsing layer — `powerio` already covers it, so the
+golden path still consumes `powerio` and does not fork it. The oxidation
+roadmap **supersedes §8 for the ring-buffer / hot-path layer**: a first-party
+Rust crate (e.g. `phase-model-rs`) is the intended future there. This is an
+explicit revision decision, not a silent change.
