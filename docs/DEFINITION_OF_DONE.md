@@ -118,6 +118,19 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 - [x] Lab 5's README states, verbatim or equivalent, both caveats: it does not implement or
       reproduce SPARTAN's anomaly-detection logic (a subsequent phase, out of scope here), and no
       generated topology represents a real substation network.
+- [x] `docs/prd/0001-composable-generator-detector-platform.md` — implemented (this is the
+      "subsequent phase" the bullet above defers to): `labs/_shared/scenario_engine/` provides the
+      `Generator`/`Detector` protocols with all five concrete kinds of each (including
+      `ProtectionTripGenerator`'s tagged-union `trigger_condition`, backporting
+      `docs/prd/0002-sa-2016-black-system-cascade-scenario.md`'s counting-window variant now, not
+      deferred); Lab 5's existing single fault runs unchanged through the extended schedule format
+      (`labs/_shared/test_scenario_engine.py` directly re-runs `labs/05.../test_lab5.py`'s own tests
+      as its own regression gate); `demo_scenario.py`'s synthetic scenario demonstrates a
+      condition-triggered `ProtectionTripGenerator` and an `OscillationDetector` end to end, scored
+      by `scoring.score_run()`'s two independent (generator-realism, detector-performance) sections
+      against `labs/_shared/expected_demo_scenario_run.json`. **Not** a claim that 0002/0003's real
+      historical scenarios are implemented — this PRD is the platform only, per its own explicit
+      scope.
 - [ ] Every lab's README includes a "step-by-step walkthrough (presenter/backup script)" section
       detailed enough that someone could talk through the demo from it even if the live run fails
       on the day.

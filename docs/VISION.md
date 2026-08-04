@@ -493,3 +493,32 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
 
 None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
 unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.
+
+## 14. Forward-looking capability PRDs
+
+Where §13 records gaps found by auditing already-committed code, [`docs/prd/`](prd/README.md) is
+the forward-looking counterpart: build plans for capability this repo doesn't have yet, broken into
+composable units with acceptance criteria, written after a 2026-08-03 review of AEMO's 2026 GPSRR
+report against this repo's existing labs. Three items so far:
+
+- [`docs/prd/0001-composable-generator-detector-platform.md`](prd/0001-composable-generator-detector-platform.md)
+  — a `Generator`/`Detector` platform generalizing Lab 5's one-fault `chaos_schedule.yaml` into a
+  causally-linked event timeline, plus a scoring harness. This is, concretely, the "subsequent
+  phase" `docs/LAB5_SPARTAN_CHAOSNET.md`'s own Definition of Done already named and deferred
+  (SPARTAN-style anomaly-detection logic), given a build plan decoupled from actual SPARTAN
+  hardware.
+- [`docs/prd/0002-sa-2016-black-system-cascade-scenario.md`](prd/0002-sa-2016-black-system-cascade-scenario.md)
+  — closes the half of Lab 4 Part C's own stated caveat ("not a claim of reproducing the 2016 SA
+  Black System event's actual root cause") that Lab 4's dispatch-reconciliation approach was never
+  positioned to attempt: an actual cascading-fault causal-chain reproduction, built on the 0001
+  platform, scored against AEMO's own published incident figures.
+- [`docs/prd/0003-iberian-2025-blackout-scenario.md`](prd/0003-iberian-2025-blackout-scenario.md) —
+  a new scenario for the 28 April 2025 Iberian Peninsula blackout (the reference international
+  incident the 2026 GPSRR itself cites for voltage-control risk), grounded directly in ENTSO-E's own
+  472-page Final Report's root-cause tree and second-by-second timeline, deliberately complementary
+  to 0002 (a control/oscillation-driven cascade with no initiating network fault, vs. 0002's
+  weather/network-fault-driven one).
+
+Same discipline as §13: recorded so the direction is a tracked decision, not a silent one, and none
+of it is part of any lab's current Definition of Done until a PRD is actually implemented and that
+document is updated to say so.

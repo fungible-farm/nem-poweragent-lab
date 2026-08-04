@@ -1,0 +1,19 @@
+{
+  "generators": {
+    "fault-sub3": {
+      "time_s": 0.2004000000000037,
+      "tolerance_s": 0.01
+    },
+    "trip-sub2": {
+      "time_s": 0.25040000000000506,
+      "tolerance_s": 0.01
+    }
+  },
+  "detectors": {
+    "osc-sub2:oscillation": {
+      "time_s": 0.5303999999999742,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    }
+  }
+}

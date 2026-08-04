@@ -351,20 +351,29 @@ def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
 
 class DpsimChaosSystem(TypedDict):
     """Everything run_dpsim.py needs to drive the EMT solve and tap the
-    fault substation's node."""
+    fault substation's node(s).
+
+    `fault_switches`/`fault_buses` are plural (tap_name -> switch/bus index)
+    so `to_dpsim_emt_system()` can build N fault-capable switches for N
+    `NetworkFaultGenerator`/`ProtectionTripGenerator` targets in one
+    SystemTopology -- the generalization from Lab 5's original "one fault"
+    to `docs/prd/0001-composable-generator-detector-platform.md`'s ordered
+    list of faults/trips. A single-target caller (today's Lab 5 usage)
+    gets a one-entry dict; nothing about the physics changes for that case.
+    """
 
     system: object  # dpsimpy.SystemTopology
     nodes: dict[int, object]  # local bus index -> dpsimpy.emt.SimNode
-    fault_switch: object  # dpsimpy.emt.ph3.Switch at the target tap bus
-    fault_bus: int
+    fault_switches: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.Switch
+    fault_buses: dict[str, int]  # tap_name -> local bus index
 
 
 def to_dpsim_emt_system(
-    topology: ChaosTopology, fault_tap_name: str
+    topology: ChaosTopology, fault_tap_name: str | list[str]
 ) -> DpsimChaosSystem:
     """Build a real dpsimpy EMT (3-phase) SystemTopology from a
-    ChaosTopology, with one fault Switch inserted (initially open) at the
-    bus tagged `fault_tap_name`.
+    ChaosTopology, with one fault Switch inserted (initially open) at each
+    bus tagged in `fault_tap_name`.
 
     Requires the `dpsimpy` package (imported lazily here so pandapower-only
     callers -- e.g. generate_topology.py's --step check -- do not need
@@ -372,24 +381,36 @@ def to_dpsim_emt_system(
 
     Args:
         topology: output of build_chaos_topology().
-        fault_tap_name: one of topology["tap_names"] (e.g. "SUB-3") -- the
-            substation the fault switch is attached to.
+        fault_tap_name: one of topology["tap_names"] (e.g. "SUB-3"), or a
+            list of them -- the substation(s) a fault switch is attached
+            to. A bare str is normalized to a one-element list internally;
+            in that single-target case the switch keeps today's exact
+            component name ("fault_switch") so nothing about an existing
+            single-fault run's DPsim component naming changes. Multiple
+            targets get a disambiguated name per tap
+            (`fault_switch_<TAP-NAME>`).
 
     Returns:
-        The assembled DpsimChaosSystem.
+        The assembled DpsimChaosSystem, with one entry per requested tap
+        name in both `fault_switches` and `fault_buses`.
 
     Raises:
-        ValueError: if fault_tap_name is not one of this topology's tagged
-            tap points.
+        ValueError: if any requested tap name is not one of this
+            topology's tagged tap points.
     """
     import dpsimpy  # local import: see docstring
 
-    if fault_tap_name not in topology["tap_names"]:
-        raise ValueError(
-            f"{fault_tap_name!r} is not a tagged tap point of this topology "
-            f"(have {topology['tap_names']})"
-        )
-    fault_bus = topology["tap_buses"][topology["tap_names"].index(fault_tap_name)]
+    tap_names = [fault_tap_name] if isinstance(fault_tap_name, str) else list(fault_tap_name)
+    for name in tap_names:
+        if name not in topology["tap_names"]:
+            raise ValueError(
+                f"{name!r} is not a tagged tap point of this topology "
+                f"(have {topology['tap_names']})"
+            )
+    fault_buses = {
+        name: topology["tap_buses"][topology["tap_names"].index(name)]
+        for name in tap_names
+    }
 
     omega = 2.0 * math.pi * topology["system_frequency_hz"]
     nodes = {
@@ -433,14 +454,22 @@ def to_dpsim_emt_system(
     extnet.connect([nodes[topology["ext_grid_bus"]]])
     components.append(extnet)
 
-    fault_switch = dpsimpy.emt.ph3.Switch("fault_switch", dpsimpy.LogLevel.info)
-    fault_switch.set_parameters(
-        np.eye(3) * SWITCH_OPEN_RESISTANCE_OHM,
-        np.eye(3) * FAULT_CLOSED_RESISTANCE_OHM,
-        False,
-    )
-    fault_switch.connect([nodes[fault_bus], dpsimpy.emt.SimNode.gnd])
-    components.append(fault_switch)
+    fault_switches: dict[str, object] = {}
+    for name in tap_names:
+        # Single-target case keeps today's exact component name so nothing
+        # about an existing single-fault run's DPsim component naming
+        # changes (see docstring); multi-target scenarios (new in this
+        # round) disambiguate per tap.
+        switch_name = "fault_switch" if len(tap_names) == 1 else f"fault_switch_{name}"
+        switch = dpsimpy.emt.ph3.Switch(switch_name, dpsimpy.LogLevel.info)
+        switch.set_parameters(
+            np.eye(3) * SWITCH_OPEN_RESISTANCE_OHM,
+            np.eye(3) * FAULT_CLOSED_RESISTANCE_OHM,
+            False,
+        )
+        switch.connect([nodes[fault_buses[name]], dpsimpy.emt.SimNode.gnd])
+        components.append(switch)
+        fault_switches[name] = switch
 
     system = dpsimpy.SystemTopology(
         topology["system_frequency_hz"], list(nodes.values()), components
@@ -449,8 +478,8 @@ def to_dpsim_emt_system(
     return {
         "system": system,
         "nodes": nodes,
-        "fault_switch": fault_switch,
-        "fault_bus": fault_bus,
+        "fault_switches": fault_switches,
+        "fault_buses": fault_buses,
     }
 
 

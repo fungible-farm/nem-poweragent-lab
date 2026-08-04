@@ -130,6 +130,16 @@ result on a clean checkout is.
   `docs/backlog/README.md` and pointed to from `docs/VISION.md` §13.
 - `labs/_shared/gridfit.py` — shared powerio->pandapower loading and the bisection search helper
   used by Labs 1 and 3.
+- `labs/_shared/scenario_engine/` — the composable `Generator`/`Detector` platform
+  (`docs/prd/0001-composable-generator-detector-platform.md`): `generators.py`/`detectors.py`
+  (the two Protocols plus five concrete classes each), `scenario.py` (schedule DAG extension +
+  `run_scenario()` driver), `scoring.py` (two-section PASS/FAIL report), `demo_scenario.py` (the
+  PRD's own synthetic proof scenario). Imported by Lab 5's `chaosnet.py`/`run_dpsim.py` (whose
+  original single fault becomes a one-`NetworkFaultGenerator` degenerate case, zero behaviour
+  change) — a deliberate exception to `gridfit.py`'s "labs import `_shared`, never the reverse"
+  precedent, documented in the package's own `__init__.py`, since this module's whole point is
+  reusing Lab 5's `phase_model.py` views directly rather than reimplementing them. Self-checked by
+  `labs/_shared/test_scenario_engine.py` against `labs/_shared/expected_demo_scenario_run.json`.
 - `labs/01-simple-loadflow-fit/`, `labs/02-medium-interconnection-screening/`,
   `labs/03-advanced-provider-bakeoff/` — implemented; each has real code, a fixture, a pytest test,
   and a README with "Sandbox notes."
