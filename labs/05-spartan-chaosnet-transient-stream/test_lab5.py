@@ -9,12 +9,37 @@ committed sample_stream_summary.json fixture structurally (see its own
 module docstring for why a live-pod network capture is not something a
 pytest run should depend on -- the pod is verified separately, for real,
 during interactive/manual runs of the walkthrough).
+
+Also covers docs/backlog/0006's tier-1 additions (phase_model's symmetrical
+components, view_spectrogram.py): a unit-level check of
+negative_sequence()/zero_sequence() against synthetic waveforms (no dpsim
+needed), a regression check of the real, measured finding against Lab 5's
+actual fault run (V0/V2 stay near zero because chaos_schedule.yaml's
+"line-to-ground" fault is implemented as symmetric 3-phase-to-ground -- see
+phase_model.py's module docstring), and a render check for
+view_spectrogram.py. The two real-data tests below rely on
+dpsim_transient_log.json already existing, written as a side effect of
+test_lab5_dpsim_run_matches_fixture running earlier in this file (pytest
+runs a module's tests in definition order).
 """
+import json
 import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 LAB_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(LAB_DIR))
+
+from phase_model import (  # noqa: E402
+    ThreePhaseWaveform,
+    negative_sequence,
+    phasor_frames,
+    positive_sequence,
+    zero_sequence,
+)
 
 
 def _run_check(script: str) -> subprocess.CompletedProcess:
@@ -41,3 +66,106 @@ def test_lab5_stream_summary_matches_fixture():
     result = _run_check("verify_stream.py")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "MATCH" in result.stdout
+
+
+def _synthetic_wave(va_scale: float, vb_scale: float, vc_scale: float) -> ThreePhaseWaveform:
+    """A 0.1 s, 5 kHz synthetic 3-phase 50 Hz cosine set with independently
+    scaled per-phase peak amplitudes -- va_scale=vb_scale=vc_scale=1.0 is a
+    balanced set; scaling one phase down mimics (crudely, not a real DPsim
+    solve) the kind of imbalance a genuine single-line-to-ground fault would
+    put onto the waveform, exercising negative_sequence()/zero_sequence()
+    without needing dpsim installed.
+    """
+    fs = 5000.0
+    f0 = 50.0
+    t = np.arange(0, 0.1, 1.0 / fs)
+    peak = 100.0
+    va = va_scale * peak * np.cos(2 * np.pi * f0 * t)
+    vb = vb_scale * peak * np.cos(2 * np.pi * f0 * t - 2 * np.pi / 3)
+    vc = vc_scale * peak * np.cos(2 * np.pi * f0 * t + 2 * np.pi / 3)
+    return ThreePhaseWaveform(t, va, vb, vc)
+
+
+def test_phase_model_symmetrical_components_balanced_signal():
+    """A balanced 3-phase set: |V1| ~ the phase peak amplitude, |V0|/|V2|
+    numerically ~ 0 -- the textbook baseline negative_sequence()/
+    zero_sequence() must reproduce before trusting them on real DPsim data.
+    """
+    wave = _synthetic_wave(1.0, 1.0, 1.0)
+    _, ph_a, ph_b, ph_c = phasor_frames(wave)
+    v1 = np.abs(positive_sequence(ph_a, ph_b, ph_c))
+    v2 = np.abs(negative_sequence(ph_a, ph_b, ph_c))
+    v0 = np.abs(zero_sequence(ph_a, ph_b, ph_c))
+    assert np.allclose(v1, 100.0, atol=0.5)
+    assert np.all(v2 < 1e-6)
+    assert np.all(v0 < 1e-6)
+
+
+def test_phase_model_symmetrical_components_unbalanced_signal():
+    """An unbalanced set (phase A collapsed to 20% of nominal, B/C at
+    nominal): |V1| dips and, unlike the symmetric case above, |V2| and |V0|
+    both become clearly nonzero -- the actual classification signal a real
+    single-line-to-ground fault would produce, confirming these functions can
+    tell the two cases apart (Lab 5's real fault schedule happens to be the
+    symmetric case -- see phase_model.py's module docstring -- so this
+    synthetic case is what exercises the "genuinely unbalanced" branch of the
+    math).
+    """
+    wave = _synthetic_wave(0.2, 1.0, 1.0)
+    _, ph_a, ph_b, ph_c = phasor_frames(wave)
+    v1 = np.abs(positive_sequence(ph_a, ph_b, ph_c))
+    v2 = np.abs(negative_sequence(ph_a, ph_b, ph_c))
+    v0 = np.abs(zero_sequence(ph_a, ph_b, ph_c))
+    assert np.all(v1 < 95.0)  # dipped from the balanced case's ~100
+    assert np.all(v2 > 10.0)  # clearly nonzero, unlike the balanced case
+    assert np.all(v0 > 10.0)  # clearly nonzero, unlike the balanced case
+
+
+def test_phase_model_sequence_components_confirm_lab5_fault_is_symmetric():
+    """Regression check of the real, measured finding this backlog item's
+    implementation surfaced (docs/backlog/0006, option 1): against Lab 5's
+    actual dpsim_transient_log.json, |V0| stays at numerical zero and |V2|
+    stays small relative to |V1|'s dip throughout the fault window, because
+    chaosnet.py's switch shorts all three phases to ground identically
+    (a diagonal resistance matrix) despite chaos_schedule.yaml's
+    "line-to-ground" label. If this ever fails, either the fault model
+    changed (chaosnet.py's switch is no longer symmetric -- update the
+    module docstrings that describe this) or phase_model's sequence math
+    regressed.
+    """
+    log_path = LAB_DIR / "dpsim_transient_log.json"
+    if not log_path.exists():
+        pytest.skip("dpsim_transient_log.json not present -- run_dpsim.py hasn't run yet")
+    log = json.loads(log_path.read_text())
+    wave = ThreePhaseWaveform.from_log(log)
+    ft, ph_a, ph_b, ph_c = phasor_frames(wave)
+    trigger_s, clear_s = float(log["trigger_time_s"]), float(log["clear_time_s"])
+    in_fault = (ft >= trigger_s) & (ft <= clear_s)
+    assert in_fault.any()
+
+    v1 = np.abs(positive_sequence(ph_a, ph_b, ph_c))
+    v2 = np.abs(negative_sequence(ph_a, ph_b, ph_c))
+    v0 = np.abs(zero_sequence(ph_a, ph_b, ph_c))
+
+    assert v0[in_fault].max() < 1.0  # numerical zero (measured ~1e-12 V)
+    # |V2|'s fault-window peak stays a small fraction of |V1|'s dip level --
+    # nowhere near the same order of magnitude a genuine single-LG fault's
+    # negative-sequence rise would be.
+    assert v2[in_fault].max() < 0.05 * v1[in_fault].min()
+
+
+def test_lab5_spectrogram_renders():
+    """docs/backlog/0006 option 3: view_spectrogram.py runs against the real
+    dpsim_transient_log.json and writes sample_spectrogram.png."""
+    log_path = LAB_DIR / "dpsim_transient_log.json"
+    if not log_path.exists():
+        pytest.skip("dpsim_transient_log.json not present -- run_dpsim.py hasn't run yet")
+    output_png = LAB_DIR / "sample_spectrogram.png"
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "view_spectrogram.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[spectrogram] wrote" in result.stdout
+    assert output_png.exists()

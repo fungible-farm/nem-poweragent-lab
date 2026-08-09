@@ -490,6 +490,12 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   *without* becoming a second, ad hoc source of truth alongside the existing `--step check` proof
   scripts (`AGENTS.md`'s "the proof scripts are the proof, not a transcript" applies to this
   exactly as much as to anything else in the repo).
+- [`docs/backlog/0006-lab5-advanced-transient-visualization-techniques.md`](backlog/0006-lab5-advanced-transient-visualization-techniques.md)
+  — proposed next-tier Lab 5 visualizations beyond its existing six views: symmetrical components
+  (V0/V1/V2, not just |V1|) and a spectrogram both reuse data already captured with no new
+  dependency or `run_dpsim.py` change; an R-X impedance trajectory needs current alongside the
+  already-captured voltage (`i_intf`, confirmed present on DPsim's `PiLine`); network-wide sag
+  propagation needs capturing more than the fault bus (`dsys["nodes"]` already holds every bus).
 
 None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
 unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.
