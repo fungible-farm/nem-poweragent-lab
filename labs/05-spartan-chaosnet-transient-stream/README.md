@@ -102,6 +102,59 @@ section follows it.
 every run — the latter is the real before/after numbers in a form a later phase, e.g. Phase 1.5's
 EMT→OPF headroom translation, can consume without re-running the simulation).
 
+## From EMT margin to steady-state headroom (PRD-0005 Phase 1.5)
+
+Phase 1 above is entirely an EMT/time-domain result: it says nothing about whether the stabilizer's
+measured sag-depth reduction matters to AEMO's actual steady-state dispatch/constraint layer, which
+is a `pandapower` load-flow question, not a DPsim one. `headroom_translation.py` answers that
+honestly, staying entirely inside Lab 5's own topology (`chaosnet.to_pandapower()`, built from the
+*identical* seed-42 `ChaosTopology` object Phase 1's DPsim run solved — not Lab 1/2/4's unrelated
+fixed real-world network, which would be an arbitrary correspondence for this line-specific result).
+
+**Not literal OPF**: this reuses `labs/02-medium-interconnection-screening/workflow.py`'s
+`check_limits()` pattern exactly — a `pandapower.runpp()` steady-state loadflow compared against a
+100%-of-nameplate thermal `loading_percent` limit and a 0.90–1.10 pu voltage band. That is a limit
+*screen*, not a cost-optimizing `pandapower.runopp()` dispatch, and is called a "limit screen"
+throughout `headroom_translation.py`'s own code/output for exactly that reason.
+
+**Translation hypothesis, stated explicitly (there is no established technique for this step)**:
+`headroom_translation.py` applies Phase 1's real measured
+`peak_sag_reduction_percent_of_baseline` (currently **+1.19%**, i.e. the *relative* sag-depth
+improvement, not the raw percentage-point difference) as an equal fractional increase to the
+fault-adjacent line's `max_i_ka` thermal rating — on the simplified engineering premise that if
+transient voltage-sag depth was itself a factor in how conservatively that line's short-term/dynamic
+rating was set beneath its true continuous limit, a stabilizer that reduces the sag could support a
+proportionally higher continuous rating on that same asset. This is explicitly **not** a computed
+engineering-standard derivation. The equally defensible alternative — that sag depth (a voltage
+quantity, timescale ~150ms) and steady-state thermal loading (a continuous-current quantity) are
+different physical quantities that simply don't translate at all — is named in the script's own
+module docstring and was not chosen only so the binding-constraint question could actually be tested
+end to end rather than left abstract.
+
+**Real result** (seed 42, fault-adjacent line `line0_12`, `headroom_translation.py --step run`):
+the baseline steady-state `pp.runpp()` limit screen shows this chaos-net topology nowhere close to
+any binding constraint under normal conditions — worst line loading **6.12%** (on `line0_12` itself,
+the fault-adjacent line, `max_i_ka` 0.2200 kA), worst bus voltage **0.9994 pu**, both far inside the
+100% thermal / 0.90–1.10 pu voltage limits, and **zero** lines or buses breaching either limit.
+Applying the +1.19% translation raises that line's `max_i_ka` to 0.2226 kA, dropping its own loading
+to 6.05% — a real, measured, honest movement of a fraction of a percentage point, nowhere near
+flipping any breach status anywhere in the network.
+
+**Binding-constraint verdict: NO.** `binding_constraint_set_changed = False` — the breaching-line and
+breaching-bus sets are identical (both empty) before and after the translation. This is the PRD's own
+explicitly acceptable, honestly-reportable outcome, not a failure requiring more tuning: this small,
+lightly-loaded, procedurally-generated 14-bus/28-line chaos-net simply isn't stressed anywhere near a
+steady-state limit under normal conditions, so a sub-2%-relative rating adjustment on one line — even
+under the most generous of the two translation hypotheses above — has nowhere to show up as a changed
+binding constraint. That is real information about *this* network/fault combination's scale, not
+evidence that the underlying stabilizer-to-headroom idea is wrong in general (a larger, more heavily
+loaded network, or a fault-adjacent line already sitting close to its thermal limit, could plausibly
+show a different answer — not attempted here).
+
+`headroom_translation.py --step run` (or `--step check`) regenerates `headroom_translation.json`
+(gitignored, same convention as `stabilizer_comparison.json`) with the full baseline/translated limit
+screens, both breach sets, and the conclusion string quoted above.
+
 ## Sandbox notes (read this before the walkthrough)
 
 Unlike Labs 1–4, this sandbox actually has everything the full spec calls for: `podman` (5.4.2),
@@ -262,6 +315,9 @@ uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check
 uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step run
 uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
 
+uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step run
+uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check
+
 uv run python -m pytest labs/05-spartan-chaosnet-transient-stream/ -v
 ```
 
@@ -344,6 +400,12 @@ every run, same pattern as Labs 1–4's fetched/derived data).
   (`add_stabilizer_to_system()`), and the baseline-vs-stabilized comparison driver
   (`run_comparison()`/`--step run`/`--step check`). Writes `dpsim_transient_log_stabilized.json`
   and `stabilizer_comparison.json` (both gitignored, regenerated every run).
+- `headroom_translation.py` — PRD-0005 Phase 1.5's EMT→steady-state headroom translation (see the
+  dedicated section above): builds a real `pandapower` net from the identical chaos-net topology via
+  `chaosnet.to_pandapower()`, runs a Lab 2-pattern `pp.runpp()` limit screen before/after applying the
+  stated translation hypothesis to the fault-adjacent line's `max_i_ka`, and reports the real
+  binding-constraint verdict (`run_translation()`/`--step run`/`--step check`). Writes
+  `headroom_translation.json` (gitignored, regenerated every run).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed
