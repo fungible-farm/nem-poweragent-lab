@@ -14,7 +14,7 @@ on other PRDs explicitly (don't assume reading order from the number alone).
 | [0002](0002-sa-2016-black-system-cascade-scenario.md) | SA 2016 Black System — physically-grounded cascade reproduction | 0001 | proposed |
 | [0003](0003-iberian-2025-blackout-scenario.md) | Iberian Peninsula 2025 blackout — new scenario | 0001 | proposed |
 | [0004](0004-plexos-direct-mcp-and-strangler-fig.md) | PLEXOS direct-access MCP + open-source strangler fig (plexosdb, R2X, Sienna) | — (sibling to PowerMCP) | proposed |
-| [0005](0005-grid-forming-stabilizer-and-renewable-models.md) | Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed) | — (builds on Lab 5 + 0006) | proposed |
+| [0005](0005-grid-forming-stabilizer-and-renewable-models.md) | Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed) | — (builds on Lab 5 + 0006) | in progress |
 
 ## Why this shape
 

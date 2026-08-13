@@ -1,12 +1,16 @@
 # 0005 — Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed)
 
-- **Status:** proposed
+- **Status:** in progress — Phasing below now includes Phase 1.5 (EMT→OPF headroom translation);
+  implementation proceeding phase-by-phase, each phase its own stacked branch/PR
 - **Depends on:** none directly; builds on Lab 5's existing `chaosnet`/`run_dpsim.py`/`phase_model.py`
   machinery and reuses the R-X/sag-propagation work from `docs/backlog/0006`
 - **Touches:** `labs/05-spartan-chaosnet-transient-stream/chaosnet.py` (new generator/controller
-  component types), `run_dpsim.py` (control-loop wiring), new `labs/05-.../grid_forming.py`, possibly
-  a new `labs/06-.../` if the renewable-model + MBSE layer grows past Lab 5's own scope, `docs/VISION.md`
-  §3 ecosystem table (proposed Modelica/FMI row)
+  component types), `run_dpsim.py` (control-loop wiring), new `labs/05-.../grid_forming.py`, new
+  `labs/05-.../headroom_translation.py` (Phase 1.5, reads Phase 1's mitigation output, writes an
+  OPF-consumable constraint parameter), `labs/01-simple-loadflow-fit/` and/or
+  `labs/04-.../` (Phase 1.5, wherever the binding-constraint check actually runs against),
+  possibly a new `labs/06-.../` if the renewable-model + MBSE layer grows past Lab 5's own scope,
+  `docs/VISION.md` §3 ecosystem table (proposed Modelica/FMI row)
 
 ## Problem
 
@@ -108,19 +112,30 @@ rather than a bare fault on a passive network.
    Success is measured, not assumed: run the existing `chaos_schedule.yaml` fault with and without the
    stabilizer active, and report the real before/after deviation (peak sag depth, recovery time,
    RoCoF) — the same honesty discipline every `docs/backlog/0006` finding this session already used.
-2. **Cable-length-aware delay compensation, treated as a genuinely open sub-problem, not a known
+2. **Translate Phase 1's EMT-measured mitigation into an OPF constraint-headroom question, and answer
+   it honestly.** Everything in Goal 1 lives entirely in the EMT/time-domain tier — it says nothing
+   about whether the stabilizer matters to AEMO's actual dispatch/constraint layer, which is a
+   steady-state OPF question (Lab 1's/Lab 4's pandapower machinery), not an EMT one. Take Phase 1's
+   real measured margin recovered on the fault-adjacent line (e.g. thermal headroom not consumed
+   during the fault, or a voltage-dip depth avoided) and express it as a constraint parameter Lab 1/4's
+   existing OPF can actually consume (a revised thermal/voltage limit on that line), then check whether
+   it changes which constraint binds in an existing OPF run. **The honest answer may be "no, it
+   doesn't move anything"** — that is an acceptable, reportable outcome, not a failure to fix; a
+   stabilizer that measurably shrinks an EMT transient but never approaches the margin an OPF's
+   steady-state limits already tolerate is real information, not a null result to explain away.
+3. **Cable-length-aware delay compensation, treated as a genuinely open sub-problem, not a known
    technique borrowed off the shelf.** The idea — using a line's known propagation delay (length ÷
    propagation velocity, the same real per-km parameters `docs/backlog/0006`'s R-X trajectory work
    already reads from `sample_topology.json`) to time-align a cancellation signal — resembles deadtime
    compensation (a Smith predictor) more than any named STATCOM/DVR feature found in this session's
    research. Prototype it small and measure whether it actually improves mitigation versus a
    naive (non-delay-compensated) controller before treating it as load-bearing.
-3. **Open, standardized renewable generation, honestly scoped by domain.** Add a wind/solar generation
+4. **Open, standardized renewable generation, honestly scoped by domain.** Add a wind/solar generation
    source to `chaosnet`'s topology. Start with a domain-appropriate stepping stone — a power-output
    profile (from a real published wind-power curve or a simple aerodynamic model) driving DPsim's
    existing `AvVoltageSourceInverterDQ` as the grid-tied interface — before attempting the harder
    IEC 61400-27 Modelica/FMU coupling described above.
-4. **Name SPARTAN's real role explicitly**, in code and docs: this PRD is not a bolt-on feature, it is
+5. **Name SPARTAN's real role explicitly**, in code and docs: this PRD is not a bolt-on feature, it is
    the "take corrective or assistive action when feasible" half of SPARTAN's own stated design,
    simulated end-to-end on the chaos-net topology Lab 5 already generates.
 
@@ -156,6 +171,14 @@ rather than a bare fault on a passive network.
   Lab 5's existing chaos-net and `chaos_schedule.yaml` fault (the same one `docs/backlog/0006`
   already characterized in detail — known baseline). Measure and report real before/after mitigation
   numbers. This alone delivers Goal 1 and is independent of everything else in this PRD.
+- **Phase 1.5 — EMT→OPF headroom translation.** Take Phase 1's real measured before/after numbers and
+  express the recovered margin as a constraint parameter against the same fault-adjacent line already
+  identified by `chaosnet.py`'s `fault_adjacent_line_name()` (from `docs/backlog/0006` tier 2). Run
+  Lab 1's or Lab 4's existing OPF with that revised parameter and check, directly, whether any binding
+  constraint changes. Report the real result either way — "moved constraint X by Y%" or "no binding
+  constraint changed" are both acceptable, honestly-reported outcomes. This phase is what turns "the
+  stabilizer works" (an EMT claim) into "the stabilizer is operationally meaningful to AEMO's dispatch"
+  (an OPF claim) — or honestly establishes that it currently isn't, at this fault's scale.
 - **Phase 2 — cable-length delay compensation.** Add the deadtime-compensation term to Phase 1's
   controller, on the same fault, and report whether it measurably helps versus Phase 1's baseline —
   a real comparison, not an assumed improvement.
@@ -177,6 +200,9 @@ rather than a bare fault on a passive network.
       computed from an actual DPsim run.
 - [ ] Every claim about what DPsim mitigation traces back to a real chosen device+parameters, not a
       hand-tuned number chasing a target percentage.
+- [ ] Phase 1.5 reports a real yes/no on whether Phase 1's measured mitigation changes a binding
+      constraint in an existing Lab 1/4 OPF run — including reporting "no" honestly if that's the
+      actual result, not just when the answer is "yes."
 - [ ] Phase 0's IEC 61400-27 source-location question is answered one way or the other before any
       Phase 4 work begins — "not found, using X instead" is an acceptable, honest outcome.
 - [ ] No documentation anywhere in this PRD's implementation claims "eliminates," "nullifies," or
