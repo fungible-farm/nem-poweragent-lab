@@ -142,6 +142,89 @@ VOLTAGE_DROOP_KV: float = 2.0
 ACTUATOR_HEADROOM_FRAC: float = 0.15
 
 
+# --- Phase 2: cable-length propagation-delay compensation -------------------
+#
+# docs/prd/0005-grid-forming-stabilizer-and-renewable-models.md Goal 3 (its
+# Phasing section's "Phase 2"): a deadtime/Smith-predictor-style compensation
+# term added on top of the swing/droop control law above, gated by each
+# GridFormingStabilizer instance's own `delay_compensation_enabled` field so
+# Phase 1's exact no-compensation behavior stays reproducible (see that
+# field's own docstring -- when False, the code path below is a structural
+# no-op, not just an empirically-small effect).
+#
+# **Real propagation-delay figure, computed, not assumed.** The fault-
+# adjacent line (`chaosnet._fault_adjacent_line()`'s own deterministic
+# selection -- "line0_12" for seed 42, reused directly here rather than
+# re-parsed from sample_topology.json, since this module already has the
+# live `topology` object in hand; docs/backlog/0006's R-X trajectory work
+# reads the identical numbers from the committed JSON fixture instead,
+# because it runs standalone after the fact) carries real per-km SimBench
+# parameters: for seed 42, length_km=0.6, r_ohm_per_km=0.443,
+# x_ohm_per_km=0.132, c_nf_per_km~=190. Those per-km figures are textbook
+# *underground-cable* signatures, not overhead-line ones -- x_ohm_per_km
+# ~=0.132 is roughly a third of a typical overhead line's ~0.3-0.4 ohm/km,
+# and c_nf_per_km ~=190 is roughly twenty times a typical overhead line's
+# ~10 nF/km (a cable's tightly-spaced concentric conductors give low series
+# reactance; its solid dielectric gives high shunt capacitance -- both
+# consistent with a cable, neither with a bare conductor in air). This
+# matches `chaosnet.SIMBENCH_CODE`'s real source, "1-MV-rural--0-sw": German
+# MV distribution is predominantly underground cable even in "rural"
+# SimBench classifications, unlike the US overhead-line convention the name
+# might otherwise suggest.
+#
+# **Propagation-velocity assumption, stated honestly.** v = c / sqrt(er) is
+# the standard telegrapher's-equation TEM-mode propagation velocity for a
+# cable whose insulation has relative permittivity er. XLPE (cross-linked
+# polyethylene, the standard MV cable insulation) is commonly cited at
+# er ~= 2.3 by cable manufacturers and consistent with IEC 60502 -- giving
+# v ~= 299792.458 / sqrt(2.3) ~= 1.977e5 km/s. This is deliberately NOT the
+# ~2.75e5-3.0e5 km/s figure commonly cited for overhead lines (a bare
+# conductor in air, er~1) -- that would be the wrong physical regime for
+# this topology's real per-km parameters, per the cable-signature finding
+# above.
+CABLE_RELATIVE_PERMITTIVITY: float = 2.3
+SPEED_OF_LIGHT_KM_S: float = 299_792.458
+CABLE_PROPAGATION_VELOCITY_KM_S: float = (
+    SPEED_OF_LIGHT_KM_S / math.sqrt(CABLE_RELATIVE_PERMITTIVITY)
+)
+
+
+def propagation_delay_s(topology: "chaosnet.ChaosTopology", fault_bus: int) -> float:
+    """Real one-way propagation delay (s) along the fault-adjacent line
+    (`chaosnet._fault_adjacent_line()`'s own selection, reused directly --
+    the same line docs/backlog/0006's R-X trajectory work already reports
+    the real impedance of), at `CABLE_PROPAGATION_VELOCITY_KM_S`.
+
+    **Honesty note on what this delay physically represents here.** Phase
+    1's stabilizer is deliberately coupled at the *same* bus as the fault
+    switch (this module's own docstring, "Circuit placement" section --
+    collocated sensor/actuator, the shape NI theory itself targets and also
+    the standard real-world STATCOM/DVR placement). In that literal
+    circuit, the physical separation between the fault point and the
+    stabilizer's own coupling point is zero, not this line's length. This
+    delay is used here as PRD-0005 Phase 2's own named prototype-scale
+    deadtime parameter -- "prototype it small and measure whether it
+    actually improves mitigation" -- i.e. the real, computed propagation-
+    delay figure this line's own real length/impedance would produce,
+    applied as the Smith-predictor's assumed measurement-to-actuation
+    deadtime, not a claim that this exact shunt-collocated circuit has a
+    physical disturbance-to-controller travel distance of `length_km`. A
+    genuinely remote/series-coupled stabilizer (this module's README
+    already names that as a future variant, not attempted in Phase 1 or
+    here) is where this delay would apply literally, without this caveat.
+
+    Args:
+        topology: output of `chaosnet.build_chaos_topology()` -- the same
+            topology object the live DPsim solve is built from.
+        fault_bus: local bus index of the fault target.
+
+    Returns:
+        `length_km / CABLE_PROPAGATION_VELOCITY_KM_S`, seconds.
+    """
+    line = chaosnet._fault_adjacent_line(topology, fault_bus)
+    return line["length_km"] / CABLE_PROPAGATION_VELOCITY_KM_S
+
+
 def coupling_impedance_ohm(vn_kv: float) -> tuple[float, float]:
     """Coupling filter R, X (ohm) for a `STABILIZER_RATING_MVA`-sized
     device at a bus with nominal line-line RMS voltage `vn_kv`.
@@ -285,6 +368,17 @@ class GridFormingStabilizer:
     rate); the angle is integrated every EMT step in between (zero-order
     hold on the swing-equation's driving inputs), which is standard
     discrete-control practice, not a shortcut.
+
+    **Phase 2 addition (`delay_compensation_enabled`/`delay_s`):** an
+    additive, opt-in deadtime/Smith-predictor term on the two control-tick
+    measurements (`v1_mag`, `p_meas_pu`) feeding the swing/droop laws above
+    -- see `step()`'s own control-tick block. When
+    `delay_compensation_enabled` is False (the default, Phase 1's exact
+    configuration), the measurements used are bit-identical to Phase 1's
+    (`v1_mag = v1_mag_meas`, `p_meas_pu = p_meas_pu_meas`, no arithmetic
+    difference at all) -- structurally, not just empirically, reproducible.
+    See `propagation_delay_s()` for how `delay_s` is computed and what it
+    honestly represents in this collocated circuit.
     """
 
     nominal_peak_v: float
@@ -295,6 +389,10 @@ class GridFormingStabilizer:
     p_ref_pu: float = P_REF_PU
     voltage_droop_kv: float = VOLTAGE_DROOP_KV
     actuator_headroom_frac: float = ACTUATOR_HEADROOM_FRAC
+    # Phase 2 (PRD-0005 Goal 3): opt-in deadtime/Smith-predictor
+    # compensation -- False/0.0 defaults reproduce Phase 1 exactly.
+    delay_compensation_enabled: bool = False
+    delay_s: float = 0.0
 
     delta_rad: float = field(default=0.0, init=False)
     domega_pu: float = field(default=0.0, init=False)
@@ -308,6 +406,11 @@ class GridFormingStabilizer:
     _ia_hist: deque = field(init=False, repr=False)
     _ib_hist: deque = field(init=False, repr=False)
     _ic_hist: deque = field(init=False, repr=False)
+    # Phase 2 predictor state: previous control-tick's raw (uncompensated)
+    # measurements, needed for the finite-difference rate estimate below.
+    _prev_v1_mag: float = field(default=0.0, init=False, repr=False)
+    _prev_p_meas_pu: float = field(default=0.0, init=False, repr=False)
+    _has_prev_measurement: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._control_stride = max(
@@ -367,9 +470,37 @@ class GridFormingStabilizer:
         self._step_count += 1
 
         if self._step_count % self._control_stride == 0 and len(self._va_hist) == N_CYCLE:
-            v1_mag = self._positive_sequence_mag()
-            p_meas_pu = self._active_power_w() / self.rating_va
+            v1_mag_meas = self._positive_sequence_mag()
+            p_meas_pu_meas = self._active_power_w() / self.rating_va
             dt_control = self._control_stride * self.time_step_s
+
+            if self.delay_compensation_enabled and self._has_prev_measurement:
+                # Phase 2 deadtime/Smith-predictor term: a first-order
+                # forward extrapolation of each raw measurement by the real
+                # computed line propagation delay (delay_s), using the
+                # measured rate of change between this control tick and the
+                # last one -- the simplest honest predictor that "time-
+                # aligns the controller's correction with when the
+                # disturbance actually needs cancelling" (PRD-0005 Goal 3)
+                # rather than reacting to the raw, already-lagged
+                # measurement naively. See propagation_delay_s()'s own
+                # honesty note on what delay_s represents in this
+                # collocated circuit.
+                v1_rate = (v1_mag_meas - self._prev_v1_mag) / dt_control
+                p_rate = (p_meas_pu_meas - self._prev_p_meas_pu) / dt_control
+                v1_mag = v1_mag_meas + self.delay_s * v1_rate
+                p_meas_pu = p_meas_pu_meas + self.delay_s * p_rate
+            else:
+                # Phase 1's exact path -- no arithmetic difference at all,
+                # not merely a numerically-small one, when compensation is
+                # disabled (the default) or on the very first control tick
+                # (no rate estimate yet available).
+                v1_mag = v1_mag_meas
+                p_meas_pu = p_meas_pu_meas
+
+            self._prev_v1_mag = v1_mag_meas
+            self._prev_p_meas_pu = p_meas_pu_meas
+            self._has_prev_measurement = True
 
             domega_dot_pu = (
                 self.p_ref_pu - p_meas_pu - self.damping_pu * self.domega_pu

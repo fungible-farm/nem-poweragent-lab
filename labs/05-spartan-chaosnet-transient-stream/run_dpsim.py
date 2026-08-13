@@ -181,6 +181,8 @@ class DpsimRunSummary(TypedDict):
     max_abs_v: float
     converged: bool
     stabilizer_active: bool
+    delay_compensation_active: bool  # PRD-0005 Phase 2
+    propagation_delay_s: float  # PRD-0005 Phase 2 (0.0 when stabilizer inactive)
 
 
 def _rms(values: list[float]) -> float:
@@ -263,6 +265,7 @@ def run_step(
     countdown_seconds: int = FAULT_COUNTDOWN_SECONDS,
     verbose: bool = True,
     stabilizer: bool = False,
+    delay_compensation: bool = False,
     output_log_path: Path = TRANSIENT_LOG_JSON,
     write_villas_csv: bool = True,
 ) -> DpsimRunSummary:
@@ -312,6 +315,12 @@ def run_step(
             lines.
         stabilizer: if True, activate the PRD-0005 Phase 1 grid-forming
             stabilizer at the primary fault target's bus.
+        delay_compensation: if True (and `stabilizer` is True), activate
+            PRD-0005 Phase 2's deadtime/Smith-predictor compensation term
+            on top of the stabilizer (see `grid_forming.propagation_delay_s()`
+            and `GridFormingStabilizer.delay_compensation_enabled`). Has no
+            effect when `stabilizer` is False. Default False reproduces
+            Phase 1's exact stabilizer behavior.
         output_log_path: where to write the per-timestep transient log
             (default TRANSIENT_LOG_JSON, today's exact baseline path).
             `grid_forming.run_comparison()` passes a distinct path for the
@@ -375,18 +384,29 @@ def run_step(
     # incremental add, is required).
     stab_handles = None
     stabilizer_ctrl = None
+    delay_s = 0.0
     if stabilizer:
         import grid_forming
 
         stab_handles = grid_forming.add_stabilizer_to_system(dsys, topology, target)
+        # PRD-0005 Phase 2: the real computed propagation delay for this
+        # target's fault-adjacent line, always computed (cheap, no dpsim
+        # call) so it's available to log/report even when
+        # delay_compensation=False -- only its *use* inside the controller
+        # is gated by delay_compensation below, per
+        # GridFormingStabilizer.delay_compensation_enabled's own docstring.
+        delay_s = grid_forming.propagation_delay_s(topology, dsys["fault_buses"][target])
         stabilizer_ctrl = grid_forming.GridFormingStabilizer(
             nominal_peak_v=stab_handles["peak_v"], time_step_s=TIME_STEP_S,
+            delay_compensation_enabled=delay_compensation, delay_s=delay_s,
         )
         if verbose:
             print(
                 f"[stabilizer] active at {target}'s bus: rating="
                 f"{grid_forming.STABILIZER_RATING_MVA:.1f} MVA, coupling="
-                f"{stab_handles['r_ohm']:.3f}+j{stab_handles['x_ohm']:.3f} ohm"
+                f"{stab_handles['r_ohm']:.3f}+j{stab_handles['x_ohm']:.3f} ohm, "
+                f"delay_compensation={delay_compensation} "
+                f"(propagation delay={delay_s * 1e6:.3f}us)"
             )
 
     if verbose:
@@ -607,6 +627,8 @@ def run_step(
         "max_abs_v": round(float(all_abs.max()), 3),
         "converged": bool(np.isfinite(all_abs).all()),
         "stabilizer_active": stabilizer,
+        "delay_compensation_active": stabilizer and delay_compensation,
+        "propagation_delay_s": delay_s,
     }
 
     if verbose:
@@ -641,6 +663,8 @@ def run_step(
                 "clear_time_s": clear_s,
                 "target": target,
                 "stabilizer_active": stabilizer,
+                "delay_compensation_active": stabilizer and delay_compensation,
+                "propagation_delay_s": delay_s,
             }
         )
     )
@@ -731,10 +755,21 @@ def main() -> None:
         "--stabilizer", action="store_true",
         help="activate the PRD-0005 Phase 1 grid-forming stabilizer (see grid_forming.py)",
     )
+    parser.add_argument(
+        "--delay-compensation", action="store_true",
+        help=(
+            "activate the PRD-0005 Phase 2 deadtime/Smith-predictor "
+            "compensation term on top of --stabilizer (see grid_forming."
+            "propagation_delay_s()); has no effect without --stabilizer"
+        ),
+    )
     args = parser.parse_args()
 
     if args.step == "run":
-        run_step(args.schedule, seed=args.seed, stabilizer=args.stabilizer)
+        run_step(
+            args.schedule, seed=args.seed, stabilizer=args.stabilizer,
+            delay_compensation=args.delay_compensation,
+        )
     elif args.step == "check":
         ok = check_step()
         sys.exit(0 if ok else 1)

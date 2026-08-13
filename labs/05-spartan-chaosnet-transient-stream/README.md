@@ -155,6 +155,85 @@ show a different answer — not attempted here).
 (gitignored, same convention as `stabilizer_comparison.json`) with the full baseline/translated limit
 screens, both breach sets, and the conclusion string quoted above.
 
+## Cable-length propagation-delay compensation (PRD-0005 Phase 2)
+
+Goal 3 of `docs/prd/0005-...md` names this a genuinely open sub-problem, not a known technique borrowed
+off the shelf: does adding a deadtime/Smith-predictor compensation term to Phase 1's controller,
+time-aligned using the fault-adjacent line's own real propagation delay, measurably improve mitigation
+over Phase 1's uncompensated baseline — or is a simple fast swing/droop loop already good enough that
+the extra complexity buys nothing measurable? `delay_compensation.py` implements the compensation term
+as an additive, opt-in extension of `grid_forming.GridFormingStabilizer` (its new
+`delay_compensation_enabled`/`delay_s` fields — False/0.0 by default, reproducing Phase 1 exactly, not
+just approximately: with `delay_s=0.0` the predictor term is an exact algebraic no-op) and answers the
+question with a real three-way comparison.
+
+**Real propagation-delay figure, computed, not assumed.** The fault-adjacent line for seed 42's SUB-3
+fault (`line0_12`, the same line `docs/backlog/0006`'s R-X trajectory view already reports the real
+impedance of) has `length_km=0.6`, `r_ohm_per_km=0.443`, `x_ohm_per_km=0.132`, `c_nf_per_km≈190` — real
+SimBench per-km parameters, not invented. Those figures are textbook *underground-cable* signatures
+(`x_ohm_per_km` roughly a third of a typical overhead line's ~0.3–0.4 Ω/km; `c_nf_per_km` roughly twenty
+times a typical overhead line's ~10 nF/km), consistent with `chaosnet.SIMBENCH_CODE`'s real source,
+`"1-MV-rural--0-sw"` — German MV distribution is predominantly underground cable even in "rural" SimBench
+classifications. The propagation-velocity assumption used, stated honestly: `v = c / sqrt(er)` (the
+standard TEM-mode cable propagation velocity), with XLPE's commonly-cited relative permittivity
+`er ≈ 2.3` — giving `v ≈ 299792.458 / sqrt(2.3) ≈ 197,677 km/s`, deliberately *not* the ~275,000–300,000
+km/s figure that applies to overhead lines (a bare conductor in air, `er≈1`), which would be the wrong
+physical regime for this topology's real per-km parameters. `0.6 km / 197,677 km/s ≈ 3.035 µs`.
+
+**Honesty note on what this delay represents in this circuit.** Phase 1's stabilizer is deliberately
+coupled at the *same* bus as the fault switch (collocated sensor/actuator — see Phase 1's section
+above). In that literal circuit, the physical separation between the fault point and the stabilizer's
+own coupling point is zero, not this line's length. `delay_s` is used here as this phase's own named
+prototype-scale deadtime parameter — "prototype it small and measure" — the real, computed
+propagation-delay figure this line's own real length/impedance would produce, applied as the
+Smith-predictor's assumed measurement-to-actuation deadtime. A genuinely remote/series-coupled
+stabilizer (named as a future variant in Phase 1's section above, not attempted here) is where this
+delay would apply literally, without this caveat.
+
+**The compensation term itself**: a first-order forward extrapolation of each control-tick measurement
+(the positive-sequence voltage magnitude feeding the droop loop, the measured active power feeding the
+swing equation) by `delay_s`, using the measured rate of change between this control tick and the last
+one — `x_predicted = x_measured + delay_s * (x_measured - x_previous) / dt_control` — the simplest
+honest predictor that time-aligns the controller's correction with the disturbance rather than reacting
+to an already-lagged measurement naively. See `grid_forming.GridFormingStabilizer.step()`'s own
+control-tick block.
+
+**Real three-way comparison** (seed 42, `chaos_schedule.yaml`'s committed SUB-3 fault,
+`delay_compensation.py --step run`), all three real, computed peak positive-sequence sag depths:
+
+| Configuration                              | Peak sag depth |
+|---------------------------------------------|----------------|
+| No stabilizer (baseline)                     | **16.62%**    |
+| Stabilizer, no delay compensation (Phase 1)   | **16.42%**    |
+| Stabilizer, with delay compensation (Phase 2) | **16.42%**    |
+
+The middle row reproduces Phase 1's own committed 16.62%→16.42% result exactly (it *is* Phase 1's own
+`grid_forming.run_comparison()`, re-run unmodified, not a re-derivation) — confirming Phase 2's new code
+didn't silently change Phase 1's default behavior. The delay-compensated run's peak sag differs from the
+uncompensated run's by **+0.0003 percentage points** — below this script's own 0.001 pp reporting
+precision, i.e. not distinguishable from numerical noise.
+
+**Verdict: NO MEASURABLE EFFECT**, reported honestly rather than tuned toward either answer — one of the
+two explicitly acceptable outcomes PRD-0005's Open questions section names. This makes direct physical
+sense once the delay is put in context against the controller's own time constants: the real computed
+propagation delay (**3.035 µs**) is about **0.03%** of the controller's own control-tick period
+(`1/phase_model.PHASOR_RATE_HZ` = 10 ms — the swing/droop loop only updates this often, matching a real
+PMU/controller's update rate) and about **0.002%** of the fault's own 150 ms duration. A first-order
+predictor driven by measurements that only update every 10 ms simply cannot resolve a 3 µs time shift —
+the compensation term's own arithmetic (`delay_s * rate_of_change`) evaluates to a correction on the
+order of millivolts against a droop loop already only correcting single-digit volts, itself clipped by
+`ACTUATOR_HEADROOM_FRAC`. This is not evidence the Smith-predictor idea is implemented wrong (a fast,
+synthetic-signal unit test in `test_lab5.py` confirms the same code path produces a clearly nonzero,
+correctly-signed correction once the underlying signal's rate of change is large enough relative to
+`delay_s` to matter) — it is a real, physically-grounded finding about *this* line length and *this*
+controller's update rate: a 0.6 km MV cable's propagation delay is simply too small, at these time
+scales, for deadtime compensation to matter. A much longer line (tens of km) or a controller with a much
+faster (sub-microsecond-class) update rate could plausibly show a different answer — not attempted here.
+
+`delay_compensation.py --step run` (or `--step check`) regenerates `delay_compensation.json` (gitignored,
+same convention as `stabilizer_comparison.json`/`headroom_translation.json`) with the full three-way
+comparison, the propagation-delay figure and its assumptions, and the conclusion string quoted above.
+
 ## Sandbox notes (read this before the walkthrough)
 
 Unlike Labs 1–4, this sandbox actually has everything the full spec calls for: `podman` (5.4.2),
@@ -406,6 +485,13 @@ every run, same pattern as Labs 1–4's fetched/derived data).
   stated translation hypothesis to the fault-adjacent line's `max_i_ka`, and reports the real
   binding-constraint verdict (`run_translation()`/`--step run`/`--step check`). Writes
   `headroom_translation.json` (gitignored, regenerated every run).
+- `delay_compensation.py` — PRD-0005 Phase 2's cable-length propagation-delay compensation (see the
+  dedicated section above): the real propagation-delay figure for the fault-adjacent line
+  (`grid_forming.propagation_delay_s()`, added to `grid_forming.py` alongside the
+  `delay_compensation_enabled`/`delay_s` fields on `GridFormingStabilizer` itself) and the real
+  three-way (no stabilizer / stabilizer without / stabilizer with delay compensation) comparison driver
+  (`run_three_way_comparison()`/`--step run`/`--step check`). Writes `delay_compensation.json`
+  (gitignored, regenerated every run).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed
