@@ -385,6 +385,20 @@ class DpsimChaosSystem(TypedDict):
     `_fault_adjacent_line()`, so `run_dpsim.py` can tap that line's real
     `i_intf` current alongside the fault bus's already-tapped `v_intf`
     voltage for the R-X impedance-trajectory view.
+
+    `components` is the PRD-0005 Phase 1 addition: the raw component list
+    used to build `system`, exposed so `grid_forming.py` can splice in a
+    stabilizer node/coupling-impedance/`ControlledVoltageSource` and
+    construct a *new* `dpsimpy.SystemTopology` from `nodes | {new node}` and
+    `components + [new components]`. This is necessary, not cosmetic:
+    confirmed directly in this sandbox that `SystemTopology.add()` silently
+    fails to register a genuinely new `SimNode` (the node never appears in
+    `system.nodes` afterward) and a solve built on top of that half-added
+    node hangs forever in `sim.start()` rather than erroring -- `dpsimpy`
+    has no supported "add a node to a live SystemTopology" path; every node
+    must be present in the constructor's node list up front. Rebuilding the
+    whole `SystemTopology` from the original node/component lists plus the
+    new ones is the only way found to extend a topology after the fact.
     """
 
     system: object  # dpsimpy.SystemTopology
@@ -392,6 +406,7 @@ class DpsimChaosSystem(TypedDict):
     fault_switches: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.Switch
     fault_buses: dict[str, int]  # tap_name -> local bus index
     fault_adjacent_lines: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.PiLine
+    components: list  # raw dpsimpy component list `system` was built from
 
 
 def _fault_adjacent_line(topology: ChaosTopology, fault_bus: int) -> ChaosLine:
@@ -580,6 +595,7 @@ def to_dpsim_emt_system(
         "fault_switches": fault_switches,
         "fault_buses": fault_buses,
         "fault_adjacent_lines": fault_adjacent_lines,
+        "components": components,
     }
 
 

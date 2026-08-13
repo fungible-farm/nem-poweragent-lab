@@ -78,6 +78,53 @@ def test_lab5_stream_summary_matches_fixture():
     assert "MATCH" in result.stdout
 
 
+def test_lab5_grid_forming_stabilizer_check():
+    """PRD-0005 Phase 1: grid_forming.py --step check re-runs the real
+    chaos_schedule.yaml fault twice (stabilizer off, then on) and asserts
+    the stabilized run's peak sag is smaller than the baseline's -- both
+    numbers freshly computed from a real DPsim solve each time, never
+    hardcoded (see grid_forming.check_step()'s own docstring). This is the
+    slowest test in this file (two real ~0.55s EMT solves back to back);
+    it also writes stabilizer_comparison.json, which the next test reads
+    directly for a second, independent numeric assertion.
+    """
+    result = _run_check("grid_forming.py")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "MATCH" in result.stdout
+
+
+def test_lab5_grid_forming_reduces_peak_sag():
+    """Direct numeric-outcome check against the real
+    stabilizer_comparison.json the previous test just wrote: the
+    stabilized run's peak |V1| sag (phase_model.phasor_frames()-derived,
+    not the RMS-window sag_percent DpsimRunSummary already reports) must
+    be measurably smaller than the baseline's -- asserted from the real
+    computed numbers in that file, no hardcoded expected percentage
+    anywhere in this test (per PRD-0005's own "measured, not assumed"
+    discipline -- the actual reduction, whatever it turns out to be on a
+    given run, is asserted to exist, not asserted to match a target).
+    """
+    comparison_path = LAB_DIR / "stabilizer_comparison.json"
+    if not comparison_path.exists():
+        pytest.skip(
+            "stabilizer_comparison.json not present -- grid_forming.py "
+            "hasn't run yet"
+        )
+    comparison = json.loads(comparison_path.read_text())
+    baseline_sag = comparison["baseline"]["peak_sag_percent"]
+    stabilized_sag = comparison["stabilized"]["peak_sag_percent"]
+    assert stabilized_sag < baseline_sag, (
+        f"stabilizer did not reduce peak sag: baseline={baseline_sag}% "
+        f"stabilized={stabilized_sag}%"
+    )
+    # Non-goal guardrail (PRD-0005): never claim elimination -- a real
+    # controller with finite bandwidth/actuator headroom cannot drive the
+    # sag to exactly zero, so a suspiciously-perfect result would itself
+    # be evidence something is wrong (e.g. the comparison silently
+    # reading the same log twice), not evidence of a better controller.
+    assert stabilized_sag > 0.0
+
+
 def _synthetic_wave(va_scale: float, vb_scale: float, vc_scale: float) -> ThreePhaseWaveform:
     """A 0.1 s, 5 kHz synthetic 3-phase 50 Hz cosine set with independently
     scaled per-phase peak amplitudes -- va_scale=vb_scale=vc_scale=1.0 is a
