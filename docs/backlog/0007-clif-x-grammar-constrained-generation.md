@@ -1,7 +1,20 @@
 # 0007 — Idea: a CLIF x-grammar for constrained generation, demonstrated against the self-hosted mini-model
 
-- **Status:** proposed (a recommendation from an external conversation, not yet agreed scope — same
-  caveat as 0005)
+- **Status:** demo done, idea *not* adopted -- the "Recommended scope, if picked up" section below was
+  implemented in full (`labs/_shared/clif_demo/`, 2026-08-13): a tiny CLIF-subset grammar transcribing
+  four real Lab 4 facts, a hand-rolled parser round-tripping all of them (23 passing pytest cases,
+  `labs/_shared/test_clif_demo.py`), the same grammar re-authored as GBNF, and a real call against the
+  live `kube/llamacpp-phi-pod.yaml` Phi-4-mini pod confirming grammar-constrained output always parses.
+  **This is a completed cheap experiment, not a decision to adopt CLIF** — see
+  `labs/_shared/clif_demo/README.md`'s "What actually happened" for the full, not-entirely-clean result:
+  on easy prompts grammar constraint made no observable difference (freeform matched it exactly); on one
+  harder prompt, the grammar-constrained call satisfied the grammar by retreating to a trivially simple
+  sentence that dodged the actual semantic ask, while the freeform call attempted the real semantic
+  content correctly but broke on one extra unbalanced paren. That "constrained decoding can be
+  semantically evasive" finding is new information this item did not have before, and is itself a reason
+  to slow down before adopting CLIF+GBNF as a reliability mechanism, not a green light. Rewiring Lab 4's
+  real constraint translation to depend on this remains explicitly out of scope (unchanged from below),
+  and nothing here is `k0mmand3r` — that project was not touched, per the item's own scoping.
 - **Depends on:** none directly; touches the same local LLM infra as `kube/llamacpp-phi-pod.yaml`
   (Phi-4-mini-instruct) and, loosely, Lab 4's constraint-translation work and PRD-0002's protection
   `trigger_condition` logic
