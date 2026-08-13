@@ -502,16 +502,23 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   section shells out to that lab's real `--step check`, asserts PASS, then only renders that lab's
   already-committed fixture/chart.
 - [`docs/backlog/0006-lab5-advanced-transient-visualization-techniques.md`](backlog/0006-lab5-advanced-transient-visualization-techniques.md)
-  — next-tier Lab 5 visualizations beyond its original six views. **Done:** symmetrical components
-  (V0/V1/V2, not just |V1|, `view_telemetry_rates.py`/`animate_telemetry_rates.py`) and a spectrogram
-  (`view_spectrogram.py`), both reusing data already captured with no new dependency or
-  `run_dpsim.py` change; an R-X impedance-trajectory / mho-circle distance-relay view
-  (`view_rx_trajectory.py`), which needed one small `run_dpsim.py` capture addition — current on the
-  fault-adjacent `PiLine` (`i_intf`) alongside the already-captured fault-bus voltage. Each
-  implementation surfaced a real, measured finding that corrected this doc's own original
-  prediction (see the backlog file's Option 1/2 sections) rather than asserting the textbook shape
-  assumed in advance. **Still open:** network-wide sag propagation, which needs capturing more than
-  the fault bus (`dsys["nodes"]` already holds every bus).
+  — next-tier Lab 5 visualizations beyond its original six views. **Done, all four options.**
+  Symmetrical components (V0/V1/V2, not just |V1|, `view_telemetry_rates.py`/
+  `animate_telemetry_rates.py`) and a spectrogram (`view_spectrogram.py`), both reusing data already
+  captured with no new dependency or `run_dpsim.py` change; an R-X impedance-trajectory / mho-circle
+  distance-relay view (`view_rx_trajectory.py`), which needed one small `run_dpsim.py` capture
+  addition — current on the fault-adjacent `PiLine` (`i_intf`) alongside the already-captured
+  fault-bus voltage; and a network-wide sag-propagation animation (`animate_sag_propagation.py`),
+  which extended `run_dpsim.py` to capture every bus's voltage (`bus_voltages`, all 14 buses of this
+  lab's real topology — the "N buses" scale concern this doc's own backlog file originally raised
+  turned out to be small in practice, ~2.6 MB/~25s render, not a real cost at this lab's scale) and
+  animated it onto `generate_topology.py`'s own topology layout, connecting the topology and
+  transient artifacts into one. Each of the four implementations surfaced a real, measured finding
+  that corrected this doc's own original prediction (see the backlog file's Option 1/2/4 sections)
+  rather than asserting the textbook shape assumed in advance — option 4's real run showed the sag
+  propagates almost network-wide (not sharply localized to the fault bus) because this topology's
+  line impedances are tiny relative to load impedance, the same root cause option 2's own R-X
+  finding already surfaced.
 
 None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
 unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.

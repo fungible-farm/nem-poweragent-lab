@@ -52,6 +52,20 @@ option 2 -- see chaosnet.fault_adjacent_line_name()/_fault_adjacent_line()):
 - `fault_adjacent_line` -- the tapped PiLine's dpsimpy component name
   (e.g. "line0_12"), so a reader of the log can identify which line
   ia_line/ib_line/ic_line actually came from.
+- `bus_voltages` -- (docs/backlog/0006 option 4) every bus's own three phase
+  instantaneous voltages (V), i.e. `v_intf` of *every* SimNode in
+  `dsys["nodes"]`, not just the fault bus -- the same `derive_coeff(p, 0)`
+  tap pattern as va/vb/vc above, looped over every bus instead of hard-picked
+  at one. Keyed by local bus index as a JSON string (e.g. "0".."13" for
+  seed 42's 14-bus topology), each value `{"va": [...], "vb": [...], "vc":
+  [...]}` -- the fault bus's own entry here is numerically identical to the
+  top-level va/vb/vc arrays (same v_intf attribute, tapped twice), kept
+  as a convenience for callers that want one uniform bus_voltages dict
+  instead of special-casing the fault bus. `animate_sag_propagation.py`
+  reduces each bus's three phases to a single |V1(t)| positive-sequence
+  magnitude (via phase_model.py's existing DFT machinery) to animate
+  network-wide sag propagation over `generate_topology.py`'s topology
+  layout.
 - `trigger_time_s`/`clear_time_s` -- fault close/open simulated times (s).
 - `target` -- the fault substation name (e.g. "SUB-3").
 """
@@ -387,6 +401,20 @@ def run_step(
     i_attr = fault_adjacent_line.attr("i_intf")
     line_phase_attrs = [i_attr.derive_coeff(p, 0) for p in range(3)]
 
+    # docs/backlog/0006 option 4: one v_intf tap per bus in dsys["nodes"],
+    # the same derive_coeff(p, 0) pattern as the fault-bus tap above, looped
+    # over every bus instead of hard-picked at one -- chaosnet.py's own
+    # DpsimChaosSystem docstring already named this exact gap ("run_dpsim.py
+    # picks out exactly one... and discards the rest of the solve's per-step
+    # state"). Only NUM_CHAOS_BUSES=14 buses exist for this lab's topology
+    # (chaosnet.NUM_CHAOS_BUSES), so capturing literally every bus (not a
+    # scoped-down subset) is cheap -- see module docstring's `bus_voltages`
+    # key convention entry and README's measured capture-overhead numbers.
+    all_bus_phase_attrs: dict[int, list] = {
+        bus_idx: [node.attr("v").derive_coeff(p, 0) for p in range(3)]
+        for bus_idx, node in dsys["nodes"].items()
+    }
+
     # Optional condition-triggered generators (PRD-0001 Goal 3). Empty for
     # today's chaos_schedule.yaml, so every block gated on
     # `pending_generators`/`condition_triggered` below is a no-op on the
@@ -430,6 +458,11 @@ def run_step(
     ia_line_series: list[float] = []
     ib_line_series: list[float] = []
     ic_line_series: list[float] = []
+    # docs/backlog/0006 option 4: one {"va": [...], "vb": [...], "vc": [...]}
+    # accumulator per bus, keyed the same way as all_bus_phase_attrs above.
+    bus_voltage_series: dict[int, dict[str, list[float]]] = {
+        bus_idx: {"va": [], "vb": [], "vc": []} for bus_idx in all_bus_phase_attrs
+    }
     scenario_events: list = []
 
     injected_printed = False
@@ -447,6 +480,12 @@ def run_step(
         ia_line_series.append(ia_l)
         ib_line_series.append(ib_l)
         ic_line_series.append(ic_l)
+        for bus_idx, attrs in all_bus_phase_attrs.items():
+            ba, bb, bc = (a.get() for a in attrs)
+            series = bus_voltage_series[bus_idx]
+            series["va"].append(ba)
+            series["vb"].append(bb)
+            series["vc"].append(bc)
 
         if pending_generators:
             for tgt, attrs in cond_phase_attrs.items():
@@ -527,6 +566,10 @@ def run_step(
                 "ib_line": ib_line_series,
                 "ic_line": ic_line_series,
                 "fault_adjacent_line": fault_adjacent_line_name,
+                "bus_voltages": {
+                    str(bus_idx): series
+                    for bus_idx, series in bus_voltage_series.items()
+                },
                 "trigger_time_s": trigger_s,
                 "clear_time_s": clear_s,
                 "target": target,
@@ -537,7 +580,9 @@ def run_step(
         print(
             f"[stream] wrote {VILLAS_STREAM_CSV.relative_to(LAB_DIR)} "
             f"(VILLASnode file-node format, {num_samples} samples) and "
-            f"{TRANSIENT_LOG_JSON.name}"
+            f"{TRANSIENT_LOG_JSON.name} "
+            f"({len(bus_voltage_series)} buses x 3 phases x {num_samples} "
+            "samples in bus_voltages, docs/backlog/0006 option 4)"
         )
 
     if schedule_path.resolve() == DEFAULT_SCHEDULE_FILE.resolve() and seed == DEFAULT_SEED:

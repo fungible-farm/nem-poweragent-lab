@@ -259,9 +259,15 @@ every run, same pattern as Labs 1–4's fetched/derived data).
   DPsim EMT loaders built from the exact same real topology. Also picks the fault-adjacent `PiLine`
   tapped for current (`_fault_adjacent_line()`/`fault_adjacent_line_name()`, docs/backlog/0006
   option 2): the line directly connecting `ext_grid_bus` to the fault bus, or the first adjacent
-  line in topology order if no such direct line exists for a given seed.
+  line in topology order if no such direct line exists for a given seed. `nominal_peak_line_neutral_v()`
+  (docs/backlog/0006 option 4) is the public real-nameplate-peak-voltage helper factored out of
+  `_phase_voltage_ref()` so other modules can reuse the identical formula.
 - `generate_topology.py`, `run_dpsim.py`, `verify_stream.py` — the three walkthrough scripts, each
-  with its own `--step check` self-check gate.
+  with its own `--step check` self-check gate. `generate_topology.py`'s `_build_topology_graph()`/
+  `_topology_layout()` (docs/backlog/0006 option 4) are factored out of `_plot_topology()` so
+  `animate_sag_propagation.py` places every bus at the identical layout position the static topology
+  plot does. `run_dpsim.py`'s `bus_voltages` capture (same backlog item) taps every bus in
+  `dsys["nodes"]`, not just the fault bus.
 - `chaos_schedule.yaml` — the committed fault schedule (one line-to-ground fault at SUB-3).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
@@ -295,6 +301,12 @@ many generated views" principle they all share.
   view: "where, electrically, is this fault" rather than "what does the voltage do over time"
   (docs/backlog/0006, option 2). Needs `run_dpsim.py` to have captured the newer
   `ia_line`/`ib_line`/`ic_line` fields (see below).
+- `animate_sag_propagation.py` → `animate_sag_propagation.mp4` (gitignored) — every bus's own
+  `v_intf` voltage (`run_dpsim.py`'s `bus_voltages` capture), reduced to |V1(t)| per bus and animated
+  onto `generate_topology.py`'s own topology layout, colored/sized by each bus's deviation from its
+  own real pre-fault operating point — the network-wide sag-propagation view connecting the topology
+  and transient artifacts into one (docs/backlog/0006, option 4). Needs `run_dpsim.py` to have
+  captured the newer `bus_voltages` field (see below) and `sample_topology.json` to exist.
 
 **A real finding from the symmetrical-component view, worth knowing before reading the charts**:
 despite `chaos_schedule.yaml` labeling its event `type: line-to-ground`, `chaosnet.py`'s fault
@@ -321,3 +333,27 @@ is a partial 0.5 ohm fault at the fault bus itself, not a bolted fault at the li
 reported as measured, not forced to claim a Zone-1 trip that didn't happen. The rendered PNG
 includes a zoomed inset at the reach-circle's own scale for exactly this reason (load and fault
 impedance differ from the reach circle by ~3 orders of magnitude on this seed's topology).
+
+**Three real findings from the network-wide sag-propagation view, worth knowing before reading
+that animation** (`animate_sag_propagation.py`, docs/backlog/0006 option 4): (1) this sandbox's real
+DPsim EMT solve (`do_steady_state_init(True)`) converges its pre-fault steady state at ~0.816 pu of
+the SimBench `vn_kv` nameplate *uniformly across every bus, including `ext_grid_bus` itself*
+(confirmed: `ext_grid_bus`'s own pre-fault |V1| ÷ nameplate peak = 0.8165, matching sqrt(2/3) to 4
+decimal places) — a real characteristic of this sandbox's steady-state initialization, unrelated to
+the fault, so the animation's pu reference is each bus's own real pre-fault |V1|, not the nameplate
+(see `compute_bus_pu_series()`'s docstring). (2) The sag propagates almost network-wide rather than
+attenuating sharply with distance from the fault, as a naive radial-feeder intuition would predict:
+for seed 42/SUB-3, the fault bus itself dips to 0.834 pu of its own pre-fault level (a 16.6% dip,
+consistent with `run_dpsim.py`'s already-reported 16.4% RMS sag), the worst *other* bus dips to
+0.859 pu, and the mean of all 13 other buses' minima is 0.909 pu — most of the mesh sags to within a
+few percentage points of the fault bus's own severity, not a sharply localized dip. This is
+consistent with `view_rx_trajectory.py` (option 2)'s own finding that this topology's line
+impedances are tiny relative to load impedance (median `|Z|` ~854 ohm vs. line impedance ~0.27 ohm):
+with line drops this small, most buses sit electrically close to the fault regardless of hop count.
+(3) The one bus that stays essentially untouched (SUB-1, 1.000 pu — no measurable dip) is *not* a
+general "hub buses are shielded" result: `sample_topology.json` confirms `tap_buses = [0, 11, 12]`
+for `["SUB-1", "SUB-2", "SUB-3"]`, i.e. **SUB-1 is `ext_grid_bus` itself** (local bus index 0), the
+fixed-voltage swing bus the whole solve is referenced to — its immunity is definitional (it is the
+source), not an emergent property of the mesh, and is named here explicitly so this finding isn't
+misread as "well-connected buses resist sag propagation" when the real mechanism is simpler and
+narrower than that.

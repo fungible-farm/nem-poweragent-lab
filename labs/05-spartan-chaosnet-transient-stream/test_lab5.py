@@ -17,10 +17,17 @@ needed), a regression check of the real, measured finding against Lab 5's
 actual fault run (V0/V2 stay near zero because chaos_schedule.yaml's
 "line-to-ground" fault is implemented as symmetric 3-phase-to-ground -- see
 phase_model.py's module docstring), and a render check for
-view_spectrogram.py. The two real-data tests below rely on
-dpsim_transient_log.json already existing, written as a side effect of
-test_lab5_dpsim_run_matches_fixture running earlier in this file (pytest
-runs a module's tests in definition order).
+view_spectrogram.py.
+
+Also covers option 2 (view_rx_trajectory.py: a synthetic Z=V/I math check,
+plus a real-data render check) and option 4 (animate_sag_propagation.py: a
+synthetic compute_bus_pu_series() math check against a known per-bus
+amplitude drop, plus a real-data render check that produces a real MP4).
+The real-data tests below rely on dpsim_transient_log.json (and, for option
+4, sample_topology.json) already existing, written as a side effect of
+test_lab5_dpsim_run_matches_fixture / test_lab5_topology_matches_fixture
+running earlier in this file (pytest runs a module's tests in definition
+order).
 """
 import json
 import subprocess
@@ -244,3 +251,96 @@ def test_lab5_rx_trajectory_renders():
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[rx] wrote" in result.stdout
     assert output_png.exists()
+
+
+def test_sag_propagation_pu_math_synthetic():
+    """docs/backlog/0006 option 4: sanity-check
+    animate_sag_propagation.compute_bus_pu_series() -- |V1(t)| normalized by
+    each bus's OWN real pre-fault |V1| (not the SimBench vn_kv nameplate --
+    see that function's docstring for why) -- against a synthetic 2-bus log
+    with a known per-bus amplitude drop, no dpsim needed. Bus "0" never
+    changes amplitude (pu should stay ~1.0 throughout); bus "1" drops to 40%
+    of its own pre-fault amplitude inside [trigger_time_s, clear_time_s]
+    (pu should dip to ~0.4 there and return to ~1.0 after).
+    """
+    import animate_sag_propagation as sag
+
+    fs = 5000.0
+    f0 = 50.0
+    t = np.arange(0.0, 0.3, 1.0 / fs)
+    trigger_s, clear_s = 0.1, 0.15
+    in_fault = (t >= trigger_s) & (t < clear_s)
+
+    def three_phase(peak: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        a = peak * np.cos(2 * np.pi * f0 * t)
+        b = peak * np.cos(2 * np.pi * f0 * t - 2 * np.pi / 3)
+        c = peak * np.cos(2 * np.pi * f0 * t + 2 * np.pi / 3)
+        return a, b, c
+
+    peak_bus0 = np.full_like(t, 1000.0)
+    peak_bus1 = np.where(in_fault, 400.0, 1000.0)  # 40% dip during the fault window
+    va0, vb0, vc0 = three_phase(peak_bus0)
+    va1, vb1, vc1 = three_phase(peak_bus1)
+
+    log = {
+        "times": t.tolist(),
+        "va": va0.tolist(), "vb": vb0.tolist(), "vc": vc0.tolist(),
+        "bus_voltages": {
+            "0": {"va": va0.tolist(), "vb": vb0.tolist(), "vc": vc0.tolist()},
+            "1": {"va": va1.tolist(), "vb": vb1.tolist(), "vc": vc1.tolist()},
+        },
+        "trigger_time_s": trigger_s,
+        "clear_time_s": clear_s,
+        "target": "TEST",
+    }
+    topology = {
+        "buses": [
+            {"index": 0, "vn_kv": 20.0, "is_tap": False, "tap_name": None},
+            {"index": 1, "vn_kv": 20.0, "is_tap": False, "tap_name": None},
+        ],
+    }
+
+    series = sag.compute_bus_pu_series(log, topology)
+    ft = series["frame_times_s"]
+    fault_frames = (ft >= trigger_s) & (ft <= clear_s)
+    pre_frames = ft < trigger_s
+
+    assert np.allclose(series["pu_by_bus"][0][pre_frames], 1.0, atol=0.02)
+    assert np.allclose(series["pu_by_bus"][0][fault_frames], 1.0, atol=0.02)
+    assert np.allclose(series["pu_by_bus"][1][pre_frames], 1.0, atol=0.02)
+    # 40% amplitude -> ~0.4 pu once the DFT window is fully inside the drop --
+    # check the frame closest to the fault window's midpoint, since frames
+    # near trigger_s/clear_s themselves straddle the amplitude step (their
+    # one-cycle window spans both the pre-drop and dropped samples).
+    mid_s = (trigger_s + clear_s) / 2.0
+    mid_idx = int(np.argmin(np.abs(ft - mid_s)))
+    assert series["pu_by_bus"][1][mid_idx] < 0.5
+
+
+def test_lab5_sag_propagation_renders():
+    """docs/backlog/0006 option 4: animate_sag_propagation.py runs against
+    the real dpsim_transient_log.json (extended with the per-bus
+    bus_voltages capture) and the committed sample_topology.json, and writes
+    a real animate_sag_propagation.mp4 (gitignored by *.mp4, matching this
+    lab's other two animation scripts)."""
+    log_path = LAB_DIR / "dpsim_transient_log.json"
+    if not log_path.exists():
+        pytest.skip("dpsim_transient_log.json not present -- run_dpsim.py hasn't run yet")
+    log = json.loads(log_path.read_text())
+    if "bus_voltages" not in log:
+        pytest.skip(
+            "dpsim_transient_log.json predates the bus_voltages capture "
+            "(docs/backlog/0006 option 4) -- re-run run_dpsim.py to "
+            "regenerate it"
+        )
+    if not (LAB_DIR / "sample_topology.json").exists():
+        pytest.skip("sample_topology.json not present -- generate_topology.py hasn't run yet")
+    output_mp4 = LAB_DIR / "animate_sag_propagation.mp4"
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "animate_sag_propagation.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[sag] wrote" in result.stdout
+    assert output_mp4.exists()

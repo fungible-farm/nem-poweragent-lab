@@ -1,9 +1,8 @@
 # 0006 — Research: advanced Lab 5 transient-visualization techniques beyond the current six views
 
-- **Status:** partially done — tiers 1–2 (options 1, 3, and 2) implemented and verified against a
-  real DPsim run; option 1's real result corrected a prediction this doc originally made, and
-  option 2's real result likewise did not match its own original prediction (see each section
-  below). Option 4 remains proposed.
+- **Status: done.** All four options (1, 2, 3, 4) implemented and verified against a real DPsim
+  run. Options 1, 2, and 4 each corrected a prediction this doc originally made (see each section
+  below for the real, measured finding).
 - **Depends on:** 0004 (Lab 5's existing topology + transient visualization work, all done)
 - **Prompted by:** "review the labs, especially lab 5 around dpsim — we are looking for more
   advanced visualization techniques," evaluated against what Lab 5 already ships, not proposed in
@@ -180,22 +179,76 @@ option on this list.
 
 ## Option 4 — Network-wide sag propagation
 
-**What:** capture voltage at several buses (not just the fault bus) via the already-available
-`dsys["nodes"]` dict, then animate the already-drawn topology graph
-(`generate_topology.py`'s `_plot_topology()` structure) with buses colored/pulsing by instantaneous
-`|V(t)|` deviation from nominal — connecting the two currently-separate topology and transient
-artifacts into one.
+**Status: done**, with a correction to this section's own original effort/scale estimate and a
+real, measured propagation finding that is not the naive picture — see below.
 
-**Why it matters:** today's topology plot and transient plot are two unrelated PNGs; nothing in
-Lab 5 shows *how far* a fault propagates through the chaos-net's other 13 buses, only what happens
-at the fault bus itself. This is the most visually striking option on this list but also changes
-the shape of what's captured (N buses × 3 phases × ~2750 samples instead of 1 bus), so it has real
-memory/runtime cost at scale that the other three options don't.
+**What:** `run_dpsim.py`'s capture loop now taps `v_intf` at *every* bus in `dsys["nodes"]` (not
+just the fault bus), the same `attr("v").derive_coeff(p, 0)` pattern as the existing fault-bus tap,
+looped — `dpsim_transient_log.json` carries the new `bus_voltages` key (`{"0": {"va":[...],
+"vb":[...], "vc":[...]}, "1": {...}, ...}`, documented in `run_dpsim.py`'s module docstring "key
+convention" section). The new `animate_sag_propagation.py` reduces each bus's three phases to a
+positive-sequence `|V1(t)|` (reusing `phase_model.py`'s DFT/phasor machinery unchanged, same reuse
+discipline as option 2) and animates it onto `generate_topology.py`'s own topology layout —
+`_build_topology_graph()`/`_topology_layout()` were factored out of `_plot_topology()` specifically
+so this animation places every bus at the *identical* (x, y) position the static topology plot
+does, connecting the two previously-separate artifacts for real, not just visually resembling each
+other. Each bus is colored (viridis) and sized by its own `|V1(t)|` deviation from *its own real
+pre-fault operating point* — not the SimBench `vn_kv` nameplate, a deliberate choice forced by a
+real finding below. Reuses `animate_transient.py`'s five-phase reveal timeline and MP4-encoding
+conventions unchanged (the third animation script in this lab; nothing here invents a new
+fps/dpi/codec choice).
 
-**Effort:** medium-high. Capturing extra buses is cheap per-bus (same `attr("v").derive_coeff()`
-pattern, looped), but the animation itself (mapping a scalar per bus per frame onto
-`nx.draw()`/`FuncAnimation`) is new code with no existing template in this lab to extend, unlike
-options 1–3 which each extend an existing function or script almost directly.
+**What the real run actually showed — three findings, including a correction to this section's own
+original scale/effort estimate.** Measured directly against a real, regenerated
+`dpsim_transient_log.json` (seed 42, SUB-3 fault, real seed-42 topology confirmed at 14 buses/28
+lines):
+
+1. **The scale concern in this section's original effort estimate was overstated for this lab's
+   actual topology.** With only `NUM_CHAOS_BUSES=14` buses, "N buses × 3 phases × ~2750 samples" is
+   14×3×2750 ≈ 115,500 extra floats — not a memory/runtime problem in practice. Measured: capturing
+   every bus (not a scoped-down subset — literally all 14) grew `dpsim_transient_log.json` from
+   384,682 bytes (6 series: the pre-existing va/vb/vc/ia_line/ib_line/ic_line) to 2,684,957 bytes
+   (48 series: +14×3 `bus_voltages`) — a real ~7× file-size increase, ~2.6 MB total, trivial at this
+   scale. `run_dpsim.py --step check`'s real solve+capture wall time was 14.6s (unchanged in order
+   of magnitude from before this capture was added). `animate_sag_propagation.py`'s real render time
+   was ~25s wall-clock for a 360-frame, 1280×720 MP4 (124,742 bytes) — comparable to this lab's other
+   two animation scripts, not a new order-of-magnitude cost. No bus was excluded; "every bus" was
+   both the target and what got captured.
+2. **This sandbox's real DPsim EMT solve does not converge its pre-fault steady state at the
+   SimBench `vn_kv` nameplate voltage — a real, measured, sandbox-specific characteristic, unrelated
+   to the fault.** `ext_grid_bus`'s own pre-fault `|V1|` divided by
+   `chaosnet.nominal_peak_line_neutral_v(vn_kv)` (the same formula `to_dpsim_emt_system()` uses to
+   build the NetworkInjection's own reference) is 0.8165, matching `sqrt(2/3)` to 4 decimal places —
+   an exact ratio, not solver noise, and present at *every* bus, not just electrically distant ones.
+   Root-caused to `do_steady_state_init(True)`'s own initialization convention, not to the new
+   capture or plotting code (confirmed by checking the source bus itself, upstream of any line drop).
+   Because of this, `animate_sag_propagation.py` colors each bus against *its own* real pre-fault
+   `|V1|` rather than the nameplate (the same "reference_peak is that phase's pre-fault peak"
+   principle `phase_model.peak_deviation_bins()` already used) — using the nameplate would have
+   rendered the whole network a uniform, misleading ~0.82 pu before the fault even fires. Reported
+   honestly rather than tuned away or hidden by the choice of reference.
+3. **The sag propagates almost network-wide, not sharply localized to the fault bus, contradicting
+   the naive radial-feeder intuition.** For seed 42/SUB-3: the fault bus itself dips to 0.834 pu of
+   its own pre-fault level (a 16.6% dip, consistent with `run_dpsim.py`'s already-reported 16.4% RMS
+   sag), the worst *other* bus dips to 0.859 pu, and the mean of all 13 other buses' minima is 0.909
+   pu — most of the mesh sags to within a few percentage points of the fault bus's own severity, not
+   a dip that attenuates sharply with hop count from the fault. This is consistent with option 2's
+   own finding that this topology's line impedances are tiny relative to load impedance (median
+   `|Z|` ~854 ohm vs. tapped-line impedance ~0.27 ohm): with line drops this small, most buses sit
+   electrically close to the fault regardless of graph distance. The one bus that stays essentially
+   untouched (SUB-1, 1.000 pu, no measurable dip) is *not* a "well-connected hub buses resist
+   propagation" result — `sample_topology.json` confirms `tap_buses = [0, 11, 12]` for `["SUB-1",
+   "SUB-2", "SUB-3"]`, i.e. **SUB-1 is `ext_grid_bus` itself** (local bus index 0), the fixed-voltage
+   swing bus the whole solve is referenced to. Its immunity is definitional (it is the source), not
+   an emergent mesh property — named explicitly here so the finding isn't overclaimed.
+
+**Effort:** medium, not medium-high as originally estimated — the "N buses" scale concern in this
+section's original write-up assumed a larger N than this lab's real 14-bus topology actually has.
+Capturing extra buses was exactly as cheap as predicted (same `attr("v").derive_coeff()` pattern,
+looped); the animation was new code as predicted (no existing FuncAnimation-over-a-topology-layout
+template in this lab), but reusing `_plot_topology()`'s layout (factored into
+`_build_topology_graph()`/`_topology_layout()`) and `animate_transient.py`'s reveal timeline and
+encoder settings meant it was assembled from two existing pieces, not built from scratch.
 
 ## Recommendation, in tiers
 
@@ -212,10 +265,19 @@ options 1–3 which each extend an existing function or script almost directly.
    discontinuity (excluded by definition, not tuned away), and this particular seed's fault
    collapses `|Z|` sharply toward the origin without crossing inside the tapped line's own
    (very short, low-impedance) Zone-1 reach circle — see Option 2's section above for both.
-3. **Bigger lift, most visually ambitious:** Option 4 (network-wide propagation). Recommended as a
-   distinct, later item if picked up — it changes what's captured at solve-scale (all buses, not
-   one) rather than adding a rendering pass over data already in hand, so it shouldn't be bundled
-   into the same change as 1–3.
+3. **Done:** Option 4 (network-wide sag propagation), the biggest lift and most visually ambitious
+   of the four — it changed what's captured at solve-scale (all 14 buses, not one) rather than
+   adding a rendering pass over data already in hand, and its animation had no existing
+   FuncAnimation-over-a-topology template in this lab, unlike options 1–3. Its real run surfaced
+   three findings worth having found: this section's own original "N buses" scale/effort estimate
+   was overstated for this lab's real 14-bus topology (the actual measured cost is small — see
+   Option 4's section above for the real file-size/runtime numbers); this sandbox's DPsim solve
+   converges its pre-fault steady state at ~0.82 pu of the SimBench nameplate uniformly (forcing a
+   self-referencing pu baseline instead of a nameplate one); and the sag propagates almost
+   network-wide rather than attenuating sharply with distance from the fault, because this
+   topology's line impedances are tiny relative to load impedance (the same root cause option 2's
+   own R-X finding already surfaced) — with the one apparently-immune bus (SUB-1) turning out to be
+   `ext_grid_bus` itself, not a general "hubs resist propagation" result.
 
 ## Common thread
 

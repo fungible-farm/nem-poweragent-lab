@@ -329,6 +329,25 @@ SWITCH_CLOSED_RESISTANCE_OHM: float = 0.5
 FAULT_CLOSED_RESISTANCE_OHM: float = 0.5
 
 
+def nominal_peak_line_neutral_v(vn_kv: float) -> float:
+    """Real balanced peak line-neutral voltage (V) a bus at `vn_kv` (nominal
+    line-to-line RMS, kV) sits at -- the same conversion
+    `_phase_voltage_ref()` below uses to build an EMT NetworkInjection's
+    reference phasors, factored out as a public function so other modules
+    (`animate_sag_propagation.py`, docs/backlog/0006 option 4) can compute
+    the identical real nominal reference for *any* bus's `vn_kv` without
+    reaching into `_phase_voltage_ref()`'s private per-phase angle
+    machinery -- one formula, not two.
+
+    Args:
+        vn_kv: nominal line-to-line RMS voltage of the bus, kV.
+
+    Returns:
+        Peak line-neutral voltage, V (`vn_kv * 1000 * sqrt(2/3)`).
+    """
+    return vn_kv * 1000.0 * math.sqrt(2.0 / 3.0)
+
+
 def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
     """Balanced 3-phase peak line-neutral voltage reference (A, B, C) for an
     EMT NetworkInjection, in volts.
@@ -342,7 +361,7 @@ def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
         expected V_ref shape (validated interactively against dpsim 1.2.1
         in this sandbox).
     """
-    peak = vn_kv * 1000.0 * math.sqrt(2.0 / 3.0)
+    peak = nominal_peak_line_neutral_v(vn_kv)
     angles = (0.0, -2.0 * math.pi / 3.0, 2.0 * math.pi / 3.0)
     return np.array(
         [[complex(peak * math.cos(a), peak * math.sin(a))] for a in angles]
