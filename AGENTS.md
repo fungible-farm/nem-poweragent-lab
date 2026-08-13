@@ -149,6 +149,11 @@ result on a clean checkout is.
   hardware-validated extension is optional and out of scope). See `docs/LAB5_SPARTAN_CHAOSNET.md`
   and the lab's own `README.md` "Sandbox notes" for the real DPsim/VILLASnode session and the one
   node-type substitution found by actually running it.
+  `labs/05-spartan-chaosnet-transient-stream/scenarios/` — PRD-0002's SA 2016 Black System cascade
+  scenario (`sa_2016_black_system.py`), built on `labs/_shared/scenario_engine/`; see that script's
+  own module docstring for its tap-role mapping and named engineering deviations from the PRD's
+  original sketch. Self-checked by `test_sa_2016_black_system.py`, skipped by default (opt in with
+  `RUN_SLOW_SCENARIOS=1`) since its `--step check` solves ~43s of grid time.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
   executed with `podman` in this sandbox (Lab 3's own fixture doesn't require it); see the file's
   own header. `kube/villasnode-tap-pod.yaml` (Lab 5), by contrast, has been actually run with

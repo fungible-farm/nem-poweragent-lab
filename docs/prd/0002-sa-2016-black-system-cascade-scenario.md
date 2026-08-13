@@ -39,43 +39,107 @@ This gives four confirmed causal stages to reproduce: (1) a wind-driven multi-li
 the resulting interconnector overload, (4) post-islanding frequency collapse with UFLS unable to
 arrest it in time.
 
-## Required grounding TODO before implementing thresholds
+## Grounding — confirmed directly from AEMO's actual 2017 Final Report
 
-The GPSRR paraphrase above is confirmed and sufficient for the four-stage shape, but does **not**
-give the numbers a generator implementation needs: the exact fault count/timing/locations, the wind
-farms' actual fault-ride-through disconnection rule (commonly summarised in public commentary as a
-voltage-dip-count-based protection setting, but not verified against a primary source in this
-session), the Heywood SPS's actual trigger condition, and the UFLS stage timing. AEMO's own 2017
-integrated final report (already linked in `labs/04-aemo-digital-twin-reconciliation/README.md`
-"References") and the AER investigation report (also already linked there) are the primary sources
-to pull these from. **Do not hand-wave these numbers from general recollection** — this scenario's
-entire value is being scored against real figures; an unverified threshold defeats the purpose.
+The GPSRR paraphrase above gave the four-stage shape but not the numbers a generator implementation
+needs. This session downloaded and read AEMO's real 273-page **"Black System South Australia 28
+September 2016 — Final Report"** (March 2017; the same URL already cited in
+`labs/04-aemo-digital-twin-reconciliation/README.md` "References" — note the AEMO site requires a
+browser-like `User-Agent` header to serve the file; a bare `curl` with no UA returns a generic error
+page, not a 404, which can silently look like a working download unless the response is checked) —
+not general recollection, not a secondhand summary. Every number below is quoted or directly derived
+from that document, with page-independent section pointers since the PDF has no stable page numbers
+across its appendices.
 
-- [ ] Pull the fault sequence (count, approximate locations/timing) from AEMO's 2017 report.
-- [ ] Pull the wind farms' actual disconnection rule that produced the 456 MW loss (protection
-      setting basis, not assumed).
-- [ ] Pull the Heywood SPS's actual trigger condition/setting.
-- [ ] Pull the post-islanding frequency trajectory and UFLS stage activations (timing, MW shed per
-      stage) up to system collapse.
-- [ ] Record each pulled figure with its citation directly in the scenario's ground-truth fixture
-      (not just in this PRD) — same discipline Lab 4 already applies to its DUID mapping CSV
-      ("committed, human-readable, with a rationale column").
+**Fault sequence (Table 7, "Transmission line faults")** — two almost-simultaneous tornadoes (190–260
+km/h) damaged a single-circuit and a double-circuit 275 kV line ~170 km apart, producing five
+transmission-line faults / six voltage dips at Davenport:
+
+| # | Time | Line | Voltage at Davenport | Outcome |
+|---|---|---|---|---|
+| 1 | 16:16:46 | Northfield–Harrow 66 kV (Adelaide metro) | 85% | Auto-reclosed |
+| 2 | 16:17:33 | Brinkworth–Templers West 275 kV | 60% | Two-phase-to-ground; no reclose (SA 275 kV uses single-phase auto-reclose only) |
+| 3 | 16:17:59 | Davenport–Belalie 275 kV | 40% | Single-phase; auto-reclosed |
+| 4 | 16:18:08 | Davenport–Belalie 275 kV (again) | 40% | No reclose (within 30 s of prior fault); opened 3-phase, stayed out |
+| 5 | 16:18:13 | Davenport–Mt Lock 275 kV | 40% | Single-phase |
+| 6 | 16:18:14 | Davenport–Mt Lock 275 kV (again) | 40% | Unsuccessful auto-reclose; opened 3-phase, stayed out |
+
+All faults cleared within 80–120 ms (primary protection). Fault #1 (16:16:46) is a separate,
+unrelated metro-distribution event and is **not** one of the "six voltage dips" the wind-farm
+protection counts — that count is over faults #2–6 inclusive (five transmission faults → six
+voltage-dip *disturbances*, since two of the five faults each produced an initial dip and, on
+unsuccessful reclose, a second one — see the report's own "five transmission line faults... six
+voltage disturbances" framing).
+
+**Wind-farm protection settings (Table 10, "Protection settings implemented in SA wind turbines")** —
+the actual per-group count/window thresholds, exactly the "N dips within a rolling window" shape
+this PRD's "Composable capability mapping" section already anticipated:
+
+| Group | Installed capacity (MW) | Ride-through limit on 28 Sep 2016 | Tripped that day? |
+|---|---|---|---|
+| A1 | 351 | 2 within 2 minutes | Yes — on the 3rd qualifying dip |
+| A2 | 155 | 2 within 2 minutes | Yes — on the 3rd qualifying dip |
+| B | 372 | 5 within 2 minutes (also 5 within 30 min) | Yes — on the 6th qualifying dip |
+| C | 70 | Varies with fault duration/dip size/recovery, not a simple count | No (not material) |
+| D | 627 | 10 within 2 minutes (also 10 within 30 min) | No — only 6 dips occurred, below its limit |
+
+Real firing timeline: **16:18:08.8** — Group A fast reduction, triggered by the 3rd fault (16:17:59);
+**16:18:09.2–16:18:15.4** — slow residual reduction from remaining Group A turbines; **16:18:15.1** —
+Group B fast reduction, triggered by the 6th fault (16:18:14); **16:18:15.1–16:18:15.4** — a separate,
+*transient* (not sustained) 42 MW dip from Group D's ordinary fault ride-through response, not a trip.
+Total sustained reduction: **456 MW, accumulated just after 16:18:15** (of which ~35 MW was a separate,
+AEMO-confirmed-immaterial high-wind-speed cutout during the last five disturbances — the count-based
+protection mechanism alone accounts for the other ~421 MW).
+
+**The Heywood trip is not a simple power/current threshold — it is an impedance-trajectory
+loss-of-synchronism (LOS) / out-of-step relay**, a real, important correction to this PRD's original
+"SPS"/"interconnector-overload" framing: duplicate LOS relays at Heywood's South East end, using
+redundant out-of-step protection on the Heywood #1/#2 lines, tripped when the measured impedance
+trajectory crossed both an inner and an outer relay "blinder" — the report is explicit that "it was
+the combination of high currents **and low voltages** that resulted in activation of the Heywood LOS
+relay, rather than the sheer size of current (over-load)" (flow at trip was ~890 MW / 1,060 MVA
+against a ~750 MVA/15 min thermal rating, but that overload alone did not trip it). **This is
+mechanistically the same class of protection as 0003 (Iberian)'s DRS out-of-step/loss-of-synchronism
+trip** — both are `IslandingProtectionGenerator` instances keyed on angle/impedance trajectory, not
+`ProtectionTripGenerator` instances keyed on a raw power/current threshold. Trip time: **16:18:15.8**.
+
+**Post-islanding frequency collapse**: SA's UFLS triggers in stages starting below 49 Hz; it did
+**not** trigger before separation (frequency stayed above 49 Hz until 16:18:15.8). After separation,
+RoCoF was too fast for UFLS to arrest — total measurement+operating delay across SA's UFLS load
+blocks is 150–250 ms, and frequency fell from 49 Hz to below 47 Hz faster than that. Frequency nadir:
+47–48 Hz, briefly rebounding to 49.2 Hz immediately post-separation before continued collapse. Full
+Black System: **16:18:16**. Supply/demand imbalance at separation: ~1,000 MW against ~1,826 MW SA
+demand (footnote 4, executive summary).
+
+- [x] Fault sequence — Table 7, above.
+- [x] Wind-farm disconnection rule — Table 10 + firing timeline, above.
+- [x] Heywood trip mechanism — impedance-trajectory LOS/out-of-step, not a power/current threshold;
+      corrects this PRD's original framing.
+- [x] Post-islanding frequency trajectory — UFLS non-trigger + RoCoF-too-fast narrative, above.
+- [ ] Still to do at implementation time: transcribe this table into the scenario's own committed
+      ground-truth fixture with inline citations (page/section pointers into the Final Report), same
+      discipline Lab 4 already applies to its DUID mapping CSV ("committed, human-readable, with a
+      rationale column") — this PRD records the facts, the fixture is where they become
+      machine-checked.
 
 ## Composable capability mapping (using 0001's taxonomy)
 
-- [ ] **`NetworkFaultGenerator`** — an ordered sequence of transmission-line faults on Lab 5's
-      chaos-net topology (or a purpose-seeded topology approximating the mid-north SA transmission
-      corridor's structure — a modelling choice to state explicitly, not the real SA network),
-      timed per the grounding TODO's pulled sequence.
-- [ ] **`PlantBehaviourGenerator` + `ProtectionTripGenerator`** — wind-farm fault-ride-through
-      disconnection: this needs one platform capability 0001 doesn't name yet — a **counting**
-      trigger condition ("N qualifying voltage dips within a rolling window," not a single
-      threshold-sustained-for-a-duration condition). Add this as a `ProtectionTripGenerator`
-      variant (`trigger_condition: {measurement, dip_threshold, count, window_s}`) rather than a
-      new generator kind, and backport it to 0001's schema once specified here.
-- [ ] **`IslandingProtectionGenerator`** — the Heywood SPS trip, conditioned on the grounded
-      trigger (rate-of-change-of-power/overload, per the grounding TODO — not assumed).
-- [ ] Post-islanding: frequency collapse is the *consequence* of the above generators firing on an
+- [x] **`NetworkFaultGenerator`** — an ordered sequence of 5 transmission-line faults (16:17:33,
+      16:17:59, 16:18:08, 16:18:13, 16:18:14, per Table 7 above) on Lab 5's chaos-net topology (or a
+      purpose-seeded topology approximating the mid-north SA corridor's structure — a modelling
+      choice to state explicitly, not the real SA network). `chaos_schedule.yaml`'s already-plural
+      `events:` list (generalized by PRD-0001) is sufficient — no further platform work needed here.
+- [x] **`PlantBehaviourGenerator` + `ProtectionTripGenerator`** — wind-farm fault-ride-through
+      disconnection using the now-implemented `CountTriggerCondition` (PRD-0001 already backported
+      this): Group A1/A2 as `{dip_threshold: <group-specific>, count: 2, window_s: 120}`, Group B as
+      `{count: 5, window_s: 120}` — the real per-group numbers from Table 10 above, not invented
+      round numbers.
+- [x] **`IslandingProtectionGenerator`** — the Heywood trip, **corrected**: this is an
+      impedance-trajectory loss-of-synchronism/out-of-step trigger (angle/impedance-blinder
+      crossing), not a power-or-current threshold — mechanistically identical to 0003 (Iberian)'s
+      DRS out-of-step protection. Use the same measurement kind `AngleSeparationDetector` already
+      tracks (PRD-0001's detector-generator pairing), not a new measurement type.
+- [x] Post-islanding: frequency collapse is the *consequence* of the above generators firing on an
       islanded, generation-deficient sub-network, not itself a new generator — the existing DPsim
       solve should show it emerge from the topology change, which is itself a check on whether the
       generator chain was modelled correctly (frequency collapse should not need to be separately
@@ -83,16 +147,23 @@ entire value is being scored against real figures; an unverified threshold defea
 
 ### Detectors to validate against
 
-- [ ] `RoCoFDetector` — the frequency collapse after islanding is this scenario's clearest,
+- [x] `RoCoFDetector` — the frequency collapse after islanding is this scenario's clearest,
       highest-value detection target (this is literally UFLS's own operating principle,
-      cross-referenced against 2026 GPSRR §6.2's UFLS discussion).
-- [ ] `CascadingFailureClassifier` — scored on whether it flags the trajectory as
-      heading-to-collapse at or before the real Heywood SPS trip's timing (once grounded).
-- `VoltageCascadeDetector`/`OscillationDetector`/`AngleSeparationDetector` are lower-priority here
-  — SA 2016's own account (per the confirmed GPSRR summary) is a frequency/interconnector-overload
-  mechanism, not a voltage-control/oscillation one (contrast with 0003's Iberian scenario, where
-  those three are central) — include them only if the grounding TODO surfaces a specific voltage
-  precursor worth checking.
+      cross-referenced against 2026 GPSRR §6.2's UFLS discussion); target: frequency falling from
+      49 Hz to below 47 Hz faster than SA UFLS's 150–250 ms load-block delay, per the grounding above.
+- [x] **`AngleSeparationDetector` is *not* lower-priority here — revised upward** now that the
+      Heywood trip is confirmed as an impedance/angle-trajectory mechanism, not a power threshold:
+      this detector is the direct mirror of the `IslandingProtectionGenerator`'s actual trigger,
+      exactly as central to SA 2016 as it is to 0003's Iberian DRS trip. Target: impedance/angle
+      trajectory reaching the relay's blinder-crossing condition at 16:18:15.8.
+- [x] `CascadingFailureClassifier` — scored on whether it flags the trajectory as heading-to-collapse
+      at or before 16:18:15.8 (the real, now-grounded Heywood trip timing).
+- `VoltageCascadeDetector`/`OscillationDetector` remain lower-priority — the report itself
+  distinguishes this event's "voltage instability" (a few-hundred-millisecond, angle/impedance-driven
+  collapse across the *entire* network) from a "conventional voltage collapse" (seconds-long,
+  reactive-power-margin-driven, localized) — closer to 0003's fast-collapse phase than its
+  precursor-oscillation phase, and this event has no oscillatory precursor episode analogous to
+  Iberian's two named modes.
 
 ## Where this lives
 

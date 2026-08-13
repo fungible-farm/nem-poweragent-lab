@@ -148,6 +148,29 @@ view-lab5-rates:
     uv run python labs/05-spartan-chaosnet-transient-stream/view_telemetry_rates.py
     uv run python labs/05-spartan-chaosnet-transient-stream/animate_telemetry_rates.py
 
+# Lab 5 time-frequency view: STFT spectrogram of the fault transient
+# (sample_spectrogram.png, committed -- docs/backlog/0006 option 3).
+view-lab5-spectrogram:
+    uv run python labs/05-spartan-chaosnet-transient-stream/view_spectrogram.py
+
+# --- Lab 5 VILLASnode stream tap (real podman pod, see README "Sandbox
+# notes" 4-6 and kube/villasnode-tap-pod.yaml's own header) ------------------
+# `run_dpsim.py` must have run at least once first -- it writes the real
+# villas/chaos_stream.csv the pod reads. `just lab5-villasnode` runs the
+# full up -> verify -> down round trip in one shot; the three split recipes
+# below are for stepping through it by hand (e.g. to `podman logs`/`podman
+# ps` against a pod left running between `up` and `down`).
+villasnode-up:
+    podman kube play {{justfile_directory()}}/kube/villasnode-tap-pod.yaml
+
+villasnode-verify node="sub-3-tap":
+    uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --node {{node}}
+
+villasnode-down:
+    podman kube play --down {{justfile_directory()}}/kube/villasnode-tap-pod.yaml
+
+lab5-villasnode: villasnode-up villasnode-verify villasnode-down
+
 # --- Rust / WASM (the oxidized phase_model, PSCADOSSE) -----------------------
 # Native tests (includes real_log_matches_python: the Rust port must match
 # the Python numbers exactly on the real DPsim log).

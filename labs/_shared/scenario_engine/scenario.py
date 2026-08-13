@@ -25,9 +25,57 @@ about per-step evaluation cost across a longer scenario.
 `MeasurementState.values`/`.history` key convention this module populates:
 `f"{tap_name}_voltage_v"` -> the tap's positive-sequence voltage magnitude
 (volts), for every tap named in a `run_scenario()`/`step_generators()`
-call's `monitored_taps`. A future scenario adding a RoCoF/angle-difference
-measurement should extend `_build_measurement_state()` and document the
-new key names here, not invent a second, undocumented convention.
+call's `monitored_taps`. `f"{tap_name}_angle_deg"` -> that tap's
+positive-sequence phase angle (degrees, unsigned/absolute value)
+*relative to the first tap listed in `monitored_taps`* (dict iteration
+order -- the caller's own choice of which bus is the fixed angle
+reference; the reference tap's own `angle_deg` is always 0), added by
+docs/prd/0002-sa-2016-black-system-cascade-scenario.md (the Heywood trip
+is an impedance-trajectory/loss-of-synchronism mechanism, not a magnitude
+threshold, so a `SustainTriggerCondition` on an `IslandingProtectionGenerator`
+needs a live angle measurement).
+
+Two real, sandbox-discovered pitfalls shaped this design (more than the
+originally-anticipated "two-line, not new DSP work" addition
+docs/prd/0002-...md's implementation plan expected -- both are genuine
+platform-behaviour discoveries from this implementation round, reported
+here rather than silently worked around):
+
+1. A naive single-tap, single-frame `np.angle(v1[0])` read is *not* usable
+   directly: confirmed empirically that the most-recent phasor frame's own
+   absolute angle alternates by ~180 degrees every consecutive
+   `_build_measurement_state()` call, entirely independent of any real
+   physical event (the same two values recur every other tick in steady
+   state -- a stable artifact, not noise). This is the *same* documented
+   mechanism `detectors.ROCOF_FRAME_LAG`'s own docstring names for why
+   `RoCoFDetector` compares frames 2 apart rather than consecutive ones
+   (`PHASOR_RATE_HZ` = 2x `FUNDAMENTAL_HZ`, so consecutive frames sit
+   exactly half a nominal cycle apart -- the pi-radian phase-wrap
+   ambiguity boundary), just surfacing here in the absolute single-frame
+   angle instead of a frame-to-frame RoCoF estimate.
+2. An earlier draft of this fix (this same implementation session) instead
+   accumulated a running "total phase rotation since t=0" via
+   `ROCOF_FRAME_LAG`-apart delta differencing (matching RoCoFDetector's
+   own technique). That approach is alias-free but was confirmed, by
+   direct measurement, to pick up a small, *permanent, irreversible*
+   residual bias from every switching transient (the fault
+   open/close events themselves), each leaving the running sum offset by
+   roughly half a degree that never decayed back out even long after the
+   fault itself had fully cleared -- contaminating any later measurement
+   with the accumulated "memory" of unrelated, long-past transients. The
+   design here instead uses a *direct, non-cumulative, same-tick*
+   comparison against a fixed reference tap's own current-frame phasor
+   (`angle(v1_tap[0] * conj(v1_reference[0]))`): since both phasors share
+   the identical window-alignment artifact at the same tick, it cancels in
+   the product/conjugate exactly as it already does in
+   `detectors.AngleSeparationDetector`'s own (already-validated,
+   already-working) cross-waveform comparison -- reusing that same
+   platform-proven technique live, rather than a second, independently-
+   invented (and, as measured, flawed) accumulation scheme.
+
+A future scenario adding a further measurement should extend
+`_build_measurement_state()` and document the new key names here, not
+invent a second, undocumented convention.
 
 Cross-lab dependency note (see `detectors.py`'s own docstring for the full
 rationale): this module imports Lab 5's `phase_model.py` directly.
@@ -168,6 +216,7 @@ def _build_measurement_state(
     """
     values: dict[str, float] = {}
     times_arr = np.asarray(times)
+    v1_by_tap: dict[str, complex] = {}
     for tap in monitored_taps:
         if len(raw[tap]["va"]) < 2:
             continue
@@ -185,6 +234,30 @@ def _build_measurement_state(
         key = f"{tap}_voltage_v"
         values[key] = mag
         history.setdefault(key, []).append((t_s, mag))
+        v1_by_tap[tap] = v1[0]
+
+    # angle_deg: each tap's phase angle relative to the *first* tap in
+    # monitored_taps (dict iteration order) -- see module docstring
+    # "MeasurementState.values/.history key convention" for the full
+    # rationale (a direct, same-tick, cross-tap comparison, not a
+    # single-tap read or a cumulative accumulation -- both confirmed,
+    # empirically, to be unusable).
+    if v1_by_tap:
+        reference_tap = next(iter(monitored_taps))
+        ref_v1 = v1_by_tap.get(reference_tap)
+        if ref_v1 is not None:
+            for tap, v1_val in v1_by_tap.items():
+                angle_key = f"{tap}_angle_deg"
+                # Same-tick comparison against the fixed reference tap's own
+                # current-frame phasor -- the shared window-alignment
+                # artifact cancels in this product/conjugate (see docstring
+                # point 2), exactly as detectors.AngleSeparationDetector's
+                # own cross-waveform comparison already relies on.
+                angle_deg = float(
+                    abs(np.degrees(np.angle(v1_val * np.conj(ref_v1))))
+                )
+                values[angle_key] = angle_deg
+                history.setdefault(angle_key, []).append((t_s, angle_deg))
     return {"t_s": t_s, "values": values, "history": history}
 
 
