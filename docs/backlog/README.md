@@ -18,3 +18,5 @@ research notes.
 | [0003](0003-lab3-scorecard-visualization.md) | Lab 3: bake-off scorecard has zero charts despite being the one dataset built to be compared | done |
 | [0004](0004-lab4-lab5-visualization-options.md) | Lab 4 & Lab 5: visualization options (reconciliation chart; chaos-net topology + symbolic single-line) | partially done (Lab 4 chart + Lab 5 topology drawing done; Lab 5 symbolic single-line still open) |
 | [0005](0005-unified-notebook-playbook.md) | Suggestion: a jupytext/Jupyter playbook binding all 5 labs' visual outputs into one narrative, without becoming a second source of truth | proposed |
+| [0006](0006-lab5-advanced-transient-visualization-techniques.md) | Research: advanced Lab 5 transient-visualization techniques (symmetrical components, R-X impedance trajectory, spectrogram, network-wide sag propagation) beyond the existing six views | proposed |
+| [0007](0007-clif-x-grammar-constrained-generation.md) | Idea: a CLIF (Common Logic Interchange Format) x-grammar for LLM constrained generation, demoed against the self-hosted Phi-4-mini pod | proposed |
