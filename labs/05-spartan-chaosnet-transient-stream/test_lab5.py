@@ -169,3 +169,78 @@ def test_lab5_spectrogram_renders():
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[spectrogram] wrote" in result.stdout
     assert output_png.exists()
+
+
+def test_rx_trajectory_z_math_synthetic():
+    """docs/backlog/0006 option 2: sanity-check view_rx_trajectory.py's
+    compute_trajectory() -- Z(t) = V1(t)/I1(t), reusing phase_model's DFT/
+    phasor machinery -- against a synthetic balanced 3-phase voltage/current
+    pair with a known magnitude ratio and phase offset (no dpsim needed).
+    Current lagging voltage by a known angle must recover exactly that
+    R+jX impedance (positive X = inductive, the correct sign convention).
+    """
+    import view_rx_trajectory as rx
+
+    fs = 5000.0
+    f0 = 50.0
+    t = np.arange(0, 0.5, 1.0 / fs)
+    v_peak = 1000.0
+    i_peak = 10.0
+    phase_offset = np.deg2rad(30.0)  # current lags voltage by 30 deg
+
+    def three_phase(peak: float, phase: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        a = peak * np.cos(2 * np.pi * f0 * t + phase)
+        b = peak * np.cos(2 * np.pi * f0 * t + phase - 2 * np.pi / 3)
+        c = peak * np.cos(2 * np.pi * f0 * t + phase + 2 * np.pi / 3)
+        return a, b, c
+
+    va, vb, vc = three_phase(v_peak, 0.0)
+    ia, ib, ic = three_phase(i_peak, -phase_offset)
+
+    log = {
+        "times": t.tolist(),
+        "va": va.tolist(), "vb": vb.tolist(), "vc": vc.tolist(),
+        "ia_line": ia.tolist(), "ib_line": ib.tolist(), "ic_line": ic.tolist(),
+        "fault_adjacent_line": "line0_1",
+        # No real switching event in this synthetic signal -- trigger/clear
+        # set far outside [0, 0.5] so SWITCHING_EXCLUSION_CYCLES never masks
+        # a frame here.
+        "trigger_time_s": -1.0,
+        "clear_time_s": -1.0,
+        "target": "TEST",
+    }
+    frame_times, z = rx.compute_trajectory(log)
+    finite = np.isfinite(z.real) & np.isfinite(z.imag)
+    assert finite.sum() > 10
+
+    z_mid = z[finite][finite.sum() // 2]
+    expected_mag = v_peak / i_peak
+    expected = complex(
+        expected_mag * np.cos(phase_offset), expected_mag * np.sin(phase_offset)
+    )
+    assert abs(z_mid - expected) < 0.5
+
+
+def test_lab5_rx_trajectory_renders():
+    """docs/backlog/0006 option 2: view_rx_trajectory.py runs against the
+    real dpsim_transient_log.json (extended with the ia_line/ib_line/ic_line
+    fault-adjacent-line current tap) and writes sample_rx_trajectory.png."""
+    log_path = LAB_DIR / "dpsim_transient_log.json"
+    if not log_path.exists():
+        pytest.skip("dpsim_transient_log.json not present -- run_dpsim.py hasn't run yet")
+    log = json.loads(log_path.read_text())
+    if "ia_line" not in log:
+        pytest.skip(
+            "dpsim_transient_log.json predates the ia_line/ib_line/ic_line "
+            "current tap (docs/backlog/0006 option 2) -- re-run run_dpsim.py "
+            "to regenerate it"
+        )
+    output_png = LAB_DIR / "sample_rx_trajectory.png"
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "view_rx_trajectory.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[rx] wrote" in result.stdout
+    assert output_png.exists()

@@ -360,12 +360,81 @@ class DpsimChaosSystem(TypedDict):
     to `docs/prd/0001-composable-generator-detector-platform.md`'s ordered
     list of faults/trips. A single-target caller (today's Lab 5 usage)
     gets a one-entry dict; nothing about the physics changes for that case.
+
+    `fault_adjacent_lines` is the docs/backlog/0006 option 2 addition: one
+    `dpsimpy.emt.ph3.PiLine` component per fault tap, selected by
+    `_fault_adjacent_line()`, so `run_dpsim.py` can tap that line's real
+    `i_intf` current alongside the fault bus's already-tapped `v_intf`
+    voltage for the R-X impedance-trajectory view.
     """
 
     system: object  # dpsimpy.SystemTopology
     nodes: dict[int, object]  # local bus index -> dpsimpy.emt.SimNode
     fault_switches: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.Switch
     fault_buses: dict[str, int]  # tap_name -> local bus index
+    fault_adjacent_lines: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.PiLine
+
+
+def _fault_adjacent_line(topology: ChaosTopology, fault_bus: int) -> ChaosLine:
+    """Pick one `PiLine` adjacent to `fault_bus` to tap for the R-X
+    impedance-trajectory view (docs/backlog/0006, option 2).
+
+    Deterministic, seed-independent rule, chosen because `run_dpsim.py`
+    already captures voltage only at the fault bus itself (never at the
+    other end of any line): prefer the line directly connecting
+    `topology["ext_grid_bus"]` (the network's one source injection) to
+    `fault_bus` -- the source-to-fault line, i.e. the line whose current a
+    relay CT co-located with the fault bus's own PT would actually be
+    reading. If no such direct line exists for a given seed's topology
+    (the fault bus isn't a direct neighbour of the source bus), fall back
+    to the first line touching `fault_bus` in `topology["lines"]`'s own
+    build order -- itself deterministic, since `build_chaos_topology()`
+    constructs `lines` from `sorted(graph.edges())`.
+
+    Args:
+        topology: output of build_chaos_topology().
+        fault_bus: local bus index of the fault target.
+
+    Returns:
+        The selected ChaosLine record (a real entry of `topology["lines"]`,
+        never fabricated).
+
+    Raises:
+        ValueError: if `fault_bus` has no adjacent line at all -- would mean
+            an isolated bus, which `build_chaos_topology()`'s
+            connected-graph guarantee (`nx.connected_watts_strogatz_graph`)
+            should never produce.
+    """
+    adjacent = [
+        line for line in topology["lines"]
+        if line["from_bus"] == fault_bus or line["to_bus"] == fault_bus
+    ]
+    if not adjacent:
+        raise ValueError(f"fault bus {fault_bus} has no adjacent line in this topology")
+    ext_bus = topology["ext_grid_bus"]
+    direct = [
+        line for line in adjacent
+        if line["from_bus"] == ext_bus or line["to_bus"] == ext_bus
+    ]
+    return direct[0] if direct else adjacent[0]
+
+
+def fault_adjacent_line_name(topology: ChaosTopology, fault_bus: int) -> str:
+    """The dpsimpy `PiLine` component name for `_fault_adjacent_line()`'s
+    selected line -- matches `to_dpsim_emt_system()`'s own
+    `f"line{from_bus}_{to_bus}"` naming exactly, so callers (e.g.
+    `run_dpsim.py`) can label the tapped line in `dpsim_transient_log.json`
+    without needing dpsimpy's component objects themselves.
+
+    Args:
+        topology: output of build_chaos_topology().
+        fault_bus: local bus index of the fault target.
+
+    Returns:
+        The line's component name, e.g. "line0_12".
+    """
+    line = _fault_adjacent_line(topology, fault_bus)
+    return f"line{line['from_bus']}_{line['to_bus']}"
 
 
 def to_dpsim_emt_system(
@@ -431,6 +500,7 @@ def to_dpsim_emt_system(
         rx.connect([nodes[load["bus"]]])
         components.append(rx)
 
+    line_components: dict[tuple[int, int], object] = {}
     for line in topology["lines"]:
         r_total = line["r_ohm_per_km"] * line["length_km"]
         x_total = line["x_ohm_per_km"] * line["length_km"]
@@ -445,6 +515,7 @@ def to_dpsim_emt_system(
         )
         pi_line.connect([nodes[line["from_bus"]], nodes[line["to_bus"]]])
         components.append(pi_line)
+        line_components[(line["from_bus"], line["to_bus"])] = pi_line
 
     ext_bus = topology["buses"][topology["ext_grid_bus"]]
     extnet = dpsimpy.emt.ph3.NetworkInjection("extnet", dpsimpy.LogLevel.warn)
@@ -475,11 +546,21 @@ def to_dpsim_emt_system(
         topology["system_frequency_hz"], list(nodes.values()), components
     )
 
+    # docs/backlog/0006 option 2: one fault-adjacent PiLine per tap, keyed
+    # the same way as fault_switches/fault_buses.
+    fault_adjacent_lines: dict[str, object] = {}
+    for name in tap_names:
+        adj_line = _fault_adjacent_line(topology, fault_buses[name])
+        fault_adjacent_lines[name] = line_components[
+            (adj_line["from_bus"], adj_line["to_bus"])
+        ]
+
     return {
         "system": system,
         "nodes": nodes,
         "fault_switches": fault_switches,
         "fault_buses": fault_buses,
+        "fault_adjacent_lines": fault_adjacent_lines,
     }
 
 

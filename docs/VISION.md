@@ -502,11 +502,16 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   section shells out to that lab's real `--step check`, asserts PASS, then only renders that lab's
   already-committed fixture/chart.
 - [`docs/backlog/0006-lab5-advanced-transient-visualization-techniques.md`](backlog/0006-lab5-advanced-transient-visualization-techniques.md)
-  — proposed next-tier Lab 5 visualizations beyond its existing six views: symmetrical components
-  (V0/V1/V2, not just |V1|) and a spectrogram both reuse data already captured with no new
-  dependency or `run_dpsim.py` change; an R-X impedance trajectory needs current alongside the
-  already-captured voltage (`i_intf`, confirmed present on DPsim's `PiLine`); network-wide sag
-  propagation needs capturing more than the fault bus (`dsys["nodes"]` already holds every bus).
+  — next-tier Lab 5 visualizations beyond its original six views. **Done:** symmetrical components
+  (V0/V1/V2, not just |V1|, `view_telemetry_rates.py`/`animate_telemetry_rates.py`) and a spectrogram
+  (`view_spectrogram.py`), both reusing data already captured with no new dependency or
+  `run_dpsim.py` change; an R-X impedance-trajectory / mho-circle distance-relay view
+  (`view_rx_trajectory.py`), which needed one small `run_dpsim.py` capture addition — current on the
+  fault-adjacent `PiLine` (`i_intf`) alongside the already-captured fault-bus voltage. Each
+  implementation surfaced a real, measured finding that corrected this doc's own original
+  prediction (see the backlog file's Option 1/2 sections) rather than asserting the textbook shape
+  assumed in advance. **Still open:** network-wide sag propagation, which needs capturing more than
+  the fault bus (`dsys["nodes"]` already holds every bus).
 
 None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
 unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.

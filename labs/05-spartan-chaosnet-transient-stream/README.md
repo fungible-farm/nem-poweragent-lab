@@ -256,7 +256,10 @@ every run, same pattern as Labs 1–4's fetched/derived data).
 ## Files
 
 - `chaosnet.py` — shared chaos-net topology model: SimBench + NetworkX generation, pandapower and
-  DPsim EMT loaders built from the exact same real topology.
+  DPsim EMT loaders built from the exact same real topology. Also picks the fault-adjacent `PiLine`
+  tapped for current (`_fault_adjacent_line()`/`fault_adjacent_line_name()`, docs/backlog/0006
+  option 2): the line directly connecting `ext_grid_bus` to the fault bus, or the first adjacent
+  line in topology order if no such direct line exists for a given seed.
 - `generate_topology.py`, `run_dpsim.py`, `verify_stream.py` — the three walkthrough scripts, each
   with its own `--step check` self-check gate.
 - `chaos_schedule.yaml` — the committed fault schedule (one line-to-ground fault at SUB-3).
@@ -286,6 +289,12 @@ many generated views" principle they all share.
 - `view_spectrogram.py` → `sample_spectrogram.png` — a time-frequency (STFT) view of the phase-A
   voltage; the fault's switching edges show up as broadband vertical smears distinct from the
   steady 50 Hz fundamental (docs/backlog/0006, option 3).
+- `view_rx_trajectory.py` → `sample_rx_trajectory.png` — the R-X apparent-impedance trajectory
+  Z(t)=V1(t)/I1(t) on the fault-adjacent `PiLine`, against a real, documented mho relay
+  characteristic (80% Zone-1 reach of that line's own real impedance) — the distance-relay engineer's
+  view: "where, electrically, is this fault" rather than "what does the voltage do over time"
+  (docs/backlog/0006, option 2). Needs `run_dpsim.py` to have captured the newer
+  `ia_line`/`ib_line`/`ic_line` fields (see below).
 
 **A real finding from the symmetrical-component view, worth knowing before reading the charts**:
 despite `chaos_schedule.yaml` labeling its event `type: line-to-ground`, `chaosnet.py`'s fault
@@ -298,3 +307,17 @@ already named ("balanced/decoupled 3-phase line and load model"), now independen
 the sequence-component math rather than only by reading the switch code. See `phase_model.py`'s
 module docstring and `test_lab5.py::test_phase_model_sequence_components_confirm_lab5_fault_is_symmetric`
 for the regression check.
+
+**Two real findings from the R-X impedance-trajectory view, worth knowing before reading that
+chart** (`view_rx_trajectory.py`, docs/backlog/0006 option 2): (1) a one-cycle DFT phasor estimate
+is only valid when its analysis window doesn't span a real switching discontinuity — the frame
+whose window straddled the fault-clearing instant produced a wrong-quadrant, order-of-magnitude
+outlier (`Z ≈ 148+324j` ohm against every neighbour's ~1–1000 ohm), excluded by definition
+(`SWITCHING_EXCLUSION_CYCLES`), not tuned away. (2) For seed 42/SUB-3, apparent impedance does
+collapse sharply toward the origin during the fault (median `|Z|` ~854 ohm pre-fault → minimum
+~1.34 ohm during) but never crosses inside the tapped line's own 80%-reach mho circle (~0.22 ohm),
+because `line0_12` is a very short (0.6 km), low-impedance line and `FAULT_CLOSED_RESISTANCE_OHM`
+is a partial 0.5 ohm fault at the fault bus itself, not a bolted fault at the line's remote end —
+reported as measured, not forced to claim a Zone-1 trip that didn't happen. The rendered PNG
+includes a zoomed inset at the reach-circle's own scale for exactly this reason (load and fault
+impedance differ from the reach circle by ~3 orders of magnitude on this seed's topology).

@@ -36,6 +36,24 @@ itself is real and fully available here):
    fires the fault at the scheduled *simulated* time inside that solve,
    for real. Both clocks are real; they are just different clocks, named
    here so nobody mistakes one for the other.
+
+dpsim_transient_log.json key convention (extended by docs/backlog/0006
+option 2 -- see chaosnet.fault_adjacent_line_name()/_fault_adjacent_line()):
+
+- `times` -- simulated time (s) per sample.
+- `va`/`vb`/`vc` -- the fault substation's own three phase instantaneous
+  voltages (V), i.e. `v_intf` of the fault bus's SimNode.
+- `ia_line`/`ib_line`/`ic_line` -- three phase instantaneous currents (A),
+  i.e. `i_intf` of the *fault-adjacent* `PiLine` (chaosnet.py's
+  `fault_adjacent_lines[target]`) -- the same tap pattern as `v_intf`,
+  applied to a line's current instead of a node's voltage. Together with
+  va/vb/vc this is what `view_rx_trajectory.py` divides to get the R-X
+  apparent-impedance trajectory Z(t) = V(t)/I(t).
+- `fault_adjacent_line` -- the tapped PiLine's dpsimpy component name
+  (e.g. "line0_12"), so a reader of the log can identify which line
+  ia_line/ib_line/ic_line actually came from.
+- `trigger_time_s`/`clear_time_s` -- fault close/open simulated times (s).
+- `target` -- the fault substation name (e.g. "SUB-3").
 """
 from __future__ import annotations
 
@@ -357,6 +375,18 @@ def run_step(
     v_attr = fault_node.attr("v")
     phase_attrs = [v_attr.derive_coeff(p, 0) for p in range(3)]
 
+    # docs/backlog/0006 option 2: second tap, i_intf on the fault-adjacent
+    # PiLine (chaosnet._fault_adjacent_line()'s deterministic pick), mirroring
+    # the v_intf voltage tap above exactly -- same derive_coeff(p, 0) pattern,
+    # applied to a line's current attribute instead of a node's voltage
+    # attribute. See module docstring's "key convention" section.
+    fault_adjacent_line = dsys["fault_adjacent_lines"][target]
+    fault_adjacent_line_name = chaosnet.fault_adjacent_line_name(
+        topology, dsys["fault_buses"][target]
+    )
+    i_attr = fault_adjacent_line.attr("i_intf")
+    line_phase_attrs = [i_attr.derive_coeff(p, 0) for p in range(3)]
+
     # Optional condition-triggered generators (PRD-0001 Goal 3). Empty for
     # today's chaos_schedule.yaml, so every block gated on
     # `pending_generators`/`condition_triggered` below is a no-op on the
@@ -397,6 +427,9 @@ def run_step(
     va_series: list[float] = []
     vb_series: list[float] = []
     vc_series: list[float] = []
+    ia_line_series: list[float] = []
+    ib_line_series: list[float] = []
+    ic_line_series: list[float] = []
     scenario_events: list = []
 
     injected_printed = False
@@ -406,10 +439,14 @@ def run_step(
     for step in range(num_samples):
         t = sim.next()
         va, vb, vc = (a.get() for a in phase_attrs)
+        ia_l, ib_l, ic_l = (a.get() for a in line_phase_attrs)
         times.append(t)
         va_series.append(va)
         vb_series.append(vb)
         vc_series.append(vc)
+        ia_line_series.append(ia_l)
+        ib_line_series.append(ib_l)
+        ic_line_series.append(ic_l)
 
         if pending_generators:
             for tgt, attrs in cond_phase_attrs.items():
@@ -486,6 +523,10 @@ def run_step(
                 "va": va_series,
                 "vb": vb_series,
                 "vc": vc_series,
+                "ia_line": ia_line_series,
+                "ib_line": ib_line_series,
+                "ic_line": ic_line_series,
+                "fault_adjacent_line": fault_adjacent_line_name,
                 "trigger_time_s": trigger_s,
                 "clear_time_s": clear_s,
                 "target": target,

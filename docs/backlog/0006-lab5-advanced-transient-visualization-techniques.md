@@ -1,8 +1,9 @@
 # 0006 — Research: advanced Lab 5 transient-visualization techniques beyond the current six views
 
-- **Status:** partially done — tier 1 (options 1 and 3) implemented and verified against a real
-  DPsim run; option 1's real result corrected a prediction this doc originally made (see its section
-  below). Options 2 and 4 remain proposed.
+- **Status:** partially done — tiers 1–2 (options 1, 3, and 2) implemented and verified against a
+  real DPsim run; option 1's real result corrected a prediction this doc originally made, and
+  option 2's real result likewise did not match its own original prediction (see each section
+  below). Option 4 remains proposed.
 - **Depends on:** 0004 (Lab 5's existing topology + transient visualization work, all done)
 - **Prompted by:** "review the labs, especially lab 5 around dpsim — we are looking for more
   advanced visualization techniques," evaluated against what Lab 5 already ships, not proposed in
@@ -94,23 +95,63 @@ change, not a visualization change.
 
 ## Option 2 — R-X impedance trajectory (mho-circle / distance-relay plot)
 
-**What:** with `i_intf` captured alongside `v_intf` at the fault-adjacent line, apparent impedance
-`Z(t) = V(t) / I(t)` can be plotted on the complex R-X plane, together with a relay characteristic
-circle (a standard mho element) for context. This is literally the plot a distance-relay engineer
-looks at — the impedance trajectory swinging from its normal load-impedance point into the fault
-region and back out is the canonical "is this a real fault, and how far away" visualization in
-protection engineering, and nothing like it exists in today's six views (all of which are
-voltage/time or phase-space, never impedance).
+**Status: done**, with two corrections to this section's own original prediction — see below.
+
+**What:** `run_dpsim.py` now taps `i_intf` on the fault-adjacent `PiLine` alongside the existing
+`v_intf` tap at the fault bus (`chaosnet._fault_adjacent_line()`/`fault_adjacent_line_name()`
+picks that line deterministically: prefer the line directly connecting `ext_grid_bus` to the fault
+bus, else the first adjacent line in topology order — for seed 42/SUB-3 this is `line0_12`).
+`dpsim_transient_log.json` carries the new `ia_line`/`ib_line`/`ic_line`/`fault_adjacent_line`
+keys (documented in `run_dpsim.py`'s module docstring "key convention" section). The new
+`view_rx_trajectory.py` computes positive-sequence `Z(t) = V1(t) / I1(t)` — reusing
+`phase_model.phasor_frames()`/`positive_sequence()` unchanged, no second phasor estimator — and
+plots it on the complex R-X plane against a real, documented mho relay characteristic: a circle
+through the origin and `RELAY_REACH_PERCENT` (80%, the standard textbook Zone-1 underreach
+setting) of the tapped line's own real impedance (`r_ohm_per_km`/`x_ohm_per_km` × `length_km` from
+the committed `sample_topology.json`, not invented), saved to `sample_rx_trajectory.png`.
 
 **Why it matters:** it is the one technique on this list that answers a materially different
 question than the existing views ("where, electrically, is this fault" vs. "what does the voltage
 do over time") — directly relevant to SPARTAN's framing as an edge device co-located with
 protection-class monitoring.
 
-**Effort:** medium. `run_dpsim.py`'s capture loop needs a second `phase_attrs`-style tap for
-`i_intf` on the fault-adjacent `PiLine` (mirrors the existing voltage tap almost exactly), a new
-field in `dpsim_transient_log.json`, and a new rendering script. No new dependency (complex-plane
-plotting is plain matplotlib).
+**What the real run actually showed — two findings, not the textbook picture assumed above.**
+Measured directly against a real, regenerated `dpsim_transient_log.json` (seed 42, SUB-3 fault):
+
+1. **A one-cycle DFT phasor spans a real switching discontinuity.** The frame whose one-cycle
+   analysis window straddles the fault-*clearing* instant produced `Z ≈ 148 + 324j` ohm — a
+   wrong-quadrant, order-of-magnitude outlier next to every neighbouring frame's ~1–1000 ohm,
+   negative-real-part values, because a single-cycle DFT's periodicity assumption is violated when
+   a real discontinuity falls inside its window. `view_rx_trajectory.py` excludes any frame within
+   `SWITCHING_EXCLUSION_CYCLES` (1 full 50 Hz cycle) of `trigger_time_s`/`clear_time_s` by
+   definition, not by curve-fitting the threshold to hide this one value — the same reason real
+   numerical distance relays supervise their mho element with a dedicated transient/fault-detector
+   element rather than trusting a raw single-cycle `Z=V/I` estimate straight through a switching
+   event.
+2. **The trajectory does swing sharply toward the origin during the fault, but never crosses
+   inside the 80%-reach mho circle.** Pre/post-fault `|Z|` sits at a median ~854 ohm (this
+   particular tapped line, `line0_12`, is lightly loaded — most chaos-net load flow routes
+   elsewhere in the 28-line mesh); during the fault it collapses to a minimum ~1.34 ohm — a real,
+   sharp, "distance relay would clearly see this" collapse. But the line's own real impedance is
+   tiny (`length_km=0.6`, `Z_line ≈ 0.27` ohm, 80% reach ≈ 0.22 ohm), because
+   `FAULT_CLOSED_RESISTANCE_OHM=0.5` ohm is a *partial, impedance-limited* fault at the fault bus
+   itself (chaosnet.py's own documented, swept choice — see that constant's comment), not a bolted
+   fault at the remote end of the tapped line. `Z_fault ≈ 1.34` ohm sits just outside the 0.22 ohm
+   reach circle, so this specific real run's trajectory demonstrates the collapse-toward-origin
+   shape a protection engineer expects, without crossing this particular Zone-1 element's trip
+   region — reported as measured, not forced to claim a trip that didn't happen. Because the load
+   and fault impedances differ from the reach circle by ~3 orders of magnitude, the rendered PNG
+   uses a zoomed inset at the reach-circle's own scale (sized from the real computed reach/fault
+   extent) alongside the full-scale trajectory — itself a faithful reproduction of how real
+   distance-relay R-X displays normally show load impedance far outside the reach zone, not a
+   plot-hiding trick.
+
+**Effort:** medium, as predicted. `chaosnet.py` gained `_fault_adjacent_line()`/
+`fault_adjacent_line_name()` (pure, topology-only) and a `fault_adjacent_lines` entry on
+`DpsimChaosSystem`; `run_dpsim.py`'s capture loop gained one more `derive_coeff()`-pattern tap,
+mirroring the existing voltage tap; `view_rx_trajectory.py` is a new ~300-line script, reusing
+`phase_model.py`'s phasor machinery unchanged. No new dependency (complex-plane plotting and the
+zoomed inset are both plain matplotlib).
 
 ## Option 3 — Spectrogram / STFT of the transient
 
@@ -164,10 +205,13 @@ options 1–3 which each extend an existing function or script almost directly.
    finding worth having found: Lab 5's `chaos_schedule.yaml` fault is symmetric across all three
    phases (see Option 1's section above), which the sequence-component view now shows honestly
    instead of assuming the textbook single-LG signature.
-2. **Worth doing next (new but small capture change, materially different question answered):**
-   Option 2 (R-X impedance trajectory). Requires a small, well-understood addition to
-   `run_dpsim.py`'s capture loop (current alongside voltage, same pattern) but answers a question
-   none of the other five views can — distance, not just severity.
+2. **Done:** Option 2 (R-X impedance trajectory). Added the small, well-understood capture change
+   this section originally scoped (current alongside voltage, same tap pattern) and answers a
+   question none of the other views can — distance, not just severity. Its real run also surfaced
+   two findings worth having found: a one-cycle DFT phasor is invalid across a real switching
+   discontinuity (excluded by definition, not tuned away), and this particular seed's fault
+   collapses `|Z|` sharply toward the origin without crossing inside the tapped line's own
+   (very short, low-impedance) Zone-1 reach circle — see Option 2's section above for both.
 3. **Bigger lift, most visually ambitious:** Option 4 (network-wide propagation). Recommended as a
    distinct, later item if picked up — it changes what's captured at solve-scale (all buses, not
    one) rather than adding a rendering pass over data already in hand, so it shouldn't be bundled
