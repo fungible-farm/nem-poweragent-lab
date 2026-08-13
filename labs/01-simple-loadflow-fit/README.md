@@ -55,10 +55,15 @@ uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py
    `iter 1: trial=1.0000x -> 0.935 pu (residual -0.0074)`,
    `iter 2: trial=0.9500x -> 0.940 pu (residual -0.0025)`,
    `iter 3: trial=0.9250x -> 0.941 pu (residual -0.0008)`, ending in
-   `converged: trial=0.9250x, bus 2008 = 0.941 pu, residual -0.0008 (PASS, tol 0.002)`.
+   `converged: trial=0.9250x, bus 2008 = 0.941 pu, residual -0.0008 (PASS, tol 0.002)`, followed by
+   `[chart] wrote sample_network_chart.png`.
    — Why it matters: every line comes from an actual `pandapower.runpp()` call — the proposer only
    picks which trial value to try next; watching this scroll makes that split concrete rather than
-   asserted.
+   asserted. The chart (`sample_network_chart.png`) renders the fitted network via
+   `pandapower.plotting` — every bus colored by its real solved voltage, bus 2008 highlighted — so
+   the calibration target is visible in the wider network, not just a number in a log line
+   (docs/backlog/0001-topology-and-results-visualization-gap.md item 2 / docs/backlog/0002's free
+   tier).
 3. **`uv run labs/01-simple-loadflow-fit/run.py --step check`**
    — You should see: the fitted parameter and residual printed as JSON, then
    `MATCH: fitted_scale=0.925 residual_pu=-0.000791 vs expected_results.json`.
@@ -66,4 +71,21 @@ uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py
    narrate it as "here's what a passing run prints" — the fixture exists precisely so this lab
    never needs a live run to be explainable.
 4. **`uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py`**
-   — You should see: `1 passed`. This is the same check step wrapped for CI/`scripts/run_labs_1_3.sh`.
+   — You should see: `2 passed`. This is the same check step (plus a dedicated chart-artifact
+   assertion) wrapped for CI/`scripts/run_labs_1_3.sh`.
+
+## Files
+
+- `run.py` — the three-step walkthrough script (`load` / `fit` / `check`) described above.
+  `--step fit` also (re)writes the committed `sample_network_chart.png`, gated by `refresh_chart`
+  so `--step check`'s self-check re-derivation never mutates it (see `fit_step`'s docstring).
+- `expected_results.json` — committed fixture `--step check` diffs against.
+- `sample_network_chart.png` — committed `pandapower.plotting` network diagram: every bus of the
+  fitted network colored by its real solved voltage (`vm_pu`), bus 2008 (the calibration target)
+  highlighted. Regenerate via `run.py --step fit`; see `_plot_network`'s docstring in `run.py` for
+  the exact pandapower.plotting APIs used and why (docs/backlog/0001 item 2, docs/backlog/0002).
+- `animate_convergence.py` — renders `animate_convergence.mp4` (gitignored; this script is the
+  committed artifact that re-derives it) from a real bisection-fit run, for presenter use. See its
+  own module docstring.
+- `test_lab1.py` — pytest wrapper around `--step check` plus a dedicated assertion that
+  `sample_network_chart.png` exists.

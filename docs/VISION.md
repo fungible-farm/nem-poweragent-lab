@@ -448,7 +448,15 @@ only. None of this was a deliberate non-goal (contrast with §12 above); it was 
 so it doesn't get silently mistaken for "done" the way `AGENTS.md`'s own self-checking convention
 exists to prevent for correctness, not just for visuals.
 
-**Current state: Lab 2, Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
+**Current state: Lab 1, Lab 2, Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.**
+`pandapower.plotting` is no longer unused: Lab 1's `run.py` now renders a committed
+`sample_network_chart.png` — the fitted network's buses colored by real solved voltage (`vm_pu`)
+via `pandapower.plotting.create_bus_collection`/`create_line_collection`, TARGET_BUS highlighted —
+gated by `refresh_chart` the same way (`--step check` never overwrites it), and asserted to exist
+by both `--step check` and a dedicated `test_lab1.py` test. (No real geodata exists for `snemSA.m`,
+and pandapower's own `create_generic_coordinates` needs `igraph` or `pygraphviz`, neither installed;
+Lab 1's chart instead builds a `networkx.spring_layout` and writes it to `net.bus["geo"]` via
+pandapower's own re-exported `geojson` module — no new dependency.) Lab 5's
 `generate_topology.py` now draws the generated chaos-net topology to a committed
 `sample_topology_plot.png` (tap-point buses highlighted/labelled), gated the same way its JSON
 fixtures are so ad-hoc seeds never touch the committed artifact. Lab 4's `reconcile.py` now renders
@@ -473,7 +481,8 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
 `docs/backlog/README.md` for the current per-item status.
 
 - [`docs/backlog/0001-topology-and-results-visualization-gap.md`](backlog/0001-topology-and-results-visualization-gap.md)
-  — the gap itself, with the grep evidence above expanded per-lab.
+  — **Done.** The gap itself, with the grep evidence above expanded per-lab; every item closed,
+  including item 2's `pandapower.plotting` miss (Lab 1, above).
 - [`docs/backlog/0002-pandapower-diagram-and-symbolic-representation-options.md`](backlog/0002-pandapower-diagram-and-symbolic-representation-options.md)
   — what `pandapower.plotting` already offers beyond `simple_plot()`, and a survey of open-source
   symbolic/single-line-diagram options outside pandapower (`powsybl-diagram`/`pypowsybl`,
