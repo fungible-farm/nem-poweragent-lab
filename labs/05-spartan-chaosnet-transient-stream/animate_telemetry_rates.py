@@ -10,8 +10,12 @@ render `animate_telemetry_rates.mp4`. Three isolated panels, one screen:
    RAW_ZOOM_S) so the actual waves are readable; the window follows the reveal
    edge "now".
 2. C37.118 PDU output at 100 Hz -- the SAME three phases estimated by the
-   identical one-cycle DFT (|Va|,|Vb|,|Vc|) plus the positive-sequence |V1|
-   (dashed): phase A collapses, B/C swell, |V1| dips.
+   identical one-cycle DFT (|Va|,|Vb|,|Vc|) plus the full symmetrical-component
+   triplet |V1|/|V2|/|V0| (dashed/dash-dot/dotted): phase A collapses, B/C
+   swell, |V1| dips -- while |V0|/|V2| stay near zero, confirming this
+   schedule's "line-to-ground" fault is implemented as a symmetric
+   three-phase-to-ground event, not a true single-phase fault (see
+   `phase_model.zero_sequence()`'s docstring; docs/backlog/0006, option 1).
 3. SCADA/EMS at a 4 s update -- one flat value (the whole ~0.55 s event lives
    inside a single interval, so this feed never moves).
 
@@ -36,6 +40,8 @@ from view_telemetry_rates import (  # noqa: E402
     COLOR_PHASE_A,
     COLOR_PHASE_B,
     COLOR_PHASE_C,
+    COLOR_SEQ_NEG,
+    COLOR_SEQ_ZERO,
     OUTPUT_PNG,
     _load_log,
 )
@@ -43,9 +49,11 @@ from phase_model import (  # noqa: E402
     PHASOR_RATE_HZ,
     SCADA_UPDATE_S,
     ThreePhaseWaveform,
+    negative_sequence,
     phasor_frames,
     positive_sequence,
     scada_rms,
+    zero_sequence,
 )
 
 LAB_DIR = Path(__file__).resolve().parent
@@ -98,12 +106,13 @@ def _reveal_sim_time(anim_t: float) -> float:
 def _narration(
     now: float, trigger_s: float, clear_s: float, final_s: float,
     pre_peak_kv: float, fault_dip_kv: float, post_peak_kv: float, v1_dip_kv: float,
+    v0_peak_kv: float, v2_peak_kv: float,
 ) -> tuple[str, str]:
     """(narration text, color) for the reveal edge's simulated time.
 
     Values are the real recorded numbers (pre-fault peak, phase-A phasor dip
-    inside the fault, post-clear swell peak, |V1| dip) -- computed by the
-    caller from the log, never hardcoded.
+    inside the fault, post-clear swell peak, |V1| dip, |V0|/|V2| fault-window
+    peaks) -- computed by the caller from the log, never hardcoded.
     """
     if now < trigger_s:
         return (
@@ -113,9 +122,11 @@ def _narration(
         )
     if now < clear_s:
         return (
-            f"{NARRATION_FAULTED} @ {trigger_s:.2f} s: phase A to ground -- "
+            f"{NARRATION_FAULTED} @ {trigger_s:.2f} s: symmetric 3-phase-to-ground -- "
             f"|Va| collapses to ~{fault_dip_kv:.1f} kV, B/C swell, "
-            f"|V1| dips to ~{v1_dip_kv:.1f} kV",
+            f"|V1| dips to ~{v1_dip_kv:.1f} kV, |V0|/|V2| stay near zero "
+            f"(~{v0_peak_kv:.3f}/{v2_peak_kv:.2f} kV) -- confirms this is symmetric, "
+            f"not a true single-LG fault",
             COLOR_FAULT,
         )
     return (
@@ -138,6 +149,8 @@ def animate(log: dict, output: Path) -> None:
     ft, ph_a, ph_b, ph_c = phasor_frames(wave)
     mag_a, mag_b, mag_c = np.abs(ph_a), np.abs(ph_b), np.abs(ph_c)
     v1 = np.abs(positive_sequence(ph_a, ph_b, ph_c))
+    v2 = np.abs(negative_sequence(ph_a, ph_b, ph_c))
+    v0 = np.abs(zero_sequence(ph_a, ph_b, ph_c))
     scada = scada_rms(wave)
     scada_times = np.asarray([(s + e) / 2.0 for s, e, _ in scada])
     scada_vals = np.asarray([r for _, _, r in scada])
@@ -148,6 +161,8 @@ def animate(log: dict, output: Path) -> None:
     fault_dip_kv = float(mag_a[in_fault].min()) / 1000.0
     v1_dip_kv = float(v1[in_fault].min()) / 1000.0
     post_peak_kv = float(np.max(np.abs(va[t >= clear_s]))) / 1000.0
+    v0_peak_kv = float(v0[in_fault].max()) / 1000.0 if in_fault.any() else 0.0
+    v2_peak_kv = float(v2[in_fault].max()) / 1000.0 if in_fault.any() else 0.0
 
     fig, (ax_raw, ax_phase, ax_scada) = plt.subplots(
         3, 1, figsize=(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN), dpi=FIGURE_DPI
@@ -170,10 +185,13 @@ def animate(log: dict, output: Path) -> None:
     line_mag_b, = ax_phase.plot([], [], color=COLOR_PHASE_B, lw=1.4, marker=".", ms=4, label="|Vb|")
     line_mag_c, = ax_phase.plot([], [], color=COLOR_PHASE_C, lw=1.4, marker=".", ms=4, label="|Vc|")
     line_v1, = ax_phase.plot([], [], color=COLOR_INK, lw=2.0, ls="--", label="|V1| pos-seq")
+    line_v2, = ax_phase.plot([], [], color=COLOR_SEQ_NEG, lw=2.0, ls="-.", label="|V2| neg-seq")
+    line_v0, = ax_phase.plot([], [], color=COLOR_SEQ_ZERO, lw=2.0, ls=":", label="|V0| zero-seq")
     ax_phase.set_ylabel("phasor magnitude (kV)")
-    ax_phase.legend(loc="upper left", fontsize=10, ncol=4)
+    ax_phase.legend(loc="upper left", fontsize=10, ncol=3)
     ax_phase.set_title(
-        f"C37.118 PDU output @ {PHASOR_RATE_HZ} Hz -- three phases + positive sequence"
+        f"C37.118 PDU output @ {PHASOR_RATE_HZ} Hz -- three phases + full "
+        f"symmetrical-component triplet"
     )
 
     # --- Panel 3: SCADA/EMS at 4 s ------------------------------------------
@@ -201,7 +219,7 @@ def animate(log: dict, output: Path) -> None:
 
     artists = [
         line_va, line_vb, line_vc, line_mag_a, line_mag_b, line_mag_c, line_v1,
-        line_scada, cursor_phase, cursor_scada, narration,
+        line_v2, line_v0, line_scada, cursor_phase, cursor_scada, narration,
     ]
 
     def update(frame_index: int) -> list[plt.Artist]:
@@ -220,6 +238,8 @@ def animate(log: dict, output: Path) -> None:
         line_mag_b.set_data(ft[pmask], mag_b[pmask] / 1000.0)
         line_mag_c.set_data(ft[pmask], mag_c[pmask] / 1000.0)
         line_v1.set_data(ft[pmask], v1[pmask] / 1000.0)
+        line_v2.set_data(ft[pmask], v2[pmask] / 1000.0)
+        line_v0.set_data(ft[pmask], v0[pmask] / 1000.0)
 
         smask = scada_times <= now
         line_scada.set_data(scada_times[smask], scada_vals[smask] / 1000.0)
@@ -232,6 +252,7 @@ def animate(log: dict, output: Path) -> None:
         text, color = _narration(
             now, trigger_s, clear_s, final_s,
             pre_peak_kv, fault_dip_kv, post_peak_kv, v1_dip_kv,
+            v0_peak_kv, v2_peak_kv,
         )
         narration.set_text(f"t = {now:.3f} s\n{text}")
         narration.set_color(color)
@@ -259,7 +280,7 @@ def main() -> None:
     )
     print(f"  raw 5 kHz:        {len(wave.times)} samples over "
           f"{wave.duration_s:.2f} s (scope window {RAW_ZOOM_S * 1000:.0f} ms)")
-    print(f"  C37.118 @100 Hz:  {len(ft)} phasor frames x 3 phases (+ pos-seq)")
+    print(f"  C37.118 @100 Hz:  {len(ft)} phasor frames x 3 phases (+ V0/V1/V2)")
     print(f"  SCADA @{SCADA_UPDATE_S:.0f} s:   {len(scada_rms(wave))} "
           f"update interval(s) -- the whole event fits inside one")
     print(f"  static still:     {OUTPUT_PNG}")

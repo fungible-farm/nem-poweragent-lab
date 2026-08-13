@@ -264,4 +264,37 @@ every run, same pattern as Labs 1–4's fetched/derived data).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed
   fixtures, each a real output from one actual run, not hand-written.
-- `test_lab5.py` — pytest wrapper around the three `--step check` gates.
+- `test_lab5.py` — pytest wrapper around the three `--step check` gates, plus unit/render coverage
+  for the generated-view scripts below.
+
+**Generated views** (docs/backlog/0004 items 1–2, docs/backlog/0006): every script below renders
+some transform of the same real `dpsim_transient_log.json`/`sample_topology.json`, never
+independently-fabricated data — see `phase_model.py`'s module docstring for the "one state machine,
+many generated views" principle they all share.
+
+- `phase_model.py` — the shared 3-phase waveform state machine (PSCADOSSE): synchrophasor DFT
+  estimation, the full V0/V1/V2 symmetrical-component triplet, SCADA RMS aggregation, and
+  peak-deviation anomaly bins, all generated from the one recorded state sequence.
+- `view_telemetry_rates.py` → `sample_telemetry_rates.png` — the same fault at three telemetry
+  rates (raw 5 kHz / C37.118 100 Hz synchrophasor + V0/V1/V2 / SCADA 4 s), stacked on one time axis.
+- `animate_telemetry_rates.py` → `animate_telemetry_rates.mp4` (gitignored) — the same three feeds,
+  narrated and time-aligned.
+- `animate_transient.py` → `animate_transient.mp4` (gitignored) — a growing-reveal animation of the
+  raw fault waveform.
+- `view_3d_audio.py` → `sample_transient_3d.png`, `dpsim_transient_3ch.wav` — a 3D phase-space
+  trajectory plot plus a pitch-shifted 3-channel sonification of the same event.
+- `view_spectrogram.py` → `sample_spectrogram.png` — a time-frequency (STFT) view of the phase-A
+  voltage; the fault's switching edges show up as broadband vertical smears distinct from the
+  steady 50 Hz fundamental (docs/backlog/0006, option 3).
+
+**A real finding from the symmetrical-component view, worth knowing before reading the charts**:
+despite `chaos_schedule.yaml` labeling its event `type: line-to-ground`, `chaosnet.py`'s fault
+switch shorts all three phases to ground with an identical resistance (`np.eye(3) *
+FAULT_CLOSED_RESISTANCE_OHM`, a diagonal matrix) — electrically a symmetric three-phase-to-ground
+fault, not a true single-line-to-ground fault. Measured directly: |V0| stays at numerical zero
+throughout, and |V1| dips while |V2| shows only a small switching-transient blip — the correct
+signature for what this model actually simulates. This is the same limitation Sandbox note 1 above
+already named ("balanced/decoupled 3-phase line and load model"), now independently confirmed by
+the sequence-component math rather than only by reading the switch code. See `phase_model.py`'s
+module docstring and `test_lab5.py::test_phase_model_sequence_components_confirm_lab5_fault_is_symmetric`
+for the regression check.

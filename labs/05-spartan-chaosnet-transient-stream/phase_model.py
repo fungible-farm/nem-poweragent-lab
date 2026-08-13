@@ -18,7 +18,24 @@ derived quantity is a transform of it:
   is literally this object.
 - `phasor_frames()` -- C37.118-style synchrophasors (complex, per phase) via a
   one-cycle DFT at the 50 Hz fundamental, generated from the same states.
-- `positive_sequence()` -- the |V1| sequence component, from the same phasors.
+- `positive_sequence()` / `negative_sequence()` / `zero_sequence()` -- the full
+  V1/V2/V0 symmetrical-component triplet, from the same phasors. In general, a
+  balanced system has all its voltage in V1 and a genuine unbalanced fault
+  (single line-to-ground, line-to-line) puts real magnitude into V0 and/or V2
+  -- the standard protection-relay signature for *classifying* a fault, not
+  just detecting one (docs/backlog/0006, option 1). **Confirmed against Lab
+  5's real run**: `chaos_schedule.yaml`'s `type: line-to-ground` event is
+  implemented by `chaosnet.py` as a *symmetric* 3-phase-to-ground switch (a
+  diagonal `np.eye(3) * FAULT_CLOSED_RESISTANCE_OHM` matrix -- see README's
+  sandbox note 1), which is electrically a three-phase fault, not a true
+  single-phase-to-ground fault -- measured directly against a real
+  `dpsim_transient_log.json`, |V0| stays at numerical zero (~1e-12 V)
+  throughout, and |V2| only shows a small switching-transient blip (~250 V, low
+  hundreds, against a ~13 kV |V1|), not a sustained fault-window rise. The sequence view
+  is honest about this: it shows V1 dipping uniformly and V0/V2 staying flat,
+  which is the correct symmetric-fault signature for what this model actually
+  simulates, not the asymmetric single-LG signature its schedule's label
+  might suggest.
 - `scada_rms()` -- SCADA/EMS 4 s RMS aggregation, generated from the same
   states (no separate data path).
 
@@ -167,6 +184,54 @@ def positive_sequence(
     """
     a = np.exp(2j * np.pi / 3)
     return (ph_a + a * ph_b + a**2 * ph_c) / 3.0
+
+
+def negative_sequence(
+    ph_a: np.ndarray, ph_b: np.ndarray, ph_c: np.ndarray,
+) -> np.ndarray:
+    """Negative-sequence phasor (symmetrical components), complex per frame.
+
+    V2 = (Va + a^2*Vb + a*Vc) / 3 -- the same rotation-factor construction as
+    `positive_sequence()` with the a/a^2 terms swapped. A balanced 3-phase
+    system has |V2| ~ 0; an unbalanced fault puts real magnitude into it
+    (line-to-line and line-to-ground faults both do; a symmetric 3-phase
+    fault does not), which is what makes V2 a *classification* signal rather
+    than only a magnitude-of-dip signal like |V1| alone.
+
+    Args:
+        ph_a/ph_b/ph_c: complex phasor arrays (same frame times).
+
+    Returns:
+        Complex V2 array per frame (|.| gives the magnitude).
+    """
+    a = np.exp(2j * np.pi / 3)
+    return (ph_a + a**2 * ph_b + a * ph_c) / 3.0
+
+
+def zero_sequence(
+    ph_a: np.ndarray, ph_b: np.ndarray, ph_c: np.ndarray,
+) -> np.ndarray:
+    """Zero-sequence phasor (symmetrical components), complex per frame.
+
+    V0 = (Va + Vb + Vc) / 3 -- no rotation factors, since the zero-sequence
+    component is in-phase across all three conductors by definition. A
+    balanced system, and any *symmetric* event (all three phases faulted
+    identically -- see this module's docstring re: Lab 5's actual fault
+    model), keeps |V0| ~ 0. A genuine single-phase (or two-phase)-to-ground
+    fault would break the Va+Vb+Vc=0 identity a healthy 3-wire system holds,
+    and |V0| present alongside a |V1| dip would be that fault's signature --
+    but that is a claim about the general theory, not about what Lab 5's
+    committed `chaos_schedule.yaml` scenario actually produces (it stays
+    symmetric, so |V0| stays at numerical zero there; see the module
+    docstring for the measured confirmation).
+
+    Args:
+        ph_a/ph_b/ph_c: complex phasor arrays (same frame times).
+
+    Returns:
+        Complex V0 array per frame (|.| gives the magnitude).
+    """
+    return (ph_a + ph_b + ph_c) / 3.0
 
 
 def scada_rms(
