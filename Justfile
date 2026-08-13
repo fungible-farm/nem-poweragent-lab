@@ -107,6 +107,17 @@ check-lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py
     uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check
 
+# --- notebook playbook (docs/backlog/0005) ----------------------------------
+# Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
+# .py, diffable, no baked-in outputs) end to end: every lab's own --step
+# check re-run live, in order, each asserted PASS before that lab's
+# already-committed fixtures/charts are rendered inline. Writes
+# notebooks/lab_playbook.ipynb -- a regenerated execution artifact
+# (gitignored, never committed; the .py is the committed source, matching
+# AGENTS.md "the proof scripts are the proof, not a transcript").
+playbook:
+    uv run jupytext --to notebook --execute notebooks/lab_playbook.py
+
 # --- per-lab walkthrough steps (canonical examples) -------------------------
 # e.g. `just lab2 base`, `just lab2 memo -- APPROVE`, `just lab3 report`
 lab1 step="check":

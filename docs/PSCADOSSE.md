@@ -34,6 +34,7 @@ reaching for a proprietary or novel re-implementation.
 | CSIRO Synthetic-NEM data | Labs 1-5 case files | CC-BY-4.0 | fetched by scripts/fetch_csiro_nem_data.py |
 | AEMO NEM constraints | Lab 4 constraint decode | MIT (vendored, LICENSE-NEM_constraints) | |
 | mpv / chafa / ffmpeg / fzf | demo display/render/launcher (CLIs) | GPL-2.0+ / LGPL-3.0+ / LGPL-GPL / MIT | mpv, chafa, ffmpeg are copyleft but invoked as external CLIs — **not** part of the linked API surface; fzf (MIT) is permissive, used by the `just demo` launcher |
+| jupytext / nbconvert / ipykernel | dev-only: `notebooks/lab_playbook.py` percent-format notebook + its `--execute` render (docs/backlog/0005) | MIT / BSD-3-Clause / BSD-3-Clause | `[dependency-groups].dev` only, never imported by lab code itself |
 
 ### The distinction that keeps the policy honest
 

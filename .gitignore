@@ -34,3 +34,11 @@ logs/
 # sample_stream_summary.json, and sample_transient_plot.png instead.
 labs/05-spartan-chaosnet-transient-stream/dpsim_transient_log.json
 labs/05-spartan-chaosnet-transient-stream/villas/chaos_stream.csv
+
+# docs/backlog/0005: notebooks/lab_playbook.py (jupytext percent format) is
+# the committed source; its rendered .ipynb (jupytext --to notebook
+# --execute) is a regenerated execution artifact with outputs baked in --
+# exactly the "ad hoc session masquerading as proof" AGENTS.md warns about
+# if committed, and the whole reason percent format was chosen over a raw
+# .ipynb in the first place. Never commit it.
+notebooks/*.ipynb

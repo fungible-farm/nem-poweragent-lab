@@ -495,10 +495,12 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   (real IEC-style symbolic single-line rendering) remains open, gated on a CIM/CGMES export step
   Lab 5 doesn't have yet.
 - [`docs/backlog/0005-unified-notebook-playbook.md`](backlog/0005-unified-notebook-playbook.md) —
-  a proposed jupytext-based notebook that narrates all 5 labs' charts in one linear document
-  *without* becoming a second, ad hoc source of truth alongside the existing `--step check` proof
-  scripts (`AGENTS.md`'s "the proof scripts are the proof, not a transcript" applies to this
-  exactly as much as to anything else in the repo).
+  **Done.** `notebooks/lab_playbook.py`, a jupytext `percent`-format notebook (`just playbook`) that
+  narrates all 5 labs' charts in one linear document *without* becoming a second, ad hoc source of
+  truth alongside the existing `--step check` proof scripts (`AGENTS.md`'s "the proof scripts are the
+  proof, not a transcript" applies to this exactly as much as to anything else in the repo) — every
+  section shells out to that lab's real `--step check`, asserts PASS, then only renders that lab's
+  already-committed fixture/chart.
 - [`docs/backlog/0006-lab5-advanced-transient-visualization-techniques.md`](backlog/0006-lab5-advanced-transient-visualization-techniques.md)
   — proposed next-tier Lab 5 visualizations beyond its existing six views: symmetrical components
   (V0/V1/V2, not just |V1|) and a spectrogram both reuse data already captured with no new
