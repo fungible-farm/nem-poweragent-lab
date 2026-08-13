@@ -292,6 +292,19 @@ many generated views" principle they all share.
   raw fault waveform.
 - `view_3d_audio.py` → `sample_transient_3d.png`, `dpsim_transient_3ch.wav` — a 3D phase-space
   trajectory plot plus a pitch-shifted 3-channel sonification of the same event.
+- `view_phasor_3d.py` → `sample_phasor_3d.png` — a direct request (not a docs/backlog item): the
+  classic hand-drawn phasor diagram (Va/Vb/Vc as 2D complex vectors from a common origin), rendered
+  as an actual 3D isometric vector plot rather than a flat polar sketch. The two horizontal axes are
+  the phasor's own complex plane (Re/Im); the vertical axis is simulated time, stacking 5
+  representative snapshots (pre-fault steady state, fault onset, mid-fault, post-clear, post-fault
+  recovery, chosen from the run's own real `trigger_time_s`/`clear_time_s`) so a single static PNG
+  shows how the diagram itself deforms through the fault, not just one frozen instant. Each
+  snapshot's z-position is its ordinal rank, not its duration-scaled real time (the 5 real times are
+  unevenly spaced — two of them only one fundamental cycle apart, straddling the 150 ms fault —
+  which would otherwise cram the fault-window fans into an unreadable stack); every z-tick is
+  labeled with that snapshot's real, measured time so nothing is hidden. A dashed reference circle
+  (the real pre-fault \|Va\|) at every height, colored red during the fault window, makes the
+  collapse/recovery visible without cross-referencing numbers between panels.
 - `view_spectrogram.py` → `sample_spectrogram.png` — a time-frequency (STFT) view of the phase-A
   voltage; the fault's switching edges show up as broadband vertical smears distinct from the
   steady 50 Hz fundamental (docs/backlog/0006, option 3).

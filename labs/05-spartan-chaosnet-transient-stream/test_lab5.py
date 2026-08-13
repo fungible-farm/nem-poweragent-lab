@@ -28,6 +28,9 @@ The real-data tests below rely on dpsim_transient_log.json (and, for option
 test_lab5_dpsim_run_matches_fixture / test_lab5_topology_matches_fixture
 running earlier in this file (pytest runs a module's tests in definition
 order).
+
+Also covers view_phasor_3d.py (a direct request, not a docs/backlog item): a
+real-data render check for the 3D isometric phasor-diagram-through-time view.
 """
 import json
 import subprocess
@@ -250,6 +253,26 @@ def test_lab5_rx_trajectory_renders():
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[rx] wrote" in result.stdout
+    assert output_png.exists()
+
+
+def test_lab5_phasor_3d_renders():
+    """3D isometric phasor-diagram-through-time view: view_phasor_3d.py runs
+    against the real dpsim_transient_log.json and writes sample_phasor_3d.png
+    (see view_phasor_3d.py's module docstring for why this is a new, distinct
+    view from view_3d_audio.py's 3D trajectory / view_rx_trajectory.py's 2D
+    R-X plane / view_telemetry_rates.py's magnitude-vs-time panels)."""
+    log_path = LAB_DIR / "dpsim_transient_log.json"
+    if not log_path.exists():
+        pytest.skip("dpsim_transient_log.json not present -- run_dpsim.py hasn't run yet")
+    output_png = LAB_DIR / "sample_phasor_3d.png"
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "view_phasor_3d.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[phasor3d] wrote" in result.stdout
     assert output_png.exists()
 
 
