@@ -1,0 +1,17 @@
+# labs/06-sysml-digital-thread/Containerfile -- runs Lab 6's chained
+# pipeline (scripts/demo_lab6.sh: k8s fixture check -> generate .sysml ->
+# syntax gate -> iso-IR translate -> render diagram -> SBOM, both tracks).
+# No local uv/Python install needed -- see this lab's own README.md
+# "Running in a container" section.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab6:local -f labs/06-sysml-digital-thread/Containerfile .
+#
+# Run (the same chain scripts/demo_lab6.sh runs natively):
+#   podman run --rm lab6:local
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["sh", "-c"]
+CMD ["./scripts/demo_lab6.sh"]

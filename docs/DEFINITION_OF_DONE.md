@@ -55,7 +55,7 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       except to localhost) — that egress-blocked run was not performed this session and remains a
       named gap.
 
-## The five labs
+## The six labs
 
 - [x] Lab 1 (simple): runs via a single `uv run` command, performs the described load-flow
       parameter fit against `snemSA.m`, and its printed result matches
@@ -131,6 +131,12 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       against `labs/_shared/expected_demo_scenario_run.json`. **Not** a claim that 0002/0003's real
       historical scenarios are implemented — this PRD is the platform only, per its own explicit
       scope.
+- [x] Lab 6 (SysML v2 digital-thread MVP, `docs/prd/0006-sysml-digital-thread-mvp.md`): both tracks
+      (digital-thread, grid) run end to end via `./scripts/demo_lab6.sh`; every seed instance traces
+      to a real already-committed file or `data/snemSA.m` row; both real-tool attempts (the SysML v2
+      Pilot Implementation for syntax checking; DaanV2/isometric-diagrams for rendering) were
+      genuinely tried, timeboxed, and precisely root-caused where they didn't land, with a named
+      fallback for each — written up in the lab's own README "Design notes," not just narrated here.
 - [ ] Every lab's README includes a "step-by-step walkthrough (presenter/backup script)" section
       detailed enough that someone could talk through the demo from it even if the live run fails
       on the day.

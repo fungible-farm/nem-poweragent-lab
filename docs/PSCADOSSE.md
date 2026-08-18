@@ -35,6 +35,10 @@ reaching for a proprietary or novel re-implementation.
 | AEMO NEM constraints | Lab 4 constraint decode | MIT (vendored, LICENSE-NEM_constraints) | |
 | mpv / chafa / ffmpeg / fzf | demo display/render/launcher (CLIs) | GPL-2.0+ / LGPL-3.0+ / LGPL-GPL / MIT | mpv, chafa, ffmpeg are copyleft but invoked as external CLIs — **not** part of the linked API surface; fzf (MIT) is permissive, used by the `just demo` launcher |
 | jupytext / nbconvert / ipykernel | dev-only: `notebooks/lab_playbook.py` percent-format notebook + its `--execute` render (docs/backlog/0005) | MIT / BSD-3-Clause / BSD-3-Clause | `[dependency-groups].dev` only, never imported by lab code itself |
+| linkml | Lab 6 schema definition + `linkml validate` | Apache-2.0 | `License-Expression` field, checked from installed dist-info metadata |
+| linkml-runtime | Lab 6 LinkML runtime support | CC0-1.0 | `License-Expression` field, checked from installed dist-info metadata; public-domain-equivalent |
+| cyclonedx-python-lib | Lab 6 Track A SBOM generation | Apache-2.0 | plus its own direct deps `boolean.py` (BSD-2-Clause), `license-expression` (Apache-2.0), `packageurl-python` (MIT), `py-serializable` (Apache-2.0), `sortedcontainers` (Apache-2.0) |
+| linkml's ~65 transitive deps (rdflib/pyshex/sphinx/sqlalchemy family) | pulled in by `linkml`/`linkml-runtime`, not imported directly by any Lab 6 script | overwhelmingly MIT/BSD/Apache/CC0 | **two flagged exceptions, checked individually, not assumed away**: `rfc3987` (an optional `jsonschema[format]` IRI-format checker) is **GPLv3+**, and `fqdn` (same `format` extra) is **MPL-2.0** — both are part of `jsonschema`'s opt-in `format` validator group, invoked only if a JSON Schema declares an `iri`/`fqdn`-format field, which neither of this lab's two LinkML schemas does; neither module is imported by this lab's own code. Same "external, not linked into the golden path's own logic" reasoning as the mpv/chafa/ffmpeg row above, documented rather than silently omitted. |
 
 ### The distinction that keeps the policy honest
 

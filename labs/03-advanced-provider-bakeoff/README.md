@@ -1,64 +1,45 @@
-# Lab 3 (Advanced) — Multi-Provider Bake-off, Podman-Scaled
+# Lab 3 (Advanced) — Multi-Provider Bake-off
 
-> Status: **implemented**. `orchestrator.py`, `expected_scorecard.json`, and `test_lab3.py` are
-> real, runnable code — see `docs/VISION.md` §7 "Lab 3" for the original spec, and "Sandbox notes"
-> below (the most significant deviation of any lab in this repo — read it before trusting the
-> "provider" column).
+"Which model/provider is actually good enough for this class of task, and how would you know?"
+This lab answers that with a re-runnable, diffable scorecard instead of an anecdote: the same
+tasks, tolerances, and scorer run against every provider, so the comparison is apples-to-apples.
+
+**Read this before trusting the "provider" column**: the three "providers" here are not language
+models — see Design notes below.
 
 ## What you'll do
 
-1. Reuse `snem1803.m` and 3 task families in the shape of Lab 1's parameter-fit task:
-   `load-scale-fit` (a second bus, same mechanic as Lab 1), `line-rating-fit` (fit a line's rating
-   to a 100%-of-nameplate thermal trip point), and `gen-droop-fit` (fit a generator's dispatch to a
-   target transformer-loading level, a steady-state proxy for droop response).
-2. Run the same tasks, same tolerances, same deterministic scorer against 3 local deterministic
-   search policies standing in for LLM providers (see Sandbox notes).
-3. Add a fourth, non-agentic row: a seasonal-persistence forecast against a synthetic regional
-   demand trace, standing in for a PowerFM OpenPowerBench checkpoint (see Sandbox notes).
-4. Write a single scorecard (JSON + printed table) to
-   `benchmarks/power-agent-bench-lite/results/scorecard.json`, plus a grouped bar chart PNG
-   (`scorecard_chart.png`, next to the JSON) so the 3-provider comparison can actually be looked
-   at, not just read as a JSON array. Both are regenerated, gitignored local output (not
-   committed) — `wall_clock_s` differs every real run, so the committed, diffable fixture is
-   `expected_scorecard.json` instead (see "Backup" below).
+1. Reuse `snem1803.m` and three parameter-fitting tasks in the shape of Lab 1's: `load-scale-fit`
+   (a second bus, same mechanic as Lab 1), `line-rating-fit` (fit a line's thermal rating to a
+   100%-of-nameplate trip point), and `gen-droop-fit` (fit a generator's dispatch to a target
+   transformer-loading level — a steady-state stand-in for droop response, the way generators
+   automatically adjust output in response to grid frequency).
+2. Score three provider policies against those tasks, plus a fourth, non-agentic baseline row: a
+   seasonal-persistence demand forecast.
+3. Write one scorecard (JSON + table + a grouped bar chart) so the comparison can be read at a
+   glance, not parsed out of a JSON array.
 
-## Why an AEMO modeller should care
+## Design notes
 
-This is the "which local model is actually good enough for this class of task, and how would you
-know" question, answered with a re-runnable, diffable artifact instead of an anecdote. The
-architecture — run the same tasks/tolerances/scorer across every provider, append a non-agentic
-foundation-model baseline in the same scorecard rather than treating it as a competing claim — is
-the real deliverable here; see Sandbox notes for what stands in for what in *this* run.
+The original spec (`docs/VISION.md` §7) has three *live* local language models (served by
+llama.cpp, orchestrated via a group-chat pattern) plus a real foundation-model forecasting
+checkpoint pulled from Hugging Face. This build swaps in something lighter, named plainly rather
+than disguised as a model comparison:
 
-## Sandbox notes (read this before the walkthrough)
-
-`docs/VISION.md`'s Lab 3 swaps three *live* local LLMs (Phi-4-mini-instruct, Gemma-4,
-Llama-3.2-3B) through a single llama.cpp pod via `podman kube play --replace`, orchestrated with
-Agent Framework's Magentic/group-chat pattern, plus a PowerFM OpenPowerBench checkpoint pulled from
-Hugging Face Hub. This sandbox has no `podman`, no GPU, and no budget to download and serve three
-GGUF models or a PowerFM checkpoint. So, concretely:
-
-- **`local-policy-A` / `local-policy-B` / `local-policy-C`** are three deterministic search
-  policies (plain bisection, false-position/regula-falsi, and a seeded-noise perturbed bisection —
-  see `orchestrator.py`'s docstrings) standing in for the three LLMs' "propose the next trial
-  value" role. They are never given a real model's name, so the scorecard can never be mistaken
-  for a real model comparison — the variation you see between them (different iteration counts,
-  different error margins) is real, reproducible variation between three different *algorithms*,
-  not between three different *language models*.
-- **`PowerFM-OpenPowerBench-stub`** is a seasonal-persistence forecast against a synthetic (not
-  historical-AEMO) regional demand trace built from `snem1803.m`'s own static load table plus a
-  documented daily-shape multiplier — not a real trained forecasting model. The scorecard slot,
-  metric (MAPE over a held-out day), and "single forward pass, no tool calls" character are real;
-  the specific model is not.
-- There is no Magentic/group-chat orchestration — there is no live chat model to orchestrate. The
-  orchestration that *is* real here is running the 3×3 provider/task-family matrix plus the
-  baseline row and collecting them into one scorecard, which is the part of Lab 3 that is
-  architecture, not model weights.
-- `kube/benchmark-runner-job.yaml` is a written, valid Kubernetes Job manifest shaped to run this
-  same matrix as parallel pods per `docs/VISION.md` §9 — it has **not** been executed here (no
-  `podman` binary in this sandbox). See the manifest's own header comment for exactly what's
-  missing to make it fully wire up (a Containerfile, and a `PROVIDER_FILTER` env var so each
-  indexed completion scores one provider instead of all three).
+- **`local-policy-A`/`B`/`C`** are three different deterministic search algorithms (plain
+  bisection, false-position/regula-falsi, and a seeded-noise perturbed bisection — see
+  `orchestrator.py`'s docstrings), never given a model's name. The variation you'll see between
+  them is real, reproducible variation between three *algorithms*, not three *language models*.
+- **`PowerFM-OpenPowerBench-stub`** is a seasonal-persistence forecast against a synthetic demand
+  trace (built from `snem1803.m`'s own load table plus a daily-shape multiplier), not a trained
+  forecasting model. The scorecard slot and metric (MAPE over a held-out day) are real; the model
+  behind it is not.
+- The scoring architecture — run the same task/tolerance/scorer matrix across every provider, land
+  every result in one scorecard, including the non-agentic baseline rather than treating it as a
+  separate claim — is the actual point of this lab and is unaffected by which policies sit behind
+  "provider."
+- `kube/benchmark-runner-job.yaml` is a written Kubernetes Job manifest that runs this same matrix
+  as parallel pods (`docs/VISION.md` §9); see its own header for what it needs to be run for real.
 
 ## Command
 
@@ -71,9 +52,8 @@ uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py
 
 ## Running in a container (Windows-friendly)
 
-No local `uv`/Python install needed — build once, run anywhere Docker Desktop or Podman Desktop is
-installed (both run on Windows via a WSL2 backend, and read a `Containerfile` exactly like
-Linux/macOS native `podman`/`docker`):
+No local install needed — works identically under Docker Desktop, Podman Desktop, or native
+podman/docker:
 
 ```
 podman build -t nem-poweragent-base:local -f Containerfile.base .
@@ -81,44 +61,26 @@ podman build -t lab3:local -f labs/03-advanced-provider-bakeoff/Containerfile .
 podman run --rm lab3:local
 ```
 
-(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
-dependency set once, shared by every other lab's own image — see `Containerfile.base`'s own
-header. The default run reproduces the `--step check` output above exactly; override the `CMD` to
-run the full sweep instead: `podman run --rm lab3:local --step sweep`.
+This reproduces the `--step check` output below; override the step to run the full sweep:
+`podman run --rm lab3:local --step sweep`.
 
-This lab also has a second, separate image at the repo root — `Containerfile.bakeoff`, built to
-`power-agent-bench-lite:local` — which is the Kubernetes-style provider-partitioned sweep image
-`kube/benchmark-runner-job.yaml` actually runs (see that manifest's own header). The
-`labs/03-advanced-provider-bakeoff/Containerfile` above is the lighter "just run the tutorial"
-path built off the same shared base every other lab uses; the two are deliberately not merged.
+There's a second, separate image at the repo root — `Containerfile.bakeoff`, built to
+`power-agent-bench-lite:local` — the one `kube/benchmark-runner-job.yaml` actually runs (its own
+header has the details). The one above is the lighter "just run the tutorial" path on the same
+shared base every other lab uses; the two are deliberately kept separate.
 
-## Step-by-step walkthrough (presenter / backup script)
+## Step-by-step walkthrough
 
-1. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep`**
-   — You should see: rows arriving as each provider × task-family pair completes —
-   `local-policy-A | load-scale-fit   | PASS | err=0.0013 | 0.57s`, ending with the PowerFM
-   baseline row, which prints `n/a tokens/latency-per-call (single forward pass)` since it's a
-   single forecast, not a search loop.
-   — *Backup if you'd rather not run it live*: this directory's committed
-   `expected_scorecard.json` has one full pre-run sweep (the `scorecard.json` written into
-   `benchmarks/power-agent-bench-lite/results/` is regenerated, gitignored output, not committed —
-   see "What you'll do" step 4); load and print `expected_scorecard.json` instead, saying plainly
-   "this is a pre-recorded run, not live."
-2. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report`**
-   — You should see: the final scorecard table (10 rows: 3 providers × 3 task families + 1
-   baseline), plus `Scorecard written to .../scorecard.json`. This step also (re)renders
-   `benchmarks/power-agent-bench-lite/results/scorecard_chart.png` — a grouped bar chart,
-   one group per task family, one bar per local-policy provider, bar height = `error_margin` (the
-   PowerFM baseline is excluded from this chart: its task family has no local-policy peer to
-   compare against in the same units — it stays in the JSON/table above). Neither the JSON nor the
-   PNG is committed — both regenerate locally each time this step runs.
-   — Why it matters: this is the "which local approach is actually good enough, and how would you
-   know" question answered with a re-runnable artifact instead of an anecdote — and now one that
-   can be glanced at, not just read as a JSON array.
-3. **`uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py`**
-   — You should see: `1 passed` — the full sweep re-run and diffed against
-   `expected_scorecard.json` (wall-clock excluded from the comparison, since it's machine-dependent
-   by nature).
-4. **(super-stretch only, see `docs/VISION.md` §7)**: full `snem2000.m`, real
-   PowerAgentBench-SS/Dyn coverage, a live Gradio leaderboard, a chaos/resilience sweep — not part
-   of this v1 walkthrough, called out here only so a presenter knows where the demo could grow.
+1. **`--step sweep`** — Rows arrive as each provider × task pair completes, e.g. `local-policy-A |
+   load-scale-fit | PASS | err=0.0013 | 0.57s`, ending with the baseline row (`n/a
+   tokens/latency-per-call` — it's a single forecast, not a search loop). No live run needed:
+   `expected_scorecard.json` has one pre-run sweep committed.
+2. **`--step report`** — The final scorecard (10 rows: 3 providers × 3 tasks + 1 baseline), written
+   to `benchmarks/power-agent-bench-lite/results/scorecard.json` (gitignored, regenerated each run
+   — the committed comparison point is `expected_scorecard.json`), plus a grouped bar chart
+   (`scorecard_chart.png`, one group per task, one bar per provider; the baseline is excluded since
+   it has no like-for-like comparison in the same units).
+3. **`pytest test_lab3.py`** — `1 passed`: the full sweep re-run and diffed against
+   `expected_scorecard.json` (wall-clock time excluded, since it's machine-dependent).
+4. *(Stretch goal, not part of this walkthrough — see `docs/VISION.md` §7)*: the full 2000-bus
+   case, real benchmark coverage, a live leaderboard, a resilience sweep.

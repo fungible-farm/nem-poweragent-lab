@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-360.0 -90.0 720.0 413.0" width="720" height="413">
+<rect x="-360.0" y="-90.0" width="720.0" height="413.0" fill="#0f172a"/>
+<title>Lab 6 Track B -- Grid Topology</title>
+<line x1="0.0" y1="0.0" x2="120.0" y2="60.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
+<line x1="240.0" y1="120.0" x2="0.0" y2="0.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
+<line x1="0.0" y1="0.0" x2="-120.0" y2="60.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
+<line x1="0.0" y1="0.0" x2="0.0" y2="120.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
+<g data-node-id="bus_4128">
+<polygon points="-60.0,0.0 0.0,30.0 0.0,70.0 -60.0,40.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="60.0,0.0 0.0,30.0 0.0,70.0 60.0,40.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="0.0,-30.0 60.0,0.0 0.0,30.0 -60.0,0.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="0.0" y="83.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4128</text>
+</g>
+<g data-node-id="bus_4148">
+<polygon points="60.0,60.0 120.0,90.0 120.0,130.0 60.0,100.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="180.0,60.0 120.0,90.0 120.0,130.0 180.0,100.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="120.0,30.0 180.0,60.0 120.0,90.0 60.0,60.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="120.0" y="143.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4148</text>
+</g>
+<g data-node-id="bus_4125">
+<polygon points="180.0,120.0 240.0,150.0 240.0,190.0 180.0,160.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="300.0,120.0 240.0,150.0 240.0,190.0 300.0,160.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="240.0,90.0 300.0,120.0 240.0,150.0 180.0,120.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="240.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4125</text>
+</g>
+<g data-node-id="bus_4052">
+<polygon points="-180.0,60.0 -120.0,90.0 -120.0,130.0 -180.0,100.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="-60.0,60.0 -120.0,90.0 -120.0,130.0 -60.0,100.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="-120.0,30.0 -60.0,60.0 -120.0,90.0 -180.0,60.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="-120.0" y="143.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4052</text>
+</g>
+<g data-node-id="bus_4053">
+<polygon points="-60.0,120.0 0.0,150.0 0.0,190.0 -60.0,160.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="60.0,120.0 0.0,150.0 0.0,190.0 60.0,160.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="0.0,90.0 60.0,120.0 0.0,150.0 -60.0,120.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="0.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4053</text>
+</g>
+<g data-node-id="gen_4052">
+<polygon points="60.0,180.0 120.0,210.0 120.0,250.0 60.0,220.0" fill="#7c3aed" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="180.0,180.0 120.0,210.0 120.0,250.0 180.0,220.0" fill="#7c3aed" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="120.0,150.0 180.0,180.0 120.0,210.0 60.0,180.0" fill="#7c3aed" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="120.0" y="263.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4052</text>
+</g>
+<g data-node-id="gen_4053">
+<polygon points="-300.0,120.0 -240.0,150.0 -240.0,190.0 -300.0,160.0" fill="#7c3aed" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
+<polygon points="-180.0,120.0 -240.0,150.0 -240.0,190.0 -180.0,160.0" fill="#7c3aed" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
+<polygon points="-240.0,90.0 -180.0,120.0 -240.0,150.0 -300.0,120.0" fill="#7c3aed" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
+<text x="-240.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4053</text>
+</g>
+</svg>

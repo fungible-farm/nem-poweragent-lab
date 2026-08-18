@@ -1,0 +1,80 @@
+id: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/digital-thread
+name: digital-thread-track-a
+description: >-
+  Track A of Lab 6's SysML v2 digital-thread evaluation: business case 1, modelling this repo's
+  own AI agent / MCP server / data source inventory. Three classes only, four slots each -- small
+  enough that a schema edit (adding one Agent) is a five-line diff, per PRD-0006's demo narrative.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  digital_thread: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/digital-thread/
+
+default_prefix: digital_thread
+default_range: string
+
+imports:
+  - linkml:types
+
+slots:
+  name:
+    identifier: true
+    description: Short, unique, SysML-part-def-safe identifier (no spaces).
+    required: true
+  source:
+    description: >-
+      Where this component's real implementation/data lives -- a file path or URL in or reachable
+      from this repo. Never a placeholder; every instance in instances.yaml must trace to a real
+      committed file (see that file's own header comment for the audit trail).
+    required: true
+  refresh_cadence:
+    description: >-
+      How often this component's underlying data/code is expected to change or be re-pulled, in
+      plain words (e.g. "on every lab run", "static case file", "daily via NEMOSIS"). Not a cron
+      expression -- this is provenance metadata for a human reading the generated model, not a
+      scheduler config.
+    required: true
+  owner:
+    description: Who/what is responsible for this component within this repo's own conventions.
+    required: true
+  agents:
+    description: Every Agent instance in this digital thread.
+    range: Agent
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  mcp_servers:
+    description: Every MCPServer instance in this digital thread.
+    range: MCPServer
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  data_sources:
+    description: Every DataSource instance in this digital thread.
+    range: DataSource
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+classes:
+  Agent:
+    description: >-
+      Something that proposes a next action/value inside one of this repo's labs -- the
+      "propose" half of the propose/evaluate split named in Lab 1's README (e.g. a search
+      algorithm choosing the next trial value; real physics always evaluates it separately).
+    slots: [name, source, refresh_cadence, owner]
+  MCPServer:
+    description: >-
+      A real, registered Model Context Protocol tool server this repo runs or connects to (see
+      root README's "Connecting to the MCP servers" section and .mcp.json).
+    slots: [name, source, refresh_cadence, owner]
+  DataSource:
+    description: >-
+      A real external or vendored dataset this repo's labs pull from or are built on.
+    slots: [name, source, refresh_cadence, owner]
+  DigitalThread:
+    description: >-
+      The root container this lab's generator reads: every Agent/MCPServer/DataSource instance in
+      Track A's model. Adding one entry here (five lines) and re-running the generator is the
+      whole demo.
+    tree_root: true
+    slots: [agents, mcp_servers, data_sources]

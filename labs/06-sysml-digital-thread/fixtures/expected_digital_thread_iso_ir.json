@@ -1,0 +1,69 @@
+{
+  "nodes": [
+    {
+      "id": "lab1_bisection_search",
+      "label": "lab1_bisection_search",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "type": "generic"
+    },
+    {
+      "id": "lab3_local_policy_search",
+      "label": "lab3_local_policy_search",
+      "position": {
+        "x": 2,
+        "y": 0
+      },
+      "type": "generic"
+    },
+    {
+      "id": "powermcp_pandapower",
+      "label": "powermcp_pandapower",
+      "position": {
+        "x": 4,
+        "y": 0
+      },
+      "type": "server"
+    },
+    {
+      "id": "codebase_memory",
+      "label": "codebase_memory",
+      "position": {
+        "x": 0,
+        "y": 2
+      },
+      "type": "server"
+    },
+    {
+      "id": "csiro_synthetic_nem_2000bus",
+      "label": "csiro_synthetic_nem_2000bus",
+      "position": {
+        "x": 2,
+        "y": 2
+      },
+      "type": "database"
+    },
+    {
+      "id": "aemo_nemweb_nemosis",
+      "label": "aemo_nemweb_nemosis",
+      "position": {
+        "x": 4,
+        "y": 2
+      },
+      "type": "database"
+    },
+    {
+      "id": "simbench_1_mv_rural",
+      "label": "simbench_1_mv_rural",
+      "position": {
+        "x": 0,
+        "y": 4
+      },
+      "type": "database"
+    }
+  ],
+  "title": "Lab 6 Track A -- Digital Thread",
+  "type": "generic"
+}

@@ -1,0 +1,172 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "codebase_memory",
+      "name": "codebase_memory",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "repo tooling (codebase-memory-mcp)"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "always-on, registered MCP server"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": ".mcp.json"
+        }
+      ],
+      "type": "application",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "lab1_bisection_search",
+      "name": "lab1_bisection_search",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "Lab 1 -- load-flow parameter fit"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "on every lab run (--step fit)"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "labs/01-simple-loadflow-fit/run.py"
+        }
+      ],
+      "type": "application",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "lab3_local_policy_search",
+      "name": "lab3_local_policy_search",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "Lab 3 -- multi-provider bake-off (local-policy-A/B/C)"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "on every --step sweep"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "labs/03-advanced-provider-bakeoff/orchestrator.py"
+        }
+      ],
+      "type": "application",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "powermcp_pandapower",
+      "name": "powermcp_pandapower",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "root README \"Connecting to the MCP servers\""
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "on-demand, podman kube play"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "kube/powermcp-pandapower-pod.yaml"
+        }
+      ],
+      "type": "application",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "aemo_nemweb_nemosis",
+      "name": "aemo_nemweb_nemosis",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "Lab 4 -- digital-twin reconciliation"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "pulled per requested date via NEMOSIS"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "labs/04-aemo-digital-twin-reconciliation/fetch_day.py"
+        }
+      ],
+      "type": "data",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "csiro_synthetic_nem_2000bus",
+      "name": "csiro_synthetic_nem_2000bus",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "Labs 1, 2, 4, 6"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "static case file, fetched once and checksum-verified"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "scripts/fetch_csiro_nem_data.py"
+        }
+      ],
+      "type": "data",
+      "version": "unknown"
+    },
+    {
+      "bom-ref": "simbench_1_mv_rural",
+      "name": "simbench_1_mv_rural",
+      "properties": [
+        {
+          "name": "digital-thread:owner",
+          "value": "Lab 5 -- SPARTAN chaos-net"
+        },
+        {
+          "name": "digital-thread:refresh_cadence",
+          "value": "static seed grid, perturbed per run (Watts-Strogatz)"
+        },
+        {
+          "name": "digital-thread:source",
+          "value": "labs/05-spartan-chaosnet-transient-stream/chaosnet.py"
+        }
+      ],
+      "type": "data",
+      "version": "unknown"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "aemo_nemweb_nemosis"
+    },
+    {
+      "ref": "codebase_memory"
+    },
+    {
+      "ref": "csiro_synthetic_nem_2000bus"
+    },
+    {
+      "ref": "lab1_bisection_search"
+    },
+    {
+      "ref": "lab3_local_policy_search"
+    },
+    {
+      "ref": "powermcp_pandapower"
+    },
+    {
+      "ref": "simbench_1_mv_rural"
+    }
+  ],
+  "metadata": {},
+  "specVersion": "1.5",
+  "version": 1
+}

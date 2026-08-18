@@ -1,0 +1,76 @@
+# Track B seed data: a real, small, connected cluster from CSIRO's Synthetic-NEM-2000-Bus
+# `data/snemSA.m` (the same case Lab 1 loads), selected -- not hand-invented -- by walking
+# pandapower's real line+trafo graph outward from a real generator bus with non-trivial output
+# (gen bus 1683, p_mw=127.3) until a legible ~5-bus cluster appeared. Every name/voltage/MW/km
+# value below is read directly from that case via `labs/_shared/gridfit.load_case()`; see this
+# lab's README "Design notes" for the exact selection script.
+#
+# Real quirk, reported honestly rather than smoothed over (same convention as Lab 2's bus-1126
+# pre-existing-condition note): both transformer branches below carry `sn_mva: 10000` in the
+# source case -- two orders of magnitude above a real generator step-up transformer's typical
+# 100-500 MVA rating. This is a synthetic-case artifact (CSIRO's case appears to use an
+# effectively-unconstrained rating for this internal generator-to-bus connection, not a modelled
+# equipment limit), not a transcription error -- carried through as-is because the point of this
+# track is showing SysML v2 modelling real case data faithfully, quirks included, not curating it.
+#
+# Bus index cross-reference (pandapower positional index in snemSA.m -> this schema's bus name):
+# 1744 -> bus_4128 (hub) | 1763 -> bus_4148 | 1741 -> bus_4125 | 1683 -> bus_4052 | 1684 -> bus_4053
+
+buses:
+  - name: bus_4128
+    source: "data/snemSA.m (pandapower bus index 1744)"
+    voltage_kv: 275.0
+
+  - name: bus_4148
+    source: "data/snemSA.m (pandapower bus index 1763)"
+    voltage_kv: 275.0
+
+  - name: bus_4125
+    source: "data/snemSA.m (pandapower bus index 1741)"
+    voltage_kv: 275.0
+
+  - name: bus_4052
+    source: "data/snemSA.m (pandapower bus index 1683)"
+    voltage_kv: 15.75
+
+  - name: bus_4053
+    source: "data/snemSA.m (pandapower bus index 1684)"
+    voltage_kv: 15.75
+
+generators:
+  - name: gen_4052
+    source: "data/snemSA.m (pandapower gen table, bus 1683)"
+    bus: bus_4052
+    rated_mw: 127.3
+
+  - name: gen_4053
+    source: "data/snemSA.m (pandapower gen table, bus 1684)"
+    bus: bus_4053
+    rated_mw: 135.2
+
+lines:
+  - name: line_4128_4148
+    source: "data/snemSA.m (pandapower line table, 1744-1763)"
+    from_bus: bus_4128
+    to_bus: bus_4148
+    kind: transmission
+    length_km: 1.0
+
+  - name: line_4125_4128
+    source: "data/snemSA.m (pandapower line table, 1741-1744)"
+    from_bus: bus_4125
+    to_bus: bus_4128
+    kind: transmission
+    length_km: 1.0
+
+  - name: xfmr_4128_4052
+    source: "data/snemSA.m (pandapower trafo table, 1744-1683)"
+    from_bus: bus_4128
+    to_bus: bus_4052
+    kind: transformer
+
+  - name: xfmr_4128_4053
+    source: "data/snemSA.m (pandapower trafo table, 1744-1684)"
+    from_bus: bus_4128
+    to_bus: bus_4053
+    kind: transformer

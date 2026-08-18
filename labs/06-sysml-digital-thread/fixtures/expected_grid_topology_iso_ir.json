@@ -1,0 +1,95 @@
+{
+  "edges": [
+    {
+      "from": "bus_4128",
+      "id": "line_4128_4148",
+      "to": "bus_4148",
+      "type": "network"
+    },
+    {
+      "from": "bus_4125",
+      "id": "line_4125_4128",
+      "to": "bus_4128",
+      "type": "network"
+    },
+    {
+      "from": "bus_4128",
+      "id": "xfmr_4128_4052",
+      "to": "bus_4052",
+      "type": "network"
+    },
+    {
+      "from": "bus_4128",
+      "id": "xfmr_4128_4053",
+      "to": "bus_4053",
+      "type": "network"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "bus_4128",
+      "label": "bus_4128",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "type": "router"
+    },
+    {
+      "id": "bus_4148",
+      "label": "bus_4148",
+      "position": {
+        "x": 2,
+        "y": 0
+      },
+      "type": "router"
+    },
+    {
+      "id": "bus_4125",
+      "label": "bus_4125",
+      "position": {
+        "x": 4,
+        "y": 0
+      },
+      "type": "router"
+    },
+    {
+      "id": "bus_4052",
+      "label": "bus_4052",
+      "position": {
+        "x": 0,
+        "y": 2
+      },
+      "type": "router"
+    },
+    {
+      "id": "bus_4053",
+      "label": "bus_4053",
+      "position": {
+        "x": 2,
+        "y": 2
+      },
+      "type": "router"
+    },
+    {
+      "id": "gen_4052",
+      "label": "gen_4052",
+      "position": {
+        "x": 4,
+        "y": 2
+      },
+      "type": "warehouse"
+    },
+    {
+      "id": "gen_4053",
+      "label": "gen_4053",
+      "position": {
+        "x": 0,
+        "y": 4
+      },
+      "type": "warehouse"
+    }
+  ],
+  "title": "Lab 6 Track B -- Grid Topology",
+  "type": "generic"
+}

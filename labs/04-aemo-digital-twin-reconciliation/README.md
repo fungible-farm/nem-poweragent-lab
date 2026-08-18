@@ -1,110 +1,75 @@
 # Lab 4 — Real AEMO Data: Digital-Twin Reconciliation & Constraint Literacy
 
-> Status: **implemented (Part A + Part B required, Part C optional -- also implemented)**.
-> `fetch_day.py`, `map_duids.py`, `reconcile.py`, `explain_constraint.py`,
-> `nem_constraints_vendored.py`, `expected_reconciliation.json`, `duid_mapping.csv`,
-> `sample_reconciliation_chart.png`, and `test_lab4.py` are real, runnable code that makes real
-> network calls to AEMO's public NEMWeb MMS data archive -- see
-> [`docs/LAB4_AEMO_REAL_DATA.md`](../../docs/LAB4_AEMO_REAL_DATA.md) for the
-> full concept and library choices, and "Sandbox notes" below for exactly where and why this build
-> deviates from that spec.
+Every other lab in this repo runs against synthetic data — safe, fast, offline, but easy to
+dismiss as "toy." This lab is where a real network meets real market data: it pulls one real day
+of South Australian dispatch data from AEMO's public archive, imposes it on a synthetic grid model,
+and checks whether the model's power flow reconstructs what actually happened. It doesn't (see
+below) — and explaining *why* it doesn't, with a real computed number, is the actual point.
 
-## What you'll do (summary)
+**Two things to know going in**: `snemSA.m` is a *synthetic* topology, not a real map of the SA
+grid — this is not a digital twin of the real network. And Part C (below) is a guided reading of
+AEMO's own public incident report, not a claim that this model reproduces that event's cause.
 
-- **Part A**: pull one real, ordinary day (**15 June 2026**) of SA1 dispatch data via
-  [NEMOSIS](https://github.com/UNSW-CEEM/NEMOSIS), map real DUIDs onto `snemSA.m`'s synthetic
-  generators, impose real MW setpoints, solve a power flow, and compare the modelled
-  interconnector-equivalent flow to AEMO's actual reported value — scored on a deliberately generous
-  tolerance, because a synthetic topology meeting real data is expected to diverge, and the point
-  is explaining the gap honestly, not hiding it.
-- **Part B**: decode one real binding constraint for the same day using the public
-  [`susantoj/NEM_constraints`](https://github.com/susantoj/NEM_constraints) library (vendored, not a
-  hand-rolled parser — see "Sandbox notes") and print a plain-English translation.
-- **Part C (optional, implemented)**: replay the same reconciliation mechanic against the real
-  pre-event dispatch data from the 28 September 2016 SA Black System, clearly caveated as a guided
-  reading of AEMO's own public report, not a fault-reproduction claim.
+*New to interconnectors or MW/MVA? See the root [README's Concepts section](../../README.md#concepts-in-plain-terms).*
 
-**Two caveats that must appear in any presentation of this lab, not just in the design doc:**
-this is not a digital twin of the real SA network (CSIRO's topology is synthetic), and Part C is
-not a claim that this model reproduces the 2016 event's actual root cause.
+## What you'll do
 
-## Why an AEMO modeller should care
+- **Part A** — pull one real day (15 June 2026) of South Australian dispatch data via
+  [NEMOSIS](https://github.com/UNSW-CEEM/NEMOSIS), map real generators onto `snemSA.m`'s synthetic
+  ones, impose their real output levels, solve a power flow, and compare the modelled
+  interconnector flow to AEMO's actual reported value. The tolerance is deliberately generous — a
+  synthetic topology meeting real data is expected to diverge — and the result is scored honestly
+  either way, not tuned to pass.
+- **Part B** — decode one real binding constraint for the same day using the public
+  [`susantoj/NEM_constraints`](https://github.com/susantoj/NEM_constraints) library, and print a
+  plain-English translation of it.
+- **Part C (optional)** — replay the same reconciliation mechanic against real pre-event dispatch
+  data from the 28 September 2016 SA Black System.
 
-Every other lab in this repo is entirely synthetic — safe, fast, offline, but also easy to dismiss
-as "toy data." This lab is where the repo has to be honest about a real network meeting a
-synthetic model, and that honesty (stating tolerance, stating what the model can't show) is
-itself the point: it's the discipline a real reconciliation-against-market-data exercise would
-need, demonstrated rather than asserted. Part A's actual result (see step 3 below) is a **FAIL**
-against its own stated tolerance — and the memo it prints correctly identifies *why* (the
-synthetic network's internal line/transformer losses are ~30x the real interconnectors' reported
-losses for the same interval), which is exactly the discipline this lab is built to demonstrate:
-a wrong number with a right explanation is more useful than a number quietly tuned to pass.
+## The actual result: Part A fails its own tolerance, and explains why
 
-## Sandbox notes (read this before the walkthrough)
+`reconcile.py` prints `FAIL`, and its memo says why: the synthetic network's own line/transformer
+losses (63.5 MW) are about 30× the real interconnectors' reported losses for the same interval
+(2.1 MW) — accounting for most of the gap. A wrong number with a right explanation is more useful
+than a number quietly tuned to pass, which is the whole discipline this lab demonstrates.
 
-- **`NEM_constraints` is vendored, not installed.** `uv pip install
-  git+https://github.com/susantoj/NEM_constraints` fails at resolve time (checked directly): the
-  repo has no `pyproject.toml`/`setup.py`, so there is nothing for `uv`/`pip` to build from a git
-  URL. Per `AGENTS.md`'s sandbox-stand-in convention, the specific functions this lab needs
-  (`get_mms_table`, `get_constraint_list`, `find_constraint`, `get_LHS_terms`, `get_RHS_terms`,
-  `get_constraint_details`) are vendored into `nem_constraints_vendored.py`, citing the exact
-  upstream file and commit (`NEMDE_constraints.py` @ `62f6a1efa87b8b68804ed32dbe16ae2589e69301`),
-  under its original MIT license (`LICENSE-NEM_constraints`). Two changes from upstream, both
-  documented at the top of that file: (1) a fix for a confirmed bug — upstream's URL construction
-  for the post-July-2024 MMSDM archive layout double-percent-encodes `#`, producing a real HTTP 404
-  on every call for a recent date; (2) an added `functools.lru_cache` memoization layer around
-  `get_mms_table` (I/O caching only, not a logic change) since the unmodified function re-downloads
-  the same multi-megabyte monthly archive zip on every call, and `explain_constraint.py` needs
-  several calls per run while searching for an SA1-relevant constraint. The actual
-  constraint-decoding logic (which MMS tables to join and how) is untouched from upstream — this
-  lab does not hand-roll a constraint-equation parser.
-- **Fuel-type DUID matching is unavailable, so `map_duids.py` matches on nameplate-capacity
-  proximity only**, on both sides of the join: `snemSA.m`'s own generator metadata carries no
-  fuel-type field at all (only a bus-indexed name), and AEMO's real fuel-type source (the NEM
-  Registration and Exemption List, `www.aemo.com.au/-/media/Files/...xls`) returns a genuine HTTP
-  403 from this sandbox (Cloudflare bot protection — confirmed by a direct `curl -I`), while
-  `nemweb.com.au`, the actual MMSDM data archive this lab depends on for everything else, is fully
-  reachable. This is the spec's own documented "else nameplate-capacity proximity" fallback,
-  exercised because the primary path is blocked, not skipped as a shortcut.
-- **Real DUID "capacity" is a day-max-SCADA proxy, not true registered capacity.**
-  `DUDETAILSUMMARY` carries no capacity column; the table that does
-  (`DUDETAIL.REGISTEREDCAPACITY`) is fully version-controlled, and NEMOSIS's
-  `dynamic_data_compiler` can only fetch it by scanning every month from 2009 to the present
-  (confirmed directly: 200+ monthly archive downloads, several minutes, for one table) — wildly
-  disproportionate for a lab step meant to run in seconds. `map_duids.py` instead uses each real
-  DUID's own day-max SCADA output as a real, physically-grounded (if imperfect) proxy.
-- **The "interconnector-equivalent branch"** Part A reconciles against is `snemSA.m`'s single slack
-  generator (bus 985, pandapower 0-indexed / bus 986 MATPOWER-numbered), tied to bus 1800 by a
-  near-zero-impedance branch. `snemSA.m` is an SA-only island reduction of the full CSIRO case with
-  no explicit branches to VIC1 at all, so this lab treats its one reference-bus generator (needed
-  for *any* island case to solve) as the model's stand-in for the real Heywood (`V-SA`) +
-  Murraylink (`V-S-MNSP1`) interconnectors combined. Named explicitly in `_lab4_shared.py`, which
-  also asserts this at runtime so a future CSIRO data revision that breaks the assumption fails
-  loudly rather than reconciling against the wrong bus.
-- **Unmatched synthetic generators are set to 0 MW, not left at `snemSA.m`'s base-case dispatch.**
-  `map_duids.py`'s capacity-proximity matching is not a bijection (89 real SA1 generator DUIDs vs.
-  56 non-slack synthetic generators), so roughly a third of synthetic generators get no real DUID
-  mapped onto them. Leaving those at their original base-case OPF output (tried first, during
-  implementation) double-counts capacity against the real SCADA imposed elsewhere and reliably
-  fails to converge (~2500 MW modelled generation against ~1800 MW real SA1 demand). Zeroing them
-  means the reconciliation only asserts generation this lab has real evidence for.
-- **Reconciliation tolerance: ±15%, floor 10 MW.** Taken directly from
-  `docs/LAB4_AEMO_REAL_DATA.md`'s own suggested value ("e.g. ±15%"), deliberately looser than Lab
-  1's tight synthetic-fit tolerance (0.002 pu) because a synthetic topology meeting real market
-  data is expected to diverge on absolute quantities, not just on solver noise. The 10 MW floor
-  exists so a near-zero real interconnector flow (which does occur on some 5-minute intervals)
-  can't make the relative check meaningless.
-- **No live local LLM.** As in every other lab (see `labs/01-simple-loadflow-fit/README.md`), the
-  reconciliation memo and the constraint's plain-English paragraph are plain Python f-string
-  templates over real computed/decoded values, not an LLM's free-form text — this sandbox has no
-  `podman` and no budget to serve a GGUF model. Named in `reconcile.py`'s and
-  `explain_constraint.py`'s own docstrings.
-- **Part C uses Part A's DUID mapping across a 10-year date gap.** `duid_mapping.csv` is built once
-  from DUIDs registered as of 15 June 2026 and applied unchanged to 28 September 2016's SCADA. A
-  real generator dispatched in 2016 may since have been re-registered or decommissioned (absent
-  from today's mapping) or vice versa — `reconcile.py --date 2016-09-28`'s printed memo names this
-  explicitly as a second, distinct source of reconciliation error on top of Part A's network-loss
-  explanation.
+## Design notes
+
+- **`NEM_constraints` is vendored, not installed** (`nem_constraints_vendored.py`) — the upstream
+  repo has no `pyproject.toml`/`setup.py`, so there's nothing for a package manager to build from
+  its git URL. The vendored copy cites the exact upstream file/commit under its original MIT
+  license, with two changes: a fix for a real bug in upstream's URL construction (it double-encodes
+  a character, producing an HTTP 404 for recent dates), and a caching layer around the archive
+  download this lab calls repeatedly. The actual constraint-decoding logic is untouched.
+- **DUID matching uses capacity proximity, not fuel type** — `snemSA.m`'s generator metadata
+  carries no fuel-type field, and AEMO's fuel-type registration list is served behind bot
+  protection that blocks scripted fetches. `map_duids.py` uses the spec's own documented fallback:
+  matching each real generator to a synthetic one by nameplate-capacity proximity.
+- **"Capacity" here is a day-max-SCADA proxy, not registered capacity** — the table that has true
+  registered capacity is only queryable by scanning every month back to 2009 (confirmed: 200+
+  archive downloads, several minutes, for one number), disproportionate for a lab step that should
+  run in seconds. Each generator's own day-max real output is used as a physically-grounded proxy
+  instead.
+- **The "interconnector" being reconciled against** is `snemSA.m`'s single slack generator (the
+  reference bus every islanded model needs to solve), which this lab treats as standing in for the
+  real Heywood + Murraylink interconnectors combined — `snemSA.m` is an SA-only island with no
+  explicit connection to Victoria modelled at all. This assumption is asserted at runtime in
+  `_lab4_shared.py`, so a future data revision that breaks it fails loudly instead of silently
+  reconciling against the wrong bus.
+- **Unmatched synthetic generators are set to 0 MW.** The capacity-proximity matching isn't 1:1 (89
+  real generators vs. 56 synthetic ones), so roughly a third of synthetic generators get no real
+  match. Leaving them at their original base-case output double-counts capacity and fails to
+  converge; zeroing them means the model only asserts generation it has real evidence for.
+- **Tolerance: ±15%, floor 10 MW** — deliberately looser than Lab 1's tight fit tolerance, because a
+  synthetic topology meeting real market data is expected to diverge on absolute terms, not just
+  solver noise. The floor exists so a near-zero real flow (which does happen) can't make the
+  relative check meaningless.
+- **The memo text is a plain string template**, not LLM-generated free text — same design choice as
+  every other lab (see Lab 1's README).
+- **Part C reuses Part A's DUID mapping across a 10-year gap** — built from generators registered
+  as of 2026, applied to 2016 data. A generator active in 2016 may since have been decommissioned
+  or re-registered; `reconcile.py --date 2016-09-28`'s memo names this as an extra source of error
+  on top of Part A's network-loss explanation.
 
 ## Command
 
@@ -120,9 +85,8 @@ uv run python -m pytest labs/04-aemo-digital-twin-reconciliation/test_lab4.py
 
 ## Running in a container (Windows-friendly)
 
-No local `uv`/Python/pandapower/nemosis install needed — build once, run anywhere Docker Desktop
-or Podman Desktop is installed (both run on Windows via a WSL2 backend, and read a `Containerfile`
-exactly like Linux/macOS native `podman`/`docker`):
+No local install needed — works identically under Docker Desktop, Podman Desktop, or native
+podman/docker:
 
 ```
 podman build -t nem-poweragent-base:local -f Containerfile.base .
@@ -130,65 +94,31 @@ podman build -t lab4:local -f labs/04-aemo-digital-twin-reconciliation/Container
 podman run --rm lab4:local
 ```
 
-(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
-dependency set once, shared by every other lab's own image — see `Containerfile.base`'s own
-header. Unlike Labs 1-3, this container needs outbound network access at run time — NEMOSIS pulls
-real AEMO data live, no fixture fallback — which podman/docker's default bridge network already
-provides with no extra flag. The default run reproduces the `--step check` output above exactly.
+Unlike Labs 1–3, this container needs outbound network access at run time — it pulls real AEMO
+data live, no offline fallback — which the default container network already provides.
 
-## Step-by-step walkthrough (presenter / backup script)
+## Step-by-step walkthrough
 
-1. **`uv run labs/04-aemo-digital-twin-reconciliation/fetch_day.py --region SA1 --date 2026-06-15`**
-   — You should see: a short progress log as NEMOSIS downloads/caches `DISPATCH_UNIT_SCADA`,
-   `DISPATCHPRICE`, `DISPATCHREGIONSUM`, `DISPATCHINTERCONNECTORRES` for that day, ending in
-   `cached 151475 rows across 4 tables` (plus a separate `DUDETAILSUMMARY` line — see "Sandbox
-   notes" for why that one is pulled and printed separately).
-   — *Backup if offline*: this build ships no `data/nemosis_sample/` fixture because the live pull
-   for 15 June 2026 succeeded during implementation and is this script's only tested path (see
-   `fetch_day.py`'s module docstring) — narrate the printed output below as "here's what a
-   successful live pull looks like" instead.
-2. **`uv run labs/04-aemo-digital-twin-reconciliation/map_duids.py`**
-   — You should see: a printed table of real DUID → matched synthetic generator bus → capacity
-   diff (70 real DUIDs mapped onto 22 unique synthetic generator buses), and the same table written
-   to `duid_mapping.csv`.
-   — Why it matters: this is the auditable join step — anyone in the room can open that CSV and
-   check the mapping themselves, nothing is hidden in code.
-3. **`uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py`**
-   — You should see: `Modelled interconnector-equivalent flow (bus 985): +234.2 MW`,
-   `Actual combined V-SA + V-S-MNSP1 flow: +187.7 MW`, `Delta: +46.5 MW ... -> FAIL`, followed by a
-   reconciliation memo that quantifies the gap: the solved synthetic network's own line +
-   transformer losses (63.5 MW) are ~30x AEMO's published real interconnector losses for the same
-   interval (2.1 MW), which alone accounts for most of the delta, and finally
-   `[chart] wrote sample_reconciliation_chart.png` — a grouped bar chart of those same two
-   number-pairs (modelled-vs-actual interconnector flow, synthetic-vs-actual network losses), value
-   labeled, committed alongside `expected_reconciliation.json`.
-   — Why it matters: this is the "does the digital twin's power flow reconstruct the market
-   outcome" check — and, just as importantly, the printed memo showing the model can say *why*
-   it's off (with a real, computed number backing the explanation), not just that it's off.
-4. **`uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --step check`**
-   — You should see: the reconciliation result as JSON, then
-   `MATCH: modelled=234.168 actual=187.7 vs expected_reconciliation.json`. Note this checks that
-   the computation *reproduces the fixture*, not that the reconciliation itself passed tolerance —
-   `expected_reconciliation.json`'s own `"passed": false` is the correct, reproducible answer.
-   `--step check` also asserts the committed `sample_reconciliation_chart.png` exists, but never
-   rewrites it (`reconcile(..., refresh_chart=False)`) — only a plain `--step run` against
-   `LAB4_DATE` regenerates that chart.
-5. **`uv run labs/04-aemo-digital-twin-reconciliation/explain_constraint.py`**
-   — You should see: a search across the day's binding constraints (`SA1-relevant` / `not
-   SA1-relevant` printed per candidate checked), landing on a real constraint (e.g.
-   `NSA_S_TB2_40`, "Torrens Island (TIPS) B2>= 40 MW for Network Support Agreement"), its decoded
-   LHS/RHS terms, cross-referenced against `duid_mapping.csv`'s matched synthetic bus, and a
-   one-paragraph plain-English translation.
-   — Why it matters: this is the artifact with the most immediate day-to-day relevance to
-   Operations — a decoded constraint in plain English, tied back to the same synthetic network
-   Part A reconciled.
-6. **(optional) `uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --date 2016-09-28`**
-   — Before running: the script itself prints the caveat aloud first — **this is NOT a claim that
-   this model reproduces the 2016 SA Black System event's actual root cause** — followed by a short
-   narrative excerpt paraphrasing AEMO's public integrated final report, then the same
-   reconciliation output shape as step 3 (modelled vs. actual interconnector flow, a memo — this
-   one also naming the DUID-mapping date gap as an extra source of error). This step is a narrative
-   aid, not a physics claim — the caveat prints before the numbers, every time.
+1. **`fetch_day.py --region SA1 --date 2026-06-15`** — A short progress log as data downloads and
+   caches, ending in `cached 151475 rows across 4 tables`. (No offline fixture is shipped — the
+   live pull for this date is this script's only tested path.)
+2. **`map_duids.py`** — A table of real generator → matched synthetic bus → capacity diff (70 real
+   generators mapped onto 22 synthetic buses), also written to `duid_mapping.csv` so the mapping is
+   auditable, not hidden in code.
+3. **`reconcile.py`** — `Modelled interconnector-equivalent flow (bus 985): +234.2 MW`, `Actual
+   combined flow: +187.7 MW`, `Delta: +46.5 MW ... -> FAIL`, then the memo explaining the gap (see
+   above), then `[chart] wrote sample_reconciliation_chart.png`.
+4. **`reconcile.py --step check`** — The result as JSON, then `MATCH: modelled=234.168
+   actual=187.7 vs expected_reconciliation.json`. This checks that the computation *reproduces the
+   fixture*, not that reconciliation passed — the fixture's own `"passed": false` is the correct,
+   reproducible answer.
+5. **`explain_constraint.py`** — A search across the day's binding constraints, landing on a real
+   one (e.g. `NSA_S_TB2_40`, "Torrens Island (TIPS) B2 >= 40 MW for Network Support Agreement"),
+   its decoded terms, cross-referenced against `duid_mapping.csv`, and a plain-English translation.
+6. **(optional) `reconcile.py --date 2016-09-28`** — Prints the caveat first — this is not a claim
+   of reproducing the 2016 SA Black System's actual cause — then a short excerpt from AEMO's public
+   report, then the same reconciliation shape as step 3, with the DUID-mapping date gap named as an
+   extra source of error.
 
 ## References (Part C)
 

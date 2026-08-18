@@ -1,48 +1,62 @@
 # nem-poweragent-lab
 
-PowerAgent Tutorial — AEMO Labs
+**PowerAgent Tutorial — AEMO Labs.** Five hands-on labs that use AI agents to do the kind of thing
+a power-grid engineer does by hand: load a model of the grid, run a simulation, check whether
+anything is overloaded, write a report. Every number in every lab comes from a real calculation
+against real (or realistically synthetic) grid data — nothing is faked to look plausible.
 
-A training lab (not a product pitch) demonstrating deterministic, agent-driven power-system
-workflows against a real NEM network model, running entirely on local, open-source components.
+## Concepts, in plain terms
 
-## Summary
+You don't need a power-systems background to follow these labs. Here's everything you need, in
+one place, so each lab doesn't have to re-explain it:
 
-Five runnable labs, each against real public data (CSIRO's Synthetic-NEM-2000-Bus MATPOWER case,
-real historical AEMO NEMWeb market data, or a real DPsim EMT solve), each self-checking (a
-`--step check` that diffs against a committed fixture, plus a `test_labN.py`), and each with its
-own tutorial `README.md` and its own `Containerfile`:
+- **Grid / network** — generators, transformers, and loads (homes, factories) connected by
+  transmission lines. A **bus** is just a connection point, like an intersection in a road network.
+- **Power flow (a.k.a. load flow)** — the calculation of how much current flows on every line and
+  what the voltage is at every bus, given how much power each generator is producing and each load
+  is consuming. This is the single most common calculation in power engineering; every lab here
+  runs it via [pandapower](https://www.pandapower.org/), a real open-source power flow solver.
+- **Per-unit (pu) voltage** — voltage expressed as a fraction of what's normal for that point in
+  the grid, so `1.00 pu` means "exactly nominal," `0.95 pu` means "5% low." Grids are normally kept
+  within a narrow band (typically 0.90–1.10 pu) — outside that, equipment can misbehave or trip
+  offline.
+- **MW vs. MVA** — MW (megawatts) is real power, the kind that actually does work (spins a motor,
+  lights a bulb). MVA (megavolt-amps) is total electrical capacity, including a "reactive"
+  component that flows back and forth without doing useful work but that cables and transformers
+  still have to be sized to carry.
+- **N-1 contingency screening** — checking "if any single line or generator suddenly dropped out
+  right now, would anything else overload?" Grid operators require the answer to always be no —
+  a single failure should never cascade. Lab 2 runs a real one.
+- **Interconnector** — a major transmission line joining two separate grid regions (e.g. South
+  Australia to Victoria), so power can flow between them.
+- **Transient vs. steady-state** — most of these labs assume the grid has already settled into a
+  stable state and just solve for the numbers there ("steady-state"). Lab 5 instead looks at
+  **transients**: the physics in the first fraction of a second after something goes wrong (a
+  fault), sampled thousands of times per second, before the grid settles back down or protection
+  equipment intervenes.
+- **MCP (Model Context Protocol)** — a standard way for an AI agent to call an external tool over
+  a network connection, conceptually similar to a REST API but designed for AI agents. One of the
+  three pillars this repo's [source paper](#citation) is built around.
+
+## The six labs
+
+Every lab uses real public data (CSIRO's Synthetic-NEM-2000-Bus grid model, real historical AEMO
+market data, or a real physics solver), checks its own result against a known-good answer, and has
+its own tutorial `README.md` plus a `Containerfile` to run it with zero local setup.
 
 | Lab | What it shows | Real data / physics |
 | --- | --- | --- |
-| [`01-simple-loadflow-fit`](labs/01-simple-loadflow-fit/) | single-agent load-flow parameter fit | real `pandapower.runpp()` against CSIRO `snemSA.m` |
-| [`02-medium-interconnection-screening`](labs/02-medium-interconnection-screening/) | concurrent N-1 contingency screen + human-in-the-loop memo gate | real `pandapower.runpp()` against CSIRO `snem1803.m` |
-| [`03-advanced-provider-bakeoff`](labs/03-advanced-provider-bakeoff/) | provider × task-family scoring harness | 3 task families, real scored comparison |
-| [`04-aemo-digital-twin-reconciliation`](labs/04-aemo-digital-twin-reconciliation/) | digital-twin reconciliation against live AEMO market data | real live NEMWeb pull via NEMOSIS, real `pandapower.runpp()` |
-| [`05-spartan-chaosnet-transient-stream`](labs/05-spartan-chaosnet-transient-stream/) | EMT-domain transient streaming + a real grid-forming stabilizer | real DPsim 200µs-timestep EMT solve, real VILLASnode pod |
+| [`01-simple-loadflow-fit`](labs/01-simple-loadflow-fit/) | fitting a model parameter to match a field measurement | real `pandapower.runpp()` against CSIRO `snemSA.m` |
+| [`02-medium-interconnection-screening`](labs/02-medium-interconnection-screening/) | N-1 contingency screening + a human approval gate | real `pandapower.runpp()` against CSIRO `snem1803.m` |
+| [`03-advanced-provider-bakeoff`](labs/03-advanced-provider-bakeoff/) | scoring different AI "providers" against the same tasks | 3 task families, real scored comparison |
+| [`04-aemo-digital-twin-reconciliation`](labs/04-aemo-digital-twin-reconciliation/) | comparing a model's prediction against what the real grid actually did | real live AEMO market-data pull, real `pandapower.runpp()` |
+| [`05-spartan-chaosnet-transient-stream`](labs/05-spartan-chaosnet-transient-stream/) | millisecond-scale fault physics + a real corrective controller | real 200µs-timestep physics solve (DPsim), real streaming pipeline |
+| [`06-sysml-digital-thread`](labs/06-sysml-digital-thread/) | evaluating SysML v2/MBSE for AI-workflow and grid-topology modelling | real repo inventory (Track A) + a real bus/generator/line cluster from CSIRO `snemSA.m` (Track B) |
 
-Every lab is runnable two ways, documented in that lab's own `README.md`: natively via `uv run`
-(fastest, needs this repo's own toolchain — see Install below), or in a container via that lab's
-own `Containerfile` (no local Python/DPsim/pandapower install at all — see "Running the labs in a
-container" below, and especially the note there for Windows users).
-
-**Start here: [`docs/VISION.md`](docs/VISION.md)** for the full plan — ecosystem map, architecture,
-Labs 1–3 (simple/medium/advanced), and the reasoning behind every technology choice.
-
-**Real data: [`docs/LAB4_AEMO_REAL_DATA.md`](docs/LAB4_AEMO_REAL_DATA.md)** — Lab 4, the one lab
-that pulls actual historical AEMO market data instead of synthetic inputs, in its own file since
-it carries its own risk profile and caveats.
-
-**Transient/edge: [`docs/LAB5_SPARTAN_CHAOSNET.md`](docs/LAB5_SPARTAN_CHAOSNET.md)** — Lab 5,
-EMT-domain 4kHz-class transient streams from procedurally generated grid topologies, feeding
-SPARTAN (an external edge PMU anomaly-detection project) via DPsim + VILLASnode. Its own file for
-the same reason as Lab 4 — different risk profile, and a Definition of Done split between a
-laptop-portable core and an optional hardware-validated extension.
-
-**Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
-is being built against.
-
-**Governance: [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md)** — the golden-path licensing policy and the
-"one waveform state machine generates every view" principle for Australian NEM capability.
+Start with [`docs/VISION.md`](docs/VISION.md) for the full architecture and the reasoning behind
+each technology choice. [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) is the checklist
+this repo is built against, and [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md) covers the open-source
+licensing policy.
 
 ## Install
 
@@ -50,35 +64,20 @@ is being built against.
 ./install.sh
 ```
 
-One command, checks-then-acts (never silently reinstalls `uv`/`cargo`/`podman` if already
-present): installs `uv` if missing, requires `podman` to already be present (prints distro
-install instructions and stops otherwise — this script does not install a container runtime with
-root on your behalf), `uv sync`, fetches the CSIRO case data and the Phi-4-mini-instruct GGUF,
-brings up the `llamacpp-phi-pod` and `powermcp-pandapower-pod` pods via `podman kube play`, and
-finishes with `scripts/install_smoke_test.py` — a real chat completion through the LLM pod and a
-real `pandapower.runpp()` through the MCP pod, printing a final `PASS`/`FAIL` line. Measured on
-this build machine: **~43s on a re-run** with everything already cached, **~4m30s** on a fully
-cold run (dominated by the one-time ~2.3GB GGUF download over this machine's link — see
-`docs/VISION.md` §10 for the full step list).
+One command: installs `uv` if missing (requires `podman` to already be present — installs
+distro-specific instructions if it isn't), fetches the CSIRO case data, syncs dependencies, brings
+up two local support services, and finishes with a pass/fail smoke test. A cached re-run takes well
+under a minute; a fully cold run (dominated by a one-time ~2.3GB model download) takes a few
+minutes.
 
-`install.sh` also best-effort installs the demo/display tools `mpv` + `chafa` (step 7; non-fatal —
-the labs don't need them). The canonical per-command path is the scoped-sudoers authorized-script
-boundary: `scripts/deploy_demo_tools.sh` is the only NOPASSWD root surface (granted by
-`scripts/sudoers.d/nem-poweragent-lab` via `just authorize`), and `just deploy` runs it as root
-with no password anywhere.
-
-**`just --list` is the canonical command index** — `just sync`, `just fetch`, `just test`,
-`just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and
-the zero-file-transfer display recipes `just peek <chart>` (chafa, in-terminal) and
-`just watch <anim>` (mpv, windowed over WSLg/ssh -X, or `just watch-tct` in-terminal).
+`just --list` is the full command index (install, sync, fetch, per-lab checks, per-lab walkthrough
+steps, and a few in-terminal chart/animation viewers for SSH-only sessions).
 
 ## Running the labs in a container
 
-`./install.sh` above is the fastest path if your host is Linux/macOS (or WSL2) and you don't mind
-a real `uv`/`podman` install. If you'd rather not install this repo's toolchain at all — or you're
-on **Windows without WSL2** — every lab has its own `Containerfile` (`labs/0N-.../Containerfile`),
-built on one shared base layer so the (large: DPsim, pandapower, nemosis, numba) dependency install
-only happens once, not five times:
+If you'd rather not install this repo's toolchain natively — or you're on Windows — every lab has
+its own `Containerfile`, built on one shared base image so the (fairly large) dependency install
+only happens once:
 
 ```
 podman build -t nem-poweragent-base:local -f Containerfile.base .
@@ -86,38 +85,25 @@ podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
 podman run --rm lab1:local
 ```
 
-Repeat the last two lines per lab (`lab2`/`labs/02-.../Containerfile`, etc. — each lab's own
-README has the exact commands and image name). `docker` works identically wherever this doc says
-`podman` — a `Containerfile` is plain OCI build syntax, read the same way by either tool.
+Repeat the last two lines per lab — each lab's own README has its exact image name and commands.
+`docker` works identically anywhere this doc says `podman`; a `Containerfile` is plain OCI build
+syntax, read the same way by either tool.
 
-**Windows note.** Docker Desktop and Podman Desktop both run on Windows via a WSL2 backend and
-build/run these `Containerfile`s exactly as shown above — this is the recommended Windows path,
-especially for **Lab 5**: this repo's pinned `dpsim==1.2.1` ships Linux (`manylinux`) wheels only,
-no native Windows wheel, so Lab 5's container is the only way to run it on Windows without setting
-up WSL2 directly. Labs 1-4 have no such constraint (pandapower/nemosis/numpy/scipy all ship
-Windows wheels), so a native `uv sync` on Windows works for those — but `install.sh`/`Justfile`
-are POSIX shell either way, so the container path (or WSL2) is still the smoothest route for the
-whole repo, not just Lab 5.
-
-Each lab's own `README.md` has a "Running in a container" section with that lab's exact build/run
-commands and what to expect.
+**On Windows**, Docker Desktop and Podman Desktop both run these `Containerfile`s exactly as shown
+above via a WSL2 backend. This is the recommended path for **Lab 5** specifically — its physics
+engine (DPsim) only ships Linux wheels at the version this repo uses, so the container is the
+simplest way to run it on Windows. Labs 1–4 have no such restriction and also work with a native
+`uv sync` on Windows.
 
 ## Connecting to the MCP servers
 
-Two MCP servers exist in this repo, for two different consumers. If you're a codeworker (human or
-agent) picking this repo up cold, read this section before either one.
+Two MCP servers exist in this repo:
 
-**`codebase-memory` — for you, the codeworker, to explore this repo.** Registered in `.mcp.json`,
-launched over stdio by any MCP-aware client (Claude Code and similar) from `codebase-memory-mcp`
-on `PATH`. It's dev tooling for working *on* this codebase, not part of any lab: use its
-`search_graph` / `trace_path` / `get_code_snippet` / `query_graph` tools for structural questions
-("who calls this function", "what does Lab 2's workflow import") instead of grepping cold. See the
-`codebase-memory` skill for query syntax. If `list_projects` fails, the handshake env is wrong —
-see `AGENTS.md`'s troubleshooting table.
+**`codebase-memory`** — a tool for exploring this codebase's own structure (which function calls
+what, etc.), registered in `.mcp.json` for any MCP-aware coding assistant. Not part of any lab.
 
-**`powermcp-pandapower` — the lab's own MCP tool server**, the "Model Context Protocol" pillar the
-PowerAgent paper (see Citation, below) names — pandapower power-flow tools (`run_power_flow`,
-`run_contingency_analysis`, `load_network_from_any`, …) exposed over streamable-HTTP, not stdio.
+**`powermcp-pandapower`** — the lab's own power-flow tool server, exposing `run_power_flow`,
+`run_contingency_analysis`, `load_network_from_any`, and more over the network (streamable-HTTP).
 `./install.sh` brings it up automatically; standalone:
 
 ```
@@ -125,7 +111,7 @@ podman build -t powermcp-pandapower:local -f Containerfile.powermcp .
 podman kube play kube/powermcp-pandapower-pod.yaml   # mounts data/ at /data (read-only), port 8001
 ```
 
-Then connect with any MCP client — here, the official `mcp` Python SDK:
+Then connect with any MCP client:
 
 ```python
 import asyncio, json
@@ -144,83 +130,35 @@ async def main():
 asyncio.run(main())
 ```
 
-Tear down with `podman kube play --down kube/powermcp-pandapower-pod.yaml`. Full verified session
-(real tool list, real solve output) and the one named transport limitation
-(`powermcp run pandapower`'s shipped CLI only speaks stdio, so this pod runs a small committed
-wrapper instead — no upstream PowerMCP source modified) are in `kube/README.md`.
+Tear down with `podman kube play --down kube/powermcp-pandapower-pod.yaml`. Full details, including
+the one transport limitation (this MCP server's own CLI only speaks the older stdio transport, so
+this pod runs a small wrapper on top — see `kube/README.md`), are in `kube/README.md`.
 
-**Honesty check before you assume a lab calls this pod: it doesn't, yet.** The pod is real,
-built, and independently verified reachable (`kube/README.md`), but Labs 1-3's own scripts still
-use in-process pandapower calls as their MCP-tool-call stand-in — rewiring them to dial the pod
-above is a named, undone follow-up (see "Status" below), not a hidden gap.
-
-**Every lab has its own case data and its own real-vs-stand-in pattern** — don't assume Lab 1's
-shape generalizes. Skim the table, then read that lab's own README "Sandbox notes" section before
-working in it:
-
-| Lab | Case data | MCP / demo pattern |
-| --- | --- | --- |
-| `01-simple-loadflow-fit` | CSIRO `snemSA.m` | in-process `pandapower` calls stand in for the MCP tool call |
-| `02-medium-interconnection-screening` | CSIRO `snem1803.m` | same stand-in, plus a real concurrent N-1 contingency screen |
-| `03-advanced-provider-bakeoff` | CSIRO `snem1803.m` | 3 deterministic local policies stand in for LLM providers; scoring is real |
-| `04-aemo-digital-twin-reconciliation` | CSIRO `snemSA.m` + a real live NEMWeb MMS pull via NEMOSIS | real `pandapower.runpp()` reconciliation, no stand-ins |
-| `05-spartan-chaosnet-transient-stream` | procedurally generated SimBench chaos-net topology | real DPsim EMT solve + real VILLASnode pod, no stand-ins |
+Note that Labs 1–3's own scripts don't call this pod yet — they compute their power flow results by
+calling `pandapower` directly in-process. The pod exists and works; wiring the labs to call it over
+the network instead is a real, documented follow-up, not done here (see each lab's own README).
 
 ## Status
 
-**Labs 1-3 are implemented and self-checking.** Run the whole thing end to end, with proof:
+| Lab | Status | Real data |
+| --- | --- | --- |
+| `01-simple-loadflow-fit` | implemented | CSIRO `snemSA.m` |
+| `02-medium-interconnection-screening` | implemented | CSIRO `snem1803.m` |
+| `03-advanced-provider-bakeoff` | implemented | 3 task families, real scoring |
+| `04-aemo-digital-twin-reconciliation` | implemented (Parts A, B, optional C) | live AEMO NEMWeb pull via NEMOSIS |
+| `05-spartan-chaosnet-transient-stream` | implemented (laptop-portable core) | real DPsim EMT solve, real VILLASnode pod |
+| `06-sysml-digital-thread` | implemented (both tracks) | real repo inventory + real CSIRO `snemSA.m` cluster |
 
-```
-./scripts/run_labs_1_3.sh
-```
+All four `kube/` pod manifests (`llamacpp-phi-pod.yaml`, `powermcp-pandapower-pod.yaml`,
+`villasnode-tap-pod.yaml`, `benchmark-runner-job.yaml`) are real and have been run with
+`podman kube play` — see `kube/README.md` for each one's notes, including the one `podman kube play`
+limitation found along the way (v5.4.2 doesn't implement Kubernetes Job's `completions`/
+`parallelism` fields, so `benchmark-runner-job.yaml` runs as a single pod rather than a
+partitioned matrix — worked around with directly-launched containers instead).
 
-That one committed script — not a transcript of anyone running commands by hand — is the proof
-these labs work: it fetches the real CSIRO case data, runs every step of Labs 1-3, runs the pytest
-suite, and prints a final PASS/FAIL summary. `podman`, a real Phi-4-mini-instruct pod, and a real
-PowerMCP pandapower pod all now genuinely exist and run in this build environment (`./install.sh`,
-`kube/llamacpp-phi-pod.yaml`, `kube/powermcp-pandapower-pod.yaml` — see `kube/README.md`), but
-Labs 1-3's own scripts were not rewired this round to call them instead of their original
-in-process stand-ins (a deterministic bisection policy standing in for the LLM's "propose next
-trial" role, direct pandapower calls standing in for an MCP tool call) — `docs/VISION.md` §9
-itself names Lab 1 as the one case where wiring in a container is intentionally *not* worth it;
-Labs 2-3 rewiring to the now-real pods is a named, undone follow-up, not a sandbox impossibility.
-See each lab's own `README.md` "Sandbox notes" section for exactly what stands in for what today,
-and why.
-
-- `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
-  real CSIRO `snemSA.m` data.
-- `labs/02-medium-interconnection-screening/` — **implemented.** Sequential + genuinely-concurrent
-  N-1 contingency screen against real CSIRO `snem1803.m` data, a committed
-  `sample_contingency_chart.png` rendering the limit checks, and a human-in-the-loop memo gate
-  that actually blocks.
-- `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
-  a non-agentic forecasting-baseline row, scored into a diffable `expected_scorecard.json` fixture.
-- `labs/04-aemo-digital-twin-reconciliation/` — **implemented** (Part A + Part B required, Part C
-  optional — also implemented). Real `NEMOSIS` pulls of AEMO's live NEMWeb MMS archive (no fixture
-  fallback needed — the live pull worked), a committed auditable DUID→synthetic-generator mapping,
-  a real `pandapower.runpp()` reconciliation against real interconnector flow (honestly scored
-  FAIL against its own stated tolerance, with a memo that quantifies why), and a real binding
-  constraint decoded via a vendored `NEM_constraints` (not hand-rolled) into plain English. See its
-  own `README.md`.
-- `labs/05-spartan-chaosnet-transient-stream/` — **implemented** (laptop-portable core Definition
-  of Done; the hardware-validated extension against a real Radxa Dragon Q8B is optional and out of
-  scope, not attempted). A real SimBench + NetworkX chaos-net topology, a real DPsim EMT solve
-  (200µs timestep, a real scheduled `SwitchEvent3Ph` fault with a live countdown), and a real
-  VILLASnode pod actually run via `podman kube play`, verified by a real UDP capture. See its own
-  `README.md` for exactly which node-type (`socket`/UDP/JSON, not `iec61850-9-2` — compiled into
-  the image but fails to actually start in this sandbox even under `--privileged`) and transport
-  (file, not a live `dpsimpyvillas` socket) had to be substituted, and why.
-- `kube/` — all four manifests are written **and real-podman-executed**: `llamacpp-phi-pod.yaml`,
-  `powermcp-pandapower-pod.yaml`, `villasnode-tap-pod.yaml` (Lab 5), and `benchmark-runner-job.yaml`
-  (Lab 3 — with one documented `podman kube play` limitation: v5.4.2 doesn't implement Kubernetes
-  Job's `completions`/`parallelism` fields, so it runs as a single pod rather than 3; the actual
-  matrix-partitioning logic was verified for real via 3 directly-launched `podman run` containers
-  instead — see the manifest's own header). See `kube/README.md` for the full status of each.
-- `benchmarks/` — `power-agent-bench-lite/results/scorecard.json` is Lab 3's real, regenerated
-  (gitignored) output; the committed, diffable fixture is
-  `labs/03-advanced-provider-bakeoff/expected_scorecard.json`.
-- `scripts/` — `fetch_csiro_nem_data.py`, `fetch_phi4_model.py`, `install_smoke_test.py`,
-  `record_asciinema_demo.sh`, and `run_labs_1_3.sh` are real.
+`labs/03-advanced-provider-bakeoff/expected_scorecard.json` is the committed, diffable result
+fixture; `benchmarks/power-agent-bench-lite/results/` holds the regenerated (gitignored) output
+from actually running it.
 
 ## What this is built from (all upstream, none of it written here)
 
@@ -240,7 +178,7 @@ and why.
 [SimBench](https://github.com/e2nIEE/simbench)
 
 Package management: `uv` only. No cloud LLM keys. No commercial power-system engines on the
-golden path. No `b00t`.
+golden path.
 
 ## Citation
 
@@ -253,6 +191,6 @@ This lab is a runnable implementation of the roadmap in:
 > [open-access preprint](https://www.techrxiv.org/doi/full/10.36227/techrxiv.174918210.07854858/v1) ·
 > [poweragent.seas.harvard.edu](https://poweragent.seas.harvard.edu/)
 
-See `docs/VISION.md` §1 for how the paper's three named pillars (Foundation Model / Model Context
-Protocol / Workflow) map onto PowerFM / PowerMCP / PowerWF-and-PowerSkills, and onto this repo's
-labs.
+The paper names three pillars — Foundation Model, Model Context Protocol, and Workflow — which map
+onto PowerFM, PowerMCP, and PowerWF/PowerSkills respectively, and onto this repo's labs. See
+`docs/VISION.md` §1 for the full mapping.
