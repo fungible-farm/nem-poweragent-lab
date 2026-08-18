@@ -26,18 +26,55 @@ rather than a bare fault on a passive network.
 
 ## What was checked this session, not assumed
 
-- **DPsim ships no grid-forming inverter component.** `dir(dpsimpy.emt.ph3)` (this installed version)
-  is: `AvVoltageSourceInverterDQ`, `Capacitor`, `ControlledVoltageSource`, `CurrentSource`,
-  `Full_Serial_RLC`, `Inductor`, `NetworkInjection`, `PiLine`, `RXLoad`,
-  `ReducedOrderSynchronGeneratorVBR`, `Resistor`, `SeriesResistor`, `SeriesSwitch`, `Switch`,
-  `SynchronGenerator{3,4,5,6a,6b}OrderVBR`, `SynchronGeneratorDQODE`, `SynchronGeneratorDQTrapez`,
-  `Transformer`, `VoltageSource`. `AvVoltageSourceInverterDQ` is **grid-following**: its own
+- **DPsim ships no grid-forming inverter component in the version this repo has installed — but
+  upstream `master` gained one on GitHub five weeks before this session, not yet released to PyPI.**
+  `dir(dpsimpy.emt.ph3)` (this installed version, pinned `dpsim>=1.2.1` in `pyproject.toml`,
+  `uv.lock` resolves it to the `dpsim-1.2.1` wheel published 2025-12-10) is: `AvVoltageSourceInverterDQ`,
+  `Capacitor`, `ControlledVoltageSource`, `CurrentSource`, `Full_Serial_RLC`, `Inductor`,
+  `NetworkInjection`, `PiLine`, `RXLoad`, `ReducedOrderSynchronGeneratorVBR`, `Resistor`,
+  `SeriesResistor`, `SeriesSwitch`, `Switch`, `SynchronGenerator{3,4,5,6a,6b}OrderVBR`,
+  `SynchronGeneratorDQODE`, `SynchronGeneratorDQTrapez`, `Transformer`, `VoltageSource`.
+  `AvVoltageSourceInverterDQ` is **grid-following**: its own
   `set_controller_parameters(Kp_pll, Ki_pll, Kp_power_ctrl, Ki_power_ctrl, Kp_curr_ctrl, Ki_curr_ctrl,
   omega_cutoff)` signature confirms a PLL-synchronized design — it locks onto an existing grid
-  reference, it does not set one. There is no shipped droop/VSM/dispatchable-virtual-oscillator
-  component. Building grid-forming control here means driving DPsim's primitive
-  `ControlledVoltageSource` with a hand-built control law, not configuring an existing component
-  differently.
+  reference, it does not set one.
+  **`with_control(bool)`, read from the real C++ source, is a bypass flag unrelated to grid-forming
+  vs. grid-following** — `dpsim-models/include/dpsim-models/EMT/EMT_Ph3_AvVoltageSourceInverterDQ.h`
+  declares `void withControl(Bool controlOn) { mWithControl = controlOn; };` (bound to Python as
+  `with_control` in `dpsim/src/pybind/EMTComponents.cpp`), and its only use is
+  `dpsim-models/src/EMT/EMT_Ph3_AvVoltageSourceInverterDQ.cpp:446-447`:
+  `if (mWithControl) mSubCtrledVoltageSource->mVoltageRef->set(PEAK1PH_TO_RMS3PH * **mVsref);` —
+  i.e. it just gates whether the PLL/power-controller's computed reference gets written to the
+  underlying voltage source each timestep (an open-loop/debug bypass), not a mode selector. Confirmed
+  by reading the real source at `github.com/sogno-platform/dpsim`, not by guessing from the name.
+  **DPsim's upstream `master` branch (not this repo's installed version) already has a real
+  grid-forming component**: commit `0aa1ab99` ("Added Grid-forming Inverter, VCO and
+  VoltageController", 2026-07-09, refined by `a57abe64` and `c88d3243` on 2026-07-13) added
+  `CPS::EMT::Ph3::VSIVoltageControlVCO` — a separate class (not a flag on `AvVoltageSourceInverterDQ`)
+  at `dpsim-models/include/dpsim-models/EMT/EMT_Ph3_VSIVoltageControlVCO.h` and
+  `dpsim-models/src/EMT/EMT_Ph3_VSIVoltageControlVCO.cpp`, exposed to Python in
+  `dpsim/src/pybind/EMTComponents.cpp:463-492`. It replaces the PLL (`Signal::PLL`) with a free-running
+  `Signal::VCO` (`dpsim-models/src/Signal/VCO.cpp`: `signalStep` does
+  `mInputCurr = mInputRef; mStateCurr = mStatePrev + mTimeStep * mInputCurr` — i.e. it integrates an
+  externally-set frequency reference into a phase angle, self-clocked rather than grid-synchronized —
+  the defining structural trait of grid-forming control) and replaces the power controller with
+  `Signal::VoltageControllerVSI`, which regulates fixed `Vd_ref`/`Vq_ref` setpoints via cascaded
+  voltage+current PI loops (`dpsim-models/include/dpsim-models/Signal/VoltageControllerVSI.h`).
+  Read closely: this is grid-forming in the "self-clocked voltage source" sense, but **not** a
+  droop or VSM controller — `VoltageControllerVSI`'s gains are plain PI (`Kp/Ki` on voltage and
+  current), there is no P–f droop term or swing-equation/inertia coupling between measured power and
+  the VCO's frequency input. Confirmed via `grep`-style search across the whole `Signal/` directory:
+  no `droop`- or `VSM`-named file exists there. **This repo's installed dpsim (1.2.1, Dec 2025)
+  predates this addition and does not have `VSIVoltageControlVCO`** — confirmed directly:
+  `uv run python -c "import dpsimpy; print('VSIVoltageControlVCO' in dir(dpsimpy.emt.ph3))"` prints
+  `False`. Per this PRD's non-goals (no vendoring/forking), this session did not upgrade the pin or
+  build DPsim from source to exercise the new class — it was read from upstream GitHub source only,
+  not run. Net effect on the plan: the PRD's original assumption — that grid-forming here requires
+  driving `ControlledVoltageSource` with a hand-built VSM/swing-equation control law — is still
+  correct for the *VSM-specific* part of Goal 1 (no droop/VSM component exists anywhere in DPsim,
+  released or unreleased), but a lighter-weight "self-clocked voltage source" building block
+  (`VSIVoltageControlVCO`) now exists upstream as unreleased prior art, worth revisiting in Phase 1
+  if/when this repo's `dpsim` pin is ever bumped past 1.2.1.
 - **The elegant part: DPsim already has the right math, just attached to the wrong device.** A
   virtual-synchronous-machine (VSM) grid-forming controller's whole design is "make a power-electronic
   converter obey a synchronous generator's swing equation." DPsim's own
@@ -51,23 +88,64 @@ rather than a bare fault on a passive network.
   `gh search code "modelica"` against both the upstream org and the `fungible-farm` fork (zero
   results). Any Modelica path is new integration work, not something to wire into.
 - **IEC 61400-27 is an RMS/stability-domain standard, not EMT.** A real, peer-reviewed open-source
-  Modelica implementation of IEC 61400-27-1:2020 Type 4 exists (Carbonell, Cardozo, et al., *Electric
-  Power Systems Research*, 2023 — validated against OpenModelica and Dynawo), but **its actual public
-  source repository was not located this session** — the paper and its abstracts were found, a
-  citable GitHub URL was not. This is an open question (below), not a resolved fact. Separately, and
-  more fundamentally: IEC 61400-27 models are explicitly scoped for RMS/positive-sequence stability
-  studies, not the 200µs-timestep EMT domain Lab 5 actually runs. A literal live co-simulation coupling
-  (Modelica RMS solver ↔ DPsim EMT solver, in lockstep) is a real, nontrivial research problem, not a
-  glue task — the pragmatic near-term path is **one-way coupling**: a Modelica/FMU wind-turbine model
-  produces a slower power-output trajectory (aerodynamics, pitch control, rotor-speed dynamics — all
-  genuinely RMS-timescale phenomena), which becomes a boundary-condition input to DPsim's EMT solve,
+  Modelica implementation of IEC 61400-27-1:2020 Type 4 exists (Carbonell, Cardozo, Cossart, Prévost,
+  Torresan, Guiu — all RTE-France — *Electric Power Systems Research*, 2023,
+  [S0378779622004953 on ScienceDirect](https://www.sciencedirect.com/science/article/abs/pii/S0378779622004953),
+  validated against OpenModelica and Dynaωo). **Its source is public, and was located this session**:
+  it lives in RTE's own [`dynawo/dynawo`](https://github.com/dynawo/dynawo) repository (MPL-2.0
+  licensed, confirmed via `gh api repos/dynawo/dynawo/license`) — not a standalone repo of the
+  authors', but folded into Dynaωo's own Modelica model library, which is exactly what "validated
+  against Dynawo" meant: the authors *are* the Dynaωo team, and this model is a first-class part of
+  Dynaωo's shipped library, not an external contribution to it. Confirmed live at HEAD via
+  `gh api repos/dynawo/dynawo/contents/...`: the Type 4A/4B, 2015/2020-edition models sit at
+  `dynawo/sources/Models/Modelica/Dynawo/Electrical/Wind/IEC/WT/WT4ACurrentSource2020.mo` and
+  `WT4BCurrentSource2020.mo` (plus `2015.mo` variants), with supporting control blocks under
+  `dynawo/sources/Models/Modelica/Dynawo/Electrical/Controls/IEC/IEC61400/` and the wind-power-plant
+  layer under `.../Electrical/Wind/IEC/WPP/`. Full public URL for the exact model this PRD would use:
+  `https://github.com/dynawo/dynawo/blob/master/dynawo/sources/Models/Modelica/Dynawo/Electrical/Wind/IEC/WT/WT4ACurrentSource2020.mo`.
+  This resolves the "not located" open question below outright — no fallback wind model is needed.
+  Separately, and more fundamentally: IEC 61400-27 models are explicitly scoped for RMS/positive-sequence
+  stability studies, not the 200µs-timestep EMT domain Lab 5 actually runs. A literal live co-simulation
+  coupling (Modelica RMS solver ↔ DPsim EMT solver, in lockstep) is a real, nontrivial research problem,
+  not a glue task — the pragmatic near-term path is **one-way coupling**: a Modelica/FMU wind-turbine
+  model produces a slower power-output trajectory (aerodynamics, pitch control, rotor-speed dynamics —
+  all genuinely RMS-timescale phenomena), which becomes a boundary-condition input to DPsim's EMT solve,
   not a jointly-solved system.
-- **A generic Modelica MCP server already exists, unrelated to Power-Agent.**
-  [`Orthogonalpub/modelica_simulation_mcp_server`](https://github.com/Orthogonalpub/modelica_simulation_mcp_server)
-  is a public, general-purpose (not power-specific) MCP server for running Modelica simulations.
-  OpenModelica itself has an open GitHub issue proposing a built-in MCP server in its OMEdit GUI —
-  not yet shipped as of this session. Neither has been installed or exercised here; both are Phase 0
-  candidates, not confirmed working paths.
+- **`Orthogonalpub/modelica_simulation_mcp_server` currently (HEAD) contains zero installable code —
+  it is marketing for a proprietary cloud SaaS, not an MCP server you can run today.** Cloned it
+  directly to a scratch directory and inspected the full history (`git log --all`, 89 commits,
+  2025-04-13 through 2025-07-13, HEAD `53dae484`): the repo *did* carry real installable source
+  early on — `main.py` (a `FastMCP`-based server proxying a websocket connection to a hardcoded local
+  Orthogonal instance), `pyproject.toml`, and `install.py`/`install_orthogonal_mcp_server.py`, present
+  from the `118407e` "Initial commit" through commit `0de540a` ("update", 2025-05-23) — but commit
+  `0de540a` itself deleted all four of those files (608 lines removed) with no replacement, and every
+  commit since (through today's HEAD) only ever adds/edits `README.md`, `LICENSE` (MIT), and four
+  screenshot PNGs. So the "no installable code" finding is accurate for what a Phase 0 evaluator
+  would `git clone` today, but not for the repo's full history — the early source existed, was
+  primitive (hardcoded local IP, embedded auth token, no packaging beyond a bare `pyproject.toml`),
+  and was deliberately stripped out and replaced with a marketing page. The current README documents
+  "ODE — a new Modelica IDE" and a cloud MCP bridge to it, gated behind creating an account and API
+  token at `www.orthogonal.dev` ("orthogonal supersystems GmbH") — "secure cloud execution," not a
+  local server. There is nothing to install or exercise against a trivial model at HEAD; the repo
+  today is not a distribution of software, it is a landing page hosted as a GitHub repo. This directly
+  resolves Phase 0's "is it genuinely usable, or just documented" question for present-day use: it is
+  neither genuinely usable *nor* documentation of anything runnable — it's a product pitch with a
+  signup wall, unrelated to this PRD's "compose, don't vendor" open-source
+  discipline. **OpenModelica's own built-in MCP server has, in fact, shipped since the prior
+  session's check.** GitHub issue
+  [`OpenModelica/OpenModelica#15385`](https://github.com/OpenModelica/OpenModelica/issues/15385)
+  ("Implement MCP server for OMEdit interaction with chatbots") was closed as **completed** on
+  2026-06-17 — confirmed via `gh issue view 15385 --json state,stateReason` returning
+  `{"state":"CLOSED","stateReason":"COMPLETED"}`. Its own body describes a working prototype
+  (Linux-only so far) that can list/set component parameters, simulate and re-simulate, read GUI
+  state, and read/write Modelica code directly, driven from OMEdit. Follow-on development continues
+  in the still-open
+  [`#15854`](https://github.com/OpenModelica/OpenModelica/issues/15854). This session did not install
+  OMEdit or exercise its MCP server directly (that requires the OMEdit GUI application, not a
+  pip-installable package, and doing so is Phase-0-scale exploration for a later session, not this
+  one) — the "shipped, not vaguely proposed" status is the concrete, previously-missing fact. Net:
+  **the Orthogonalpub path is a dead end; OpenModelica's own built-in MCP server is the real
+  candidate for Phase 4**, if that phase is ever reached.
 - **Negative Imaginary (NI) systems theory is real, established, and directly applied to
   grid-forming inverter control.** NI theory is a robust-control framework originally developed for
   vibration suppression in flexible structures with collocated sensor/actuator pairs — the same
@@ -215,12 +293,29 @@ rather than a bare fault on a passive network.
 - **Does the cable-length delay-compensation idea actually help, or is a simple fast PI/VSM loop
   already good enough that the extra complexity buys nothing measurable?** Phase 2 exists specifically
   to answer this with a real comparison, not to assume the idea works because it sounds plausible.
-- **Where does the IEC 61400-27 Modelica implementation's source actually live**, if it's public at
-  all — Phase 0's first concrete task.
-- **Is `AvVoltageSourceInverterDQ`'s PLL-based design actually swappable/bypassable for a grid-forming
+- ~~Where does the IEC 61400-27 Modelica implementation's source actually live, if it's public at
+  all — Phase 0's first concrete task.~~ **Resolved.** It lives in RTE's own `dynawo/dynawo` GitHub
+  repository (MPL-2.0), as part of Dynaωo's shipped Modelica library, not a standalone repo — see
+  `WT4ACurrentSource2020.mo`/`WT4BCurrentSource2020.mo` under
+  `dynawo/sources/Models/Modelica/Dynawo/Electrical/Wind/IEC/WT/`. No fallback wind model is needed;
+  Phase 4 (if reached) has a real source to point at.
+- ~~Is `AvVoltageSourceInverterDQ`'s PLL-based design actually swappable/bypassable for a grid-forming
   mode at the Python-binding level, or does grid-forming control genuinely require the
-  `ControlledVoltageSource`-plus-hand-built-control-law path this PRD assumes?** Worth a quick spike
-  against DPsim's actual C++ source before committing to the harder path.
+  `ControlledVoltageSource`-plus-hand-built-control-law path this PRD assumes?~~ **Resolved, from the
+  real C++ source, not the Python bindings alone.** `with_control(bool)` is an unrelated open-loop
+  bypass flag (gates whether the controller's computed reference is written to the sub voltage source
+  each step — see `EMT_Ph3_AvVoltageSourceInverterDQ.cpp:446-447`), not a mode switch — the PLL design
+  is not swappable at the binding level. However, DPsim's upstream `master` (commit `0aa1ab99`,
+  2026-07-09, five weeks before this session) added a real alternative component,
+  `EMT::Ph3::VSIVoltageControlVCO`, that replaces the PLL with a self-clocked `Signal::VCO` — the
+  structural definition of grid-forming — but it is plain-PI voltage control, not droop/VSM (no
+  P–f coupling, no swing-equation/inertia term anywhere in `Signal/`). It is not in this repo's
+  installed `dpsim==1.2.1` (confirmed: `'VSIVoltageControlVCO' in dir(dpsimpy.emt.ph3)` is `False`)
+  and was not built from source this session (out of scope for Phase 0). Net: for VSM/droop
+  specifically, the PRD's original assumption stands — `ControlledVoltageSource` plus a hand-built
+  swing-equation control law is still the only path, in both the released and unreleased DPsim source.
+  `VSIVoltageControlVCO` is worth a look as lighter-weight prior art *if* this repo's `dpsim` pin is
+  ever bumped, but is not a substitute for the VSM math Goal 1 actually needs.
 - **Single-controller vs. multi-controller scope**: this PRD assumes one stabilizer at one bus for
   Phase 1. Whether SPARTAN's "distributed emergency response coordinator" framing implies multiple
   cooperating stabilizers (a genuinely harder, later problem) is explicitly deferred, not decided here.
