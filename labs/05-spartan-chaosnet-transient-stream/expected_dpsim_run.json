@@ -13,5 +13,7 @@
   "sag_percent": 16.44,
   "max_abs_v": 35760.646,
   "converged": true,
-  "stabilizer_active": false
+  "stabilizer_active": false,
+  "delay_compensation_active": false,
+  "propagation_delay_s": 0.0
 }
