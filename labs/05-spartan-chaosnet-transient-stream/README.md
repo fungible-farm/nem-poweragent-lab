@@ -36,6 +36,72 @@ the same "deterministic scripting" discipline (a readable fault schedule, not a 
 composed, not hand-built, tooling) applied to generating labeled stress-test data for an edge
 anomaly detector, rather than to an LLM-agent workflow.
 
+## SPARTAN's corrective-action half: the grid-forming stabilizer (PRD-0005 Phase 1)
+
+Every other view in this lab implements the "classify/log/alert" half of SPARTAN's own stated
+design (a micro-PMU-based distributed emergency response coordinator). `grid_forming.py`
+(`docs/prd/0005-grid-forming-stabilizer-and-renewable-models.md` Phase 1) is the other half: it
+actively injects a compensating voltage at the fault bus and measures, for real, whether it helps.
+
+**Honest scope**: this is the conventional VSM/PID fallback the PRD explicitly allows, not the
+Negative-Imaginary (NI) systems-theoretic controller it names as the first choice — fitting DPsim's
+real `ControlledVoltageSource` plant to NI's sign/phase conditions is a genuinely open feasibility
+question this phase did not attempt to resolve rigorously (see `grid_forming.py`'s own module
+docstring for why). What is kept from the PRD's framing: the controller's angle/frequency state
+obeys the same second-order swing-equation structure DPsim's own `SynchronGenerator*VBR` models use
+(inertia + damping opposing a measured power imbalance), with a separate voltage-magnitude droop
+loop — the same "swing equation + exciter" shape a real synchronous generator model has, driving
+`ControlledVoltageSource` instead of a literal rotating machine.
+
+**Circuit placement**: a shunt-connected voltage-behind-impedance source (like a real STATCOM/DVR),
+coupled through a small series R+jX filter to the fault bus itself — the same bus
+`chaosnet.fault_adjacent_line_name()`/`fault_adjacent_lines` already identify, reused rather than
+re-derived. Sensor and actuator are collocated at that one bus (the shape NI theory itself targets,
+and also the standard real-world STATCOM/DVR placement — support the bus that's actually sagging).
+
+**Real measured result** (seed 42, `chaos_schedule.yaml`'s committed SUB-3 fault, `1.0 MVA`-rated
+device, `grid_forming.py --step run`): peak positive-sequence sag depth (`phase_model`'s
+`phasor_frames()`/`positive_sequence()`, a stricter measure than `run_dpsim.py`'s own RMS-window
+`sag_percent`) went from **16.62% (baseline) to 16.42% (stabilized)** — a real, reproducible
+**+0.20 percentage-point (≈1.2% relative) reduction**, not an assumed or tuned-to-a-target number.
+Recovery time (time after fault clearance until |V1| settles within 2% of its pre-fault level) was
+identical in both runs (~0.0104s) — the stabilizer's droop correction is small enough here that it
+doesn't measurably change how fast the network itself recovers once the fault clears. Peak RoCoF
+(derived from the same |V1| phasor's unwrapped phase angle) was ~9999–10000 Hz/s in *both* runs,
+nearly identical with/without the stabilizer — see the honesty note below for why this number is not
+a real frequency-stability measurement.
+
+**Why the effect is small, reported honestly rather than tuned away**: this network's fault switch
+is a 0.5 Ω near-bolted short directly at the same bus the stabilizer is coupled to. By simple
+voltage-divider reasoning, the parallel combination of a 0.5 Ω short and a source sitting behind the
+stabilizer's own ~4+j40 Ω coupling filter is dominated by the 0.5 Ω path almost regardless of how
+hard the controller drives its commanded EMF — most of the stabilizer's injected current splits
+through the fault itself rather than raising the bus voltage. This is a real, physically-grounded
+structural limit of a single-feeder-scale shunt device fighting a low-impedance bolted-through fault
+at its own terminal, not a controller-tuning failure — it is also why real-world Dynamic Voltage
+Restorers are usually connected in *series*, not shunt, when the job is specifically to block a
+bolted fault's propagation (Phase 2's cable-length delay-compensation work and any future series-
+compensation variant are the natural next step here, not attempted in this phase).
+
+**RoCoF honesty note**: this network has one ideal, fixed-frequency `NetworkInjection` source and
+otherwise only passive RLC branches — there is no rotating-mass/generator dynamics for a genuine
+system-frequency excursion to occur against. The ~10,000 Hz/s figure above is an *apparent* RoCoF
+from the DFT-estimated fundamental's phase jitter right at the fault-switching instant (where the
+one-cycle window briefly spans a near-discontinuity), not evidence of a real frequency event —
+included because it's a real, reproducible number derivable from the existing phasor machinery
+(the PRD's own instruction: check what's computable before building new machinery), reported for
+what it actually is rather than oversold.
+
+**Never claimed**: this controller does not eliminate, nullify, or remove the transient — it
+measurably shrinks its peak depth by a modest, real, honestly-reported percentage, for the
+physically-grounded reason above. `docs/prd/0005-...md`'s Non-goals name this explicitly; this
+section follows it.
+
+`grid_forming.py --step run` (or `just lab5-stabilizer`) re-runs both configurations and writes
+`dpsim_transient_log_stabilized.json` and `stabilizer_comparison.json` (both gitignored, regenerated
+every run — the latter is the real before/after numbers in a form a later phase, e.g. Phase 1.5's
+EMT→OPF headroom translation, can consume without re-running the simulation).
+
 ## Sandbox notes (read this before the walkthrough)
 
 Unlike Labs 1–4, this sandbox actually has everything the full spec calls for: `podman` (5.4.2),
@@ -192,6 +258,10 @@ uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --node sub-3-t
 podman kube play --down kube/villasnode-tap-pod.yaml
 
 uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check
+
+uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step run
+uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
+
 uv run python -m pytest labs/05-spartan-chaosnet-transient-stream/ -v
 ```
 
@@ -269,6 +339,11 @@ every run, same pattern as Labs 1–4's fetched/derived data).
   plot does. `run_dpsim.py`'s `bus_voltages` capture (same backlog item) taps every bus in
   `dsys["nodes"]`, not just the fault bus.
 - `chaos_schedule.yaml` — the committed fault schedule (one line-to-ground fault at SUB-3).
+- `grid_forming.py` — PRD-0005 Phase 1's grid-forming transient stabilizer (see the dedicated
+  section above): the VSM/PID-style control law, the DPsim circuit-splicing helper
+  (`add_stabilizer_to_system()`), and the baseline-vs-stabilized comparison driver
+  (`run_comparison()`/`--step run`/`--step check`). Writes `dpsim_transient_log_stabilized.json`
+  and `stabilizer_comparison.json` (both gitignored, regenerated every run).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed

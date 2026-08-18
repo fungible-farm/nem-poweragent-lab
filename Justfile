@@ -106,6 +106,7 @@ check-lab4:
 check-lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py
     uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check
+    uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -163,6 +164,13 @@ view-lab5-rates:
 # (sample_spectrogram.png, committed -- docs/backlog/0006 option 3).
 view-lab5-spectrogram:
     uv run python labs/05-spartan-chaosnet-transient-stream/view_spectrogram.py
+
+# PRD-0005 Phase 1: run chaos_schedule.yaml's real fault twice -- once with
+# the grid-forming stabilizer off, once on -- and print/write the real
+# measured before/after mitigation (peak sag, recovery time, RoCoF) to
+# stabilizer_comparison.json (gitignored, regenerated every run).
+lab5-stabilizer:
+    uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step run
 
 # --- Lab 5 VILLASnode stream tap (real podman pod, see README "Sandbox
 # notes" 4-6 and kube/villasnode-tap-pod.yaml's own header) ------------------

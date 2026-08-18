@@ -180,6 +180,7 @@ class DpsimRunSummary(TypedDict):
     sag_percent: float
     max_abs_v: float
     converged: bool
+    stabilizer_active: bool
 
 
 def _rms(values: list[float]) -> float:
@@ -261,9 +262,23 @@ def run_step(
     seed: int = DEFAULT_SEED,
     countdown_seconds: int = FAULT_COUNTDOWN_SECONDS,
     verbose: bool = True,
+    stabilizer: bool = False,
+    output_log_path: Path = TRANSIENT_LOG_JSON,
+    write_villas_csv: bool = True,
 ) -> DpsimRunSummary:
     """Run the real DPsim EMT solve against chaos_schedule.yaml's scheduled
     events.
+
+    `stabilizer` (PRD-0005 Phase 1) wires `grid_forming.py`'s grid-forming
+    stabilizer into the *primary* fault target's bus before the solve
+    starts (`grid_forming.add_stabilizer_to_system()` rebuilds
+    `dsys["system"]` to include it -- see that module's docstring for why a
+    fresh SystemTopology is required), then drives its `V_ref` every EMT
+    timestep from the same fault-bus voltage tap this function already
+    reads for `dpsim_transient_log.json`, plus the stabilizer's own
+    coupling-branch current. False (default) reproduces today's exact
+    baseline physics/output -- nothing about the non-stabilizer path
+    changes.
 
     Every time-triggered event in the schedule is now fired (looped, not
     hard-picked at index 0) -- the generalization
@@ -295,6 +310,15 @@ def run_step(
             FAST_COUNTDOWN_SECONDS from check_step() to skip it.
         verbose: if True, print the walkthrough's documented progress
             lines.
+        stabilizer: if True, activate the PRD-0005 Phase 1 grid-forming
+            stabilizer at the primary fault target's bus.
+        output_log_path: where to write the per-timestep transient log
+            (default TRANSIENT_LOG_JSON, today's exact baseline path).
+            `grid_forming.run_comparison()` passes a distinct path for the
+            stabilized run so it never clobbers the baseline log/fixture.
+        write_villas_csv: if True, also write the VILLASnode-format CSV
+            (default True, matching today's behaviour). Skipped for
+            non-default comparison runs that don't need a VILLASnode tap.
 
     Returns:
         A DpsimRunSummary of this run.
@@ -342,6 +366,28 @@ def run_step(
         )
     )
     dsys = chaosnet.to_dpsim_emt_system(topology, fault_targets)
+
+    # PRD-0005 Phase 1: splice the grid-forming stabilizer into `dsys` at
+    # the primary target's bus *before* building the Simulation, so
+    # sim.set_system() below picks up the rebuilt SystemTopology
+    # (grid_forming.add_stabilizer_to_system() mutates dsys["system"] in
+    # place -- see that module's docstring for why a full rebuild, not an
+    # incremental add, is required).
+    stab_handles = None
+    stabilizer_ctrl = None
+    if stabilizer:
+        import grid_forming
+
+        stab_handles = grid_forming.add_stabilizer_to_system(dsys, topology, target)
+        stabilizer_ctrl = grid_forming.GridFormingStabilizer(
+            nominal_peak_v=stab_handles["peak_v"], time_step_s=TIME_STEP_S,
+        )
+        if verbose:
+            print(
+                f"[stabilizer] active at {target}'s bus: rating="
+                f"{grid_forming.STABILIZER_RATING_MVA:.1f} MVA, coupling="
+                f"{stab_handles['r_ohm']:.3f}+j{stab_handles['x_ohm']:.3f} ohm"
+            )
 
     if verbose:
         print(f"EMT solve running at {TIME_STEP_S * 1e6:.0f}us timestep")
@@ -415,6 +461,15 @@ def run_step(
         for bus_idx, node in dsys["nodes"].items()
     }
 
+    # PRD-0005 Phase 1: the stabilizer's own coupling-branch current tap,
+    # same derive_coeff(p, 0) pattern as every other current tap above --
+    # what GridFormingStabilizer.step() reads each timestep to measure the
+    # active power flowing into the bus it's supporting.
+    stab_current_phase_attrs: list | None = None
+    if stabilizer:
+        stab_i_attr = stab_handles["coupling"].attr("i_intf")
+        stab_current_phase_attrs = [stab_i_attr.derive_coeff(p, 0) for p in range(3)]
+
     # Optional condition-triggered generators (PRD-0001 Goal 3). Empty for
     # today's chaos_schedule.yaml, so every block gated on
     # `pending_generators`/`condition_triggered` below is a no-op on the
@@ -487,6 +542,16 @@ def run_step(
             series["vb"].append(bb)
             series["vc"].append(bc)
 
+        # PRD-0005 Phase 1: drive the stabilizer's V_ref from this step's
+        # own fault-bus voltage tap (va/vb/vc above) and its coupling
+        # branch current -- the write here takes effect on the *next*
+        # sim.next() call, an honest one-EMT-step (200us) digital-control
+        # actuation delay, not an instantaneous/ideal correction.
+        if stabilizer:
+            ia_s, ib_s, ic_s = (a.get() for a in stab_current_phase_attrs)
+            v_ref = stabilizer_ctrl.step(t, va, vb, vc, ia_s, ib_s, ic_s)
+            stab_handles["source"].attr("V_ref").set(v_ref)
+
         if pending_generators:
             for tgt, attrs in cond_phase_attrs.items():
                 ca, cb, cc = (a.get() for a in attrs)
@@ -541,6 +606,7 @@ def run_step(
         ),
         "max_abs_v": round(float(all_abs.max()), 3),
         "converged": bool(np.isfinite(all_abs).all()),
+        "stabilizer_active": stabilizer,
     }
 
     if verbose:
@@ -552,10 +618,11 @@ def run_step(
             f"finite={summary['converged']}"
         )
 
-    _write_villas_csv(
-        times, {"va": va_series, "vb": vb_series, "vc": vc_series}, VILLAS_STREAM_CSV
-    )
-    TRANSIENT_LOG_JSON.write_text(
+    if write_villas_csv:
+        _write_villas_csv(
+            times, {"va": va_series, "vb": vb_series, "vc": vc_series}, VILLAS_STREAM_CSV
+        )
+    output_log_path.write_text(
         json.dumps(
             {
                 "times": times,
@@ -573,19 +640,34 @@ def run_step(
                 "trigger_time_s": trigger_s,
                 "clear_time_s": clear_s,
                 "target": target,
+                "stabilizer_active": stabilizer,
             }
         )
     )
     if verbose:
-        print(
-            f"[stream] wrote {VILLAS_STREAM_CSV.relative_to(LAB_DIR)} "
-            f"(VILLASnode file-node format, {num_samples} samples) and "
-            f"{TRANSIENT_LOG_JSON.name} "
+        stream_msg = (
+            f"[stream] wrote {output_log_path.name} "
             f"({len(bus_voltage_series)} buses x 3 phases x {num_samples} "
             "samples in bus_voltages, docs/backlog/0006 option 4)"
         )
+        if write_villas_csv:
+            stream_msg = (
+                f"[stream] wrote {VILLAS_STREAM_CSV.relative_to(LAB_DIR)} "
+                f"(VILLASnode file-node format, {num_samples} samples) and "
+                f"{output_log_path.name} "
+                f"({len(bus_voltage_series)} buses x 3 phases x {num_samples} "
+                "samples in bus_voltages, docs/backlog/0006 option 4)"
+            )
+        print(stream_msg)
 
-    if schedule_path.resolve() == DEFAULT_SCHEDULE_FILE.resolve() and seed == DEFAULT_SEED:
+    # Only overwrite the committed fixture for the exact baseline case this
+    # fixture describes: default schedule/seed *and* stabilizer off -- a
+    # stabilized comparison run must never clobber expected_dpsim_run.json.
+    if (
+        schedule_path.resolve() == DEFAULT_SCHEDULE_FILE.resolve()
+        and seed == DEFAULT_SEED
+        and not stabilizer
+    ):
         EXPECTED_FILE.write_text(json.dumps(summary, indent=2))
 
     return summary
@@ -645,10 +727,14 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--step", choices=["run", "check"], default="run")
+    parser.add_argument(
+        "--stabilizer", action="store_true",
+        help="activate the PRD-0005 Phase 1 grid-forming stabilizer (see grid_forming.py)",
+    )
     args = parser.parse_args()
 
     if args.step == "run":
-        run_step(args.schedule, seed=args.seed)
+        run_step(args.schedule, seed=args.seed, stabilizer=args.stabilizer)
     elif args.step == "check":
         ok = check_step()
         sys.exit(0 if ok else 1)

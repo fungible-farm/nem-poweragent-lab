@@ -12,5 +12,6 @@
   "post_fault_rms_v": 9885.91,
   "sag_percent": 16.44,
   "max_abs_v": 35760.646,
-  "converged": true
+  "converged": true,
+  "stabilizer_active": false
 }
