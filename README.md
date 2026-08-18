@@ -21,6 +21,9 @@ laptop-portable core and an optional hardware-validated extension.
 **Then: [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)** for the checklist this repo
 is being built against.
 
+**Governance: [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md)** — the golden-path licensing policy and the
+"one waveform state machine generates every view" principle for Australian NEM capability.
+
 ## Install
 
 ```
@@ -37,6 +40,81 @@ real `pandapower.runpp()` through the MCP pod, printing a final `PASS`/`FAIL` li
 this build machine: **~43s on a re-run** with everything already cached, **~4m30s** on a fully
 cold run (dominated by the one-time ~2.3GB GGUF download over this machine's link — see
 `docs/VISION.md` §10 for the full step list).
+
+`install.sh` also best-effort installs the demo/display tools `mpv` + `chafa` (step 7; non-fatal —
+the labs don't need them). The canonical per-command path is the scoped-sudoers authorized-script
+boundary: `scripts/deploy_demo_tools.sh` is the only NOPASSWD root surface (granted by
+`scripts/sudoers.d/nem-poweragent-lab` via `just authorize`), and `just deploy` runs it as root
+with no password anywhere.
+
+**`just --list` is the canonical command index** — `just sync`, `just fetch`, `just test`,
+`just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and
+the zero-file-transfer display recipes `just peek <chart>` (chafa, in-terminal) and
+`just watch <anim>` (mpv, windowed over WSLg/ssh -X, or `just watch-tct` in-terminal).
+
+## Connecting to the MCP servers
+
+Two MCP servers exist in this repo, for two different consumers. If you're a codeworker (human or
+agent) picking this repo up cold, read this section before either one.
+
+**`codebase-memory` — for you, the codeworker, to explore this repo.** Registered in `.mcp.json`,
+launched over stdio by any MCP-aware client (Claude Code and similar) from `codebase-memory-mcp`
+on `PATH`. It's dev tooling for working *on* this codebase, not part of any lab: use its
+`search_graph` / `trace_path` / `get_code_snippet` / `query_graph` tools for structural questions
+("who calls this function", "what does Lab 2's workflow import") instead of grepping cold. See the
+`codebase-memory` skill for query syntax. If `list_projects` fails, the handshake env is wrong —
+see `AGENTS.md`'s troubleshooting table.
+
+**`powermcp-pandapower` — the lab's own MCP tool server**, the "Model Context Protocol" pillar the
+PowerAgent paper (see Citation, below) names — pandapower power-flow tools (`run_power_flow`,
+`run_contingency_analysis`, `load_network_from_any`, …) exposed over streamable-HTTP, not stdio.
+`./install.sh` brings it up automatically; standalone:
+
+```
+podman build -t powermcp-pandapower:local -f Containerfile.powermcp .
+podman kube play kube/powermcp-pandapower-pod.yaml   # mounts data/ at /data (read-only), port 8001
+```
+
+Then connect with any MCP client — here, the official `mcp` Python SDK:
+
+```python
+import asyncio, json
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def main():
+    async with streamablehttp_client("http://127.0.0.1:8001/mcp") as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            print([t.name for t in (await s.list_tools()).tools])
+            await s.call_tool("load_network_from_any", {"file_path": "/data/snemSA.m"})
+            res = await s.call_tool("run_power_flow", {})
+            print(json.loads(res.content[0].text)["status"])
+
+asyncio.run(main())
+```
+
+Tear down with `podman kube play --down kube/powermcp-pandapower-pod.yaml`. Full verified session
+(real tool list, real solve output) and the one named transport limitation
+(`powermcp run pandapower`'s shipped CLI only speaks stdio, so this pod runs a small committed
+wrapper instead — no upstream PowerMCP source modified) are in `kube/README.md`.
+
+**Honesty check before you assume a lab calls this pod: it doesn't, yet.** The pod is real,
+built, and independently verified reachable (`kube/README.md`), but Labs 1-3's own scripts still
+use in-process pandapower calls as their MCP-tool-call stand-in — rewiring them to dial the pod
+above is a named, undone follow-up (see "Status" below), not a hidden gap.
+
+**Every lab has its own case data and its own real-vs-stand-in pattern** — don't assume Lab 1's
+shape generalizes. Skim the table, then read that lab's own README "Sandbox notes" section before
+working in it:
+
+| Lab | Case data | MCP / demo pattern |
+| --- | --- | --- |
+| `01-simple-loadflow-fit` | CSIRO `snemSA.m` | in-process `pandapower` calls stand in for the MCP tool call |
+| `02-medium-interconnection-screening` | CSIRO `snem1803.m` | same stand-in, plus a real concurrent N-1 contingency screen |
+| `03-advanced-provider-bakeoff` | CSIRO `snem1803.m` | 3 deterministic local policies stand in for LLM providers; scoring is real |
+| `04-aemo-digital-twin-reconciliation` | CSIRO `snemSA.m` + a real live NEMWeb MMS pull via NEMOSIS | real `pandapower.runpp()` reconciliation, no stand-ins |
+| `05-spartan-chaosnet-transient-stream` | procedurally generated SimBench chaos-net topology | real DPsim EMT solve + real VILLASnode pod, no stand-ins |
 
 ## Status
 
@@ -62,7 +140,8 @@ and why.
 - `labs/01-simple-loadflow-fit/` — **implemented.** Single-agent load-flow parameter fit against
   real CSIRO `snemSA.m` data.
 - `labs/02-medium-interconnection-screening/` — **implemented.** Sequential + genuinely-concurrent
-  N-1 contingency screen against real CSIRO `snem1803.m` data, with a human-in-the-loop memo gate
+  N-1 contingency screen against real CSIRO `snem1803.m` data, a committed
+  `sample_contingency_chart.png` rendering the limit checks, and a human-in-the-loop memo gate
   that actually blocks.
 - `labs/03-advanced-provider-bakeoff/` — **implemented.** 3 task families × 3 provider stand-ins +
   a non-agentic forecasting-baseline row, scored into a diffable `expected_scorecard.json` fixture.

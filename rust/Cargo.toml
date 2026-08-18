@@ -1,0 +1,3 @@
+[workspace]
+members = ["phase-model", "demo-app"]
+resolver = "2"

@@ -1,7 +1,12 @@
 # 0001 — No lab renders a topology diagram or a results chart
 
-- **Status:** partially done — free-tier charts landed for Labs 3, 4, and 5 (via 0003/0004);
-  Lab 2's contingency chart is still open.
+- **Status:** done — charts landed for Labs 2, 3, 4, and 5 (0002's free tier via 0003/0004, plus
+  this item's Lab 2 contingency screen); Lab 1's visual evidence was already committed
+  (`animate_convergence.py`/`.mp4`, `git log --oneline -- labs/01-simple-loadflow-fit/
+  animate_convergence.py` shows this landed before this status line was last written — the
+  "Lab 1's visual" gap below was stale); item 2's `pandapower.plotting` miss is now closed too,
+  via Lab 1's `run.py` `_plot_network()` / `sample_network_chart.png` (buses colored by real
+  solved voltage, TARGET_BUS highlighted — see that lab's README "Files" section).
 - **Found:** 2026-08-01, auditing the repo after all 5 labs were already marked "implemented" in
   `AGENTS.md`.
 - **Linked as vision:** this item is referenced from `docs/VISION.md` §13 "Known gaps / backlog" —

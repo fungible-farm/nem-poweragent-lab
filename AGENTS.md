@@ -11,24 +11,37 @@ network model (CSIRO's Synthetic-NEM-2000-Bus dataset), intended to run on local
 components only (`pandapower`, `powerio`, `agent-framework`, `llama.cpp`, `podman kube play`). See
 the root `README.md` for current per-lab status.
 
-## Known sandbox network restrictions
+## Capabilities & access (per agent/skill context, not one global truth)
 
-Confirmed by hand (via `curl` and `/root/.ccr/__agentproxy/status`), not assumed: this sandbox's
-egress policy returns 403 ("destination host not allowed," an organization policy denial, not a
-transient failure — do not retry or route around it) for **`nemweb.com.au`** and for **`github.com`
-itself**. `raw.githubusercontent.com` and `pypi.org` *are* reachable, which is how
-`scripts/fetch_csiro_nem_data.py` and Lab 4's real DUID data both work despite this. Practically:
+Egress and tool availability are tracked **per agent/skill context** — there is no single rule
+that holds for every session. Two governing rules:
 
-- Any AEMO NEMWeb pull (NEMOSIS's `dynamic_data_compiler()`, for instance) cannot reach live data
-  here — pip-installing the library still works (PyPI), calling it does not.
-- Any third-party GitHub repo you'd otherwise `pip install git+https://github.com/...` or browse
-  via `api.github.com`/`github.com` is unreachable; only exact `raw.githubusercontent.com/<owner>/
-  <repo>/<ref>/<path>` file fetches work, and only if you already know the path (no directory
-  listing).
+1. **A tool that doesn't work in your session is an environment mismatch for that context.** Name
+   the exact tool/host to the user and stop. Do NOT silently retry, route around it, or fold the
+   failure into a repo-wide rule.
+2. **A tool/host that works when the table below says otherwise is a session observation, not a
+   policy change.** Re-verify before relying on it, report it to the user, and never rewrite the
+   table from a single run.
 
-Don't re-discover this by trial and error on a future change — assume it's still true, name the
-specific host you tried in any new "sandbox stand-in" docstring, and follow the pattern already
-used in `labs/04-aemo-digital-twin-reconciliation/reconcile.py`.
+### Capability matrix
+
+| Capability | Context | Expected access / tooling | Mismatch → action |
+|---|---|---|---|
+| AEMO NEMWeb pull (`nemosis.dynamic_data_compiler`) | any lab agent | blocked — 403 org-policy denial, hand-confirmed via `curl` + `/root/.ccr/__agentproxy/status` | 403 / connection error → inform user; do not retry or route around |
+| CSIRO case fetch (`scripts/fetch_csiro_nem_data.py`) | any lab agent | `raw.githubusercontent.com` reachable (this is how Lab 4's real DUID data works) | fetch fails → env mismatch → inform user |
+| PyPI / `uv sync` / `uv run` | any lab agent | `pypi.org` reachable; `uv` installed | `uv sync` fails → env mismatch → inform user |
+| `github.com` / `gh` / `git` | any lab agent | session-dependent (documented baseline: blocked; observed reachable once, 2026-08-02) | `gh`/`git`/`curl` fails → env mismatch → inform user |
+| `crates.io` (`cargo install`) | any lab agent | blocked — 403 (observed 2026-08-02) | install fails → env mismatch → inform user |
+| codebase-memory skill | `codebase-memory` skill | `codebase-memory-mcp` on PATH, registered in repo `.mcp.json` | handshake / `list_projects` fails → env mismatch → inform user |
+| demo display (`just peek` / `just watch`) | demo/display workflow | `chafa` + `mpv` on PATH (install.sh step 7 / `just deploy`) | `command -v` empty → run `just deploy` or inform user |
+| animation render (`just render`) | demo workflow | system `ffmpeg` | ffmpeg missing → env mismatch → inform user |
+| pods / `podman kube play` | Labs 1-5 golden path | `podman` installed | missing → `install.sh` refuses by design (documented) |
+
+Provenance: the `nemweb.com.au` row is org policy, confirmed by hand (not assumed). The
+`github.com` / `crates.io` rows are live session observations — exactly the kind of thing that can
+differ per agent/blessing. In any new "sandbox stand-in" docstring, name the specific host you
+tried (follow the pattern in `labs/04-aemo-digital-twin-reconciliation/reconcile.py`) rather than
+citing this table as a policy guarantee.
 
 ## Package management: `uv` only
 
@@ -41,6 +54,10 @@ uv run python -m pytest labs/  # run the test suite
 ```
 
 ## Running the labs
+
+**Canonical commands live in the root `Justfile` — `just --list` is the index** (install, sync,
+fetch, proof, test, per-lab check gates, per-lab walkthrough steps, animation render, and the
+`peek`/`watch` display recipes). The equivalent bare commands, for reference:
 
 ```
 uv run scripts/fetch_csiro_nem_data.py   # once: fetch + checksum-verify CSIRO case data into data/
@@ -94,6 +111,11 @@ result on a clean checkout is.
   real case file already covers the need. Physics results (voltages, loadings, convergence) must
   come from an actual `pandapower.runpp()` call, never be fabricated or hard-coded to look
   plausible.
+- **Golden-path licensing (PSCADOSSE):** the golden path prefers foundational, OSI-approved,
+  permissive components (Apache-2.0 / MIT / BSD), foundation-backed where possible — see
+  `docs/PSCADOSSE.md` for the policy and the verified license map (incl. the DPsim/MPL-2.0
+  exception and the "copyleft display CLIs are fine — they're not API surface" distinction).
+  Record a new dependency's license at the point of adoption.
 - **No `b00t` dependency, no commercial power-system engines on the golden path, no cloud LLM API
   keys anywhere.** See `docs/DEFINITION_OF_DONE.md` "Governance / non-goals held" for the full list.
 
@@ -108,6 +130,16 @@ result on a clean checkout is.
   `docs/backlog/README.md` and pointed to from `docs/VISION.md` §13.
 - `labs/_shared/gridfit.py` — shared powerio->pandapower loading and the bisection search helper
   used by Labs 1 and 3.
+- `labs/_shared/scenario_engine/` — the composable `Generator`/`Detector` platform
+  (`docs/prd/0001-composable-generator-detector-platform.md`): `generators.py`/`detectors.py`
+  (the two Protocols plus five concrete classes each), `scenario.py` (schedule DAG extension +
+  `run_scenario()` driver), `scoring.py` (two-section PASS/FAIL report), `demo_scenario.py` (the
+  PRD's own synthetic proof scenario). Imported by Lab 5's `chaosnet.py`/`run_dpsim.py` (whose
+  original single fault becomes a one-`NetworkFaultGenerator` degenerate case, zero behaviour
+  change) — a deliberate exception to `gridfit.py`'s "labs import `_shared`, never the reverse"
+  precedent, documented in the package's own `__init__.py`, since this module's whole point is
+  reusing Lab 5's `phase_model.py` views directly rather than reimplementing them. Self-checked by
+  `labs/_shared/test_scenario_engine.py` against `labs/_shared/expected_demo_scenario_run.json`.
 - `labs/01-simple-loadflow-fit/`, `labs/02-medium-interconnection-screening/`,
   `labs/03-advanced-provider-bakeoff/` — implemented; each has real code, a fixture, a pytest test,
   and a README with "Sandbox notes."
@@ -117,6 +149,11 @@ result on a clean checkout is.
   hardware-validated extension is optional and out of scope). See `docs/LAB5_SPARTAN_CHAOSNET.md`
   and the lab's own `README.md` "Sandbox notes" for the real DPsim/VILLASnode session and the one
   node-type substitution found by actually running it.
+  `labs/05-spartan-chaosnet-transient-stream/scenarios/` — PRD-0002's SA 2016 Black System cascade
+  scenario (`sa_2016_black_system.py`), built on `labs/_shared/scenario_engine/`; see that script's
+  own module docstring for its tap-role mapping and named engineering deviations from the PRD's
+  original sketch. Self-checked by `test_sa_2016_black_system.py`, skipped by default (opt in with
+  `RUN_SLOW_SCENARIOS=1`) since its `--step check` solves ~43s of grid time.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
   executed with `podman` in this sandbox (Lab 3's own fixture doesn't require it); see the file's
   own header. `kube/villasnode-tap-pod.yaml` (Lab 5), by contrast, has been actually run with

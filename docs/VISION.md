@@ -397,8 +397,18 @@ One command, POSIX shell, checks-then-acts (never silently reinstalls something 
    checksums the download).
 6. `podman kube play kube/llamacpp-phi-pod.yaml` then `kube/powermcp-pandapower-pod.yaml` —
    downloads the Phi-4-mini GGUF on first run (documented size/time), starts both pods.
-7. Smoke test: one `uv run` call that does a trivial power flow through the running pods and
-   prints PASS/FAIL — this is the "did the install actually work" gate before anyone opens a lab.
+7. Best-effort install of the display/demo tools `mpv` + `chafa` via a direct `sudo apt-get`
+   (checks-then-acts) -- the viewers behind the root Justfile's `watch`/`peek` recipes that show
+   animations and charts over SSH with zero file transfer. This step is *not* a gate: the labs
+   run headless, and on hosts where non-interactive sudo isn't available it warns and continues.
+   The canonical per-command path is the committed authorized-script boundary
+   (`scripts/deploy_demo_tools.sh`, the only NOPASSWD root surface, granted by
+   `scripts/sudoers.d/nem-poweragent-lab` via `just authorize`) -- `just deploy` runs it as root
+   with no password anywhere, and the `just` workflow never hard-stops (a missing rule prints the
+   exact `just authorize` step).
+8. Smoke test: one `uv run` call that does a trivial power flow through the running pods (and
+   reports the display tools' presence, informational only) and prints PASS/FAIL -- this is the
+   "did the install actually work" gate before anyone opens a lab.
 
 ## 11. asciinema training recording
 
@@ -438,7 +448,15 @@ only. None of this was a deliberate non-goal (contrast with §12 above); it was 
 so it doesn't get silently mistaken for "done" the way `AGENTS.md`'s own self-checking convention
 exists to prevent for correctness, not just for visuals.
 
-**Current state: Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.** Lab 5's
+**Current state: Lab 1, Lab 2, Lab 3, Lab 4, and Lab 5's free-tier fixes (0003, 0004) are done.**
+`pandapower.plotting` is no longer unused: Lab 1's `run.py` now renders a committed
+`sample_network_chart.png` — the fitted network's buses colored by real solved voltage (`vm_pu`)
+via `pandapower.plotting.create_bus_collection`/`create_line_collection`, TARGET_BUS highlighted —
+gated by `refresh_chart` the same way (`--step check` never overwrites it), and asserted to exist
+by both `--step check` and a dedicated `test_lab1.py` test. (No real geodata exists for `snemSA.m`,
+and pandapower's own `create_generic_coordinates` needs `igraph` or `pygraphviz`, neither installed;
+Lab 1's chart instead builds a `networkx.spring_layout` and writes it to `net.bus["geo"]` via
+pandapower's own re-exported `geojson` module — no new dependency.) Lab 5's
 `generate_topology.py` now draws the generated chaos-net topology to a committed
 `sample_topology_plot.png` (tap-point buses highlighted/labelled), gated the same way its JSON
 fixtures are so ad-hoc seeds never touch the committed artifact. Lab 4's `reconcile.py` now renders
@@ -449,16 +467,22 @@ never overwrites it. Lab 3's `orchestrator.py` now renders a 3-series grouped ba
 (`scorecard_chart.png`, regenerated gitignored output alongside `scorecard.json`) of error margin by
 task family across
 its three local-policy providers, with the PowerFM baseline row deliberately excluded (no shared
-units/task_family to compare against) and that exclusion noted both in-image and in the README. All
-three are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
+units/task_family to compare against) and that exclusion noted both in-image and in the README. Lab
+2's `workflow.py` now renders `sample_contingency_chart.png` (two panels: worst line-loading % vs
+the 100% thermal limit, and worst bus-voltage pu vs the 0.90–1.10 pu band) from the same per-
+contingency numbers `check_limits()` already evaluates, regenerated deterministically by
+`--step check-limits`. All
+four are covered by their lab's `--step check` + `test_labN.py` per AGENTS.md's self-checking
 convention, not just printed (Lab 3's chart specifically via
 `test_lab3.py::test_lab3_report_renders_scorecard_chart` exercising `report_step()` directly —
-`check_step()` never touches the uncommitted file). Lab 2's contingency chart and Lab 5's stretch-tier symbolic
-single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remain open — see
+`check_step()` never touches the uncommitted file; Lab 2's chart is asserted to exist by
+`--step check` while `--step check-limits` regenerates it). Lab 5's stretch-tier symbolic
+single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) remains open — see
 `docs/backlog/README.md` for the current per-item status.
 
 - [`docs/backlog/0001-topology-and-results-visualization-gap.md`](backlog/0001-topology-and-results-visualization-gap.md)
-  — the gap itself, with the grep evidence above expanded per-lab.
+  — **Done.** The gap itself, with the grep evidence above expanded per-lab; every item closed,
+  including item 2's `pandapower.plotting` miss (Lab 1, above).
 - [`docs/backlog/0002-pandapower-diagram-and-symbolic-representation-options.md`](backlog/0002-pandapower-diagram-and-symbolic-representation-options.md)
   — what `pandapower.plotting` already offers beyond `simple_plot()`, and a survey of open-source
   symbolic/single-line-diagram options outside pandapower (`powsybl-diagram`/`pypowsybl`,
@@ -471,10 +495,59 @@ single-line rendering (gated on a CIM/CGMES export step Lab 5 doesn't have yet) 
   (real IEC-style symbolic single-line rendering) remains open, gated on a CIM/CGMES export step
   Lab 5 doesn't have yet.
 - [`docs/backlog/0005-unified-notebook-playbook.md`](backlog/0005-unified-notebook-playbook.md) —
-  a proposed jupytext-based notebook that narrates all 5 labs' charts in one linear document
-  *without* becoming a second, ad hoc source of truth alongside the existing `--step check` proof
-  scripts (`AGENTS.md`'s "the proof scripts are the proof, not a transcript" applies to this
-  exactly as much as to anything else in the repo).
+  **Done.** `notebooks/lab_playbook.py`, a jupytext `percent`-format notebook (`just playbook`) that
+  narrates all 5 labs' charts in one linear document *without* becoming a second, ad hoc source of
+  truth alongside the existing `--step check` proof scripts (`AGENTS.md`'s "the proof scripts are the
+  proof, not a transcript" applies to this exactly as much as to anything else in the repo) — every
+  section shells out to that lab's real `--step check`, asserts PASS, then only renders that lab's
+  already-committed fixture/chart.
+- [`docs/backlog/0006-lab5-advanced-transient-visualization-techniques.md`](backlog/0006-lab5-advanced-transient-visualization-techniques.md)
+  — next-tier Lab 5 visualizations beyond its original six views. **Done, all four options.**
+  Symmetrical components (V0/V1/V2, not just |V1|, `view_telemetry_rates.py`/
+  `animate_telemetry_rates.py`) and a spectrogram (`view_spectrogram.py`), both reusing data already
+  captured with no new dependency or `run_dpsim.py` change; an R-X impedance-trajectory / mho-circle
+  distance-relay view (`view_rx_trajectory.py`), which needed one small `run_dpsim.py` capture
+  addition — current on the fault-adjacent `PiLine` (`i_intf`) alongside the already-captured
+  fault-bus voltage; and a network-wide sag-propagation animation (`animate_sag_propagation.py`),
+  which extended `run_dpsim.py` to capture every bus's voltage (`bus_voltages`, all 14 buses of this
+  lab's real topology — the "N buses" scale concern this doc's own backlog file originally raised
+  turned out to be small in practice, ~2.6 MB/~25s render, not a real cost at this lab's scale) and
+  animated it onto `generate_topology.py`'s own topology layout, connecting the topology and
+  transient artifacts into one. Each of the four implementations surfaced a real, measured finding
+  that corrected this doc's own original prediction (see the backlog file's Option 1/2/4 sections)
+  rather than asserting the textbook shape assumed in advance — option 4's real run showed the sag
+  propagates almost network-wide (not sharply localized to the fault bus) because this topology's
+  line impedances are tiny relative to load impedance, the same root cause option 2's own R-X
+  finding already surfaced.
 
 None of these are part of any lab's current Definition of Done (`docs/DEFINITION_OF_DONE.md` is
 unchanged by this section) — they're recorded so the gap is a tracked decision, not a silent one.
+
+## 14. Forward-looking capability PRDs
+
+Where §13 records gaps found by auditing already-committed code, [`docs/prd/`](prd/README.md) is
+the forward-looking counterpart: build plans for capability this repo doesn't have yet, broken into
+composable units with acceptance criteria, written after a 2026-08-03 review of AEMO's 2026 GPSRR
+report against this repo's existing labs. Three items so far:
+
+- [`docs/prd/0001-composable-generator-detector-platform.md`](prd/0001-composable-generator-detector-platform.md)
+  — a `Generator`/`Detector` platform generalizing Lab 5's one-fault `chaos_schedule.yaml` into a
+  causally-linked event timeline, plus a scoring harness. This is, concretely, the "subsequent
+  phase" `docs/LAB5_SPARTAN_CHAOSNET.md`'s own Definition of Done already named and deferred
+  (SPARTAN-style anomaly-detection logic), given a build plan decoupled from actual SPARTAN
+  hardware.
+- [`docs/prd/0002-sa-2016-black-system-cascade-scenario.md`](prd/0002-sa-2016-black-system-cascade-scenario.md)
+  — closes the half of Lab 4 Part C's own stated caveat ("not a claim of reproducing the 2016 SA
+  Black System event's actual root cause") that Lab 4's dispatch-reconciliation approach was never
+  positioned to attempt: an actual cascading-fault causal-chain reproduction, built on the 0001
+  platform, scored against AEMO's own published incident figures.
+- [`docs/prd/0003-iberian-2025-blackout-scenario.md`](prd/0003-iberian-2025-blackout-scenario.md) —
+  a new scenario for the 28 April 2025 Iberian Peninsula blackout (the reference international
+  incident the 2026 GPSRR itself cites for voltage-control risk), grounded directly in ENTSO-E's own
+  472-page Final Report's root-cause tree and second-by-second timeline, deliberately complementary
+  to 0002 (a control/oscillation-driven cascade with no initiating network fault, vs. 0002's
+  weather/network-fault-driven one).
+
+Same discipline as §13: recorded so the direction is a tracked decision, not a silent one, and none
+of it is part of any lab's current Definition of Done until a PRD is actually implemented and that
+document is updated to say so.

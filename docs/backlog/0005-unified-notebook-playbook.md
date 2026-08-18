@@ -1,6 +1,20 @@
 # 0005 — Suggestion: a notebook playbook binding all 5 labs' visual outputs together
 
-- **Status:** proposed (this is a recommendation, not yet agreed scope)
+- **Status:** done. `notebooks/lab_playbook.py` (jupytext `percent` format) implements the concrete
+  suggestion below as written: one section per lab in README's teaching order, each shelling out to
+  that lab's real `--step check` and asserting PASS before rendering that lab's already-committed
+  fixture/chart, never recomputing independently. `just playbook` (-> `uv run jupytext --to notebook
+  --execute notebooks/lab_playbook.py`) executes it end to end; the rendered `.ipynb` is a gitignored
+  execution artifact, never committed. Ran clean end to end on 2026-08-13: all 9 `--step check`/setup
+  gates PASSed (setup, Lab 1, Lab 2 check+report, Lab 3 check+report, Lab 4, Lab 5 x3), 10 charts
+  rendered inline, 0 errors. One deliberate deviation from the sketch below: Lab 5 runs three checks
+  (`generate_topology.py --step check`, `run_dpsim.py --step check`, `verify_stream.py --step check`)
+  rather than the `Justfile`'s `check-lab5` recipe's two (which uses `generate_topology.py`'s bare
+  default step, not `--step check`) — `run_dpsim.py --step check` is what actually re-derives the
+  transient fixtures (`expected_dpsim_run.json`) this section's charts are drawn from, so it gets its
+  own proof re-run too, per AGENTS.md's "every lab is self-checking" convention. `jupytext`,
+  `nbconvert`, and `ipykernel` were added as dev-only deps (`pyproject.toml`
+  `[dependency-groups].dev`); licenses recorded in `docs/PSCADOSSE.md`.
 - **Depends on:** 0001–0004
 - **Prompted by:** "ideally something that is a playbook like a jupyter notebook to bind them all
   together" — evaluated against this repo's existing, non-negotiable conventions below, not

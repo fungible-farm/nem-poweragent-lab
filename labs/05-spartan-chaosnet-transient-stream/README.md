@@ -256,12 +256,117 @@ every run, same pattern as Labs 1–4's fetched/derived data).
 ## Files
 
 - `chaosnet.py` — shared chaos-net topology model: SimBench + NetworkX generation, pandapower and
-  DPsim EMT loaders built from the exact same real topology.
+  DPsim EMT loaders built from the exact same real topology. Also picks the fault-adjacent `PiLine`
+  tapped for current (`_fault_adjacent_line()`/`fault_adjacent_line_name()`, docs/backlog/0006
+  option 2): the line directly connecting `ext_grid_bus` to the fault bus, or the first adjacent
+  line in topology order if no such direct line exists for a given seed. `nominal_peak_line_neutral_v()`
+  (docs/backlog/0006 option 4) is the public real-nameplate-peak-voltage helper factored out of
+  `_phase_voltage_ref()` so other modules can reuse the identical formula.
 - `generate_topology.py`, `run_dpsim.py`, `verify_stream.py` — the three walkthrough scripts, each
-  with its own `--step check` self-check gate.
+  with its own `--step check` self-check gate. `generate_topology.py`'s `_build_topology_graph()`/
+  `_topology_layout()` (docs/backlog/0006 option 4) are factored out of `_plot_topology()` so
+  `animate_sag_propagation.py` places every bus at the identical layout position the static topology
+  plot does. `run_dpsim.py`'s `bus_voltages` capture (same backlog item) taps every bus in
+  `dsys["nodes"]`, not just the fault bus.
 - `chaos_schedule.yaml` — the committed fault schedule (one line-to-ground fault at SUB-3).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Sandbox notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed
   fixtures, each a real output from one actual run, not hand-written.
-- `test_lab5.py` — pytest wrapper around the three `--step check` gates.
+- `test_lab5.py` — pytest wrapper around the three `--step check` gates, plus unit/render coverage
+  for the generated-view scripts below.
+
+**Generated views** (docs/backlog/0004 items 1–2, docs/backlog/0006): every script below renders
+some transform of the same real `dpsim_transient_log.json`/`sample_topology.json`, never
+independently-fabricated data — see `phase_model.py`'s module docstring for the "one state machine,
+many generated views" principle they all share.
+
+- `phase_model.py` — the shared 3-phase waveform state machine (PSCADOSSE): synchrophasor DFT
+  estimation, the full V0/V1/V2 symmetrical-component triplet, SCADA RMS aggregation, and
+  peak-deviation anomaly bins, all generated from the one recorded state sequence.
+- `view_telemetry_rates.py` → `sample_telemetry_rates.png` — the same fault at three telemetry
+  rates (raw 5 kHz / C37.118 100 Hz synchrophasor + V0/V1/V2 / SCADA 4 s), stacked on one time axis.
+- `animate_telemetry_rates.py` → `animate_telemetry_rates.mp4` (gitignored) — the same three feeds,
+  narrated and time-aligned.
+- `animate_transient.py` → `animate_transient.mp4` (gitignored) — a growing-reveal animation of the
+  raw fault waveform.
+- `view_3d_audio.py` → `sample_transient_3d.png`, `dpsim_transient_3ch.wav` — a 3D phase-space
+  trajectory plot plus a pitch-shifted 3-channel sonification of the same event.
+- `view_phasor_3d.py` → `sample_phasor_3d.png` — a direct request (not a docs/backlog item): the
+  classic hand-drawn phasor diagram (Va/Vb/Vc as 2D complex vectors from a common origin), rendered
+  as an actual 3D isometric vector plot rather than a flat polar sketch. The two horizontal axes are
+  the phasor's own complex plane (Re/Im); the vertical axis is simulated time, stacking 5
+  representative snapshots (pre-fault steady state, fault onset, mid-fault, post-clear, post-fault
+  recovery, chosen from the run's own real `trigger_time_s`/`clear_time_s`) so a single static PNG
+  shows how the diagram itself deforms through the fault, not just one frozen instant. Each
+  snapshot's z-position is its ordinal rank, not its duration-scaled real time (the 5 real times are
+  unevenly spaced — two of them only one fundamental cycle apart, straddling the 150 ms fault —
+  which would otherwise cram the fault-window fans into an unreadable stack); every z-tick is
+  labeled with that snapshot's real, measured time so nothing is hidden. A dashed reference circle
+  (the real pre-fault \|Va\|) at every height, colored red during the fault window, makes the
+  collapse/recovery visible without cross-referencing numbers between panels.
+- `view_spectrogram.py` → `sample_spectrogram.png` — a time-frequency (STFT) view of the phase-A
+  voltage; the fault's switching edges show up as broadband vertical smears distinct from the
+  steady 50 Hz fundamental (docs/backlog/0006, option 3).
+- `view_rx_trajectory.py` → `sample_rx_trajectory.png` — the R-X apparent-impedance trajectory
+  Z(t)=V1(t)/I1(t) on the fault-adjacent `PiLine`, against a real, documented mho relay
+  characteristic (80% Zone-1 reach of that line's own real impedance) — the distance-relay engineer's
+  view: "where, electrically, is this fault" rather than "what does the voltage do over time"
+  (docs/backlog/0006, option 2). Needs `run_dpsim.py` to have captured the newer
+  `ia_line`/`ib_line`/`ic_line` fields (see below).
+- `animate_sag_propagation.py` → `animate_sag_propagation.mp4` (gitignored) — every bus's own
+  `v_intf` voltage (`run_dpsim.py`'s `bus_voltages` capture), reduced to |V1(t)| per bus and animated
+  onto `generate_topology.py`'s own topology layout, colored/sized by each bus's deviation from its
+  own real pre-fault operating point — the network-wide sag-propagation view connecting the topology
+  and transient artifacts into one (docs/backlog/0006, option 4). Needs `run_dpsim.py` to have
+  captured the newer `bus_voltages` field (see below) and `sample_topology.json` to exist.
+
+**A real finding from the symmetrical-component view, worth knowing before reading the charts**:
+despite `chaos_schedule.yaml` labeling its event `type: line-to-ground`, `chaosnet.py`'s fault
+switch shorts all three phases to ground with an identical resistance (`np.eye(3) *
+FAULT_CLOSED_RESISTANCE_OHM`, a diagonal matrix) — electrically a symmetric three-phase-to-ground
+fault, not a true single-line-to-ground fault. Measured directly: |V0| stays at numerical zero
+throughout, and |V1| dips while |V2| shows only a small switching-transient blip — the correct
+signature for what this model actually simulates. This is the same limitation Sandbox note 1 above
+already named ("balanced/decoupled 3-phase line and load model"), now independently confirmed by
+the sequence-component math rather than only by reading the switch code. See `phase_model.py`'s
+module docstring and `test_lab5.py::test_phase_model_sequence_components_confirm_lab5_fault_is_symmetric`
+for the regression check.
+
+**Two real findings from the R-X impedance-trajectory view, worth knowing before reading that
+chart** (`view_rx_trajectory.py`, docs/backlog/0006 option 2): (1) a one-cycle DFT phasor estimate
+is only valid when its analysis window doesn't span a real switching discontinuity — the frame
+whose window straddled the fault-clearing instant produced a wrong-quadrant, order-of-magnitude
+outlier (`Z ≈ 148+324j` ohm against every neighbour's ~1–1000 ohm), excluded by definition
+(`SWITCHING_EXCLUSION_CYCLES`), not tuned away. (2) For seed 42/SUB-3, apparent impedance does
+collapse sharply toward the origin during the fault (median `|Z|` ~854 ohm pre-fault → minimum
+~1.34 ohm during) but never crosses inside the tapped line's own 80%-reach mho circle (~0.22 ohm),
+because `line0_12` is a very short (0.6 km), low-impedance line and `FAULT_CLOSED_RESISTANCE_OHM`
+is a partial 0.5 ohm fault at the fault bus itself, not a bolted fault at the line's remote end —
+reported as measured, not forced to claim a Zone-1 trip that didn't happen. The rendered PNG
+includes a zoomed inset at the reach-circle's own scale for exactly this reason (load and fault
+impedance differ from the reach circle by ~3 orders of magnitude on this seed's topology).
+
+**Three real findings from the network-wide sag-propagation view, worth knowing before reading
+that animation** (`animate_sag_propagation.py`, docs/backlog/0006 option 4): (1) this sandbox's real
+DPsim EMT solve (`do_steady_state_init(True)`) converges its pre-fault steady state at ~0.816 pu of
+the SimBench `vn_kv` nameplate *uniformly across every bus, including `ext_grid_bus` itself*
+(confirmed: `ext_grid_bus`'s own pre-fault |V1| ÷ nameplate peak = 0.8165, matching sqrt(2/3) to 4
+decimal places) — a real characteristic of this sandbox's steady-state initialization, unrelated to
+the fault, so the animation's pu reference is each bus's own real pre-fault |V1|, not the nameplate
+(see `compute_bus_pu_series()`'s docstring). (2) The sag propagates almost network-wide rather than
+attenuating sharply with distance from the fault, as a naive radial-feeder intuition would predict:
+for seed 42/SUB-3, the fault bus itself dips to 0.834 pu of its own pre-fault level (a 16.6% dip,
+consistent with `run_dpsim.py`'s already-reported 16.4% RMS sag), the worst *other* bus dips to
+0.859 pu, and the mean of all 13 other buses' minima is 0.909 pu — most of the mesh sags to within a
+few percentage points of the fault bus's own severity, not a sharply localized dip. This is
+consistent with `view_rx_trajectory.py` (option 2)'s own finding that this topology's line
+impedances are tiny relative to load impedance (median `|Z|` ~854 ohm vs. line impedance ~0.27 ohm):
+with line drops this small, most buses sit electrically close to the fault regardless of hop count.
+(3) The one bus that stays essentially untouched (SUB-1, 1.000 pu — no measurable dip) is *not* a
+general "hub buses are shielded" result: `sample_topology.json` confirms `tap_buses = [0, 11, 12]`
+for `["SUB-1", "SUB-2", "SUB-3"]`, i.e. **SUB-1 is `ext_grid_bus` itself** (local bus index 0), the
+fixed-voltage swing bus the whole solve is referenced to — its immunity is definitional (it is the
+source), not an emergent property of the mesh, and is named here explicitly so this finding isn't
+misread as "well-connected buses resist sag propagation" when the real mechanism is simpler and
+narrower than that.

@@ -329,6 +329,25 @@ SWITCH_CLOSED_RESISTANCE_OHM: float = 0.5
 FAULT_CLOSED_RESISTANCE_OHM: float = 0.5
 
 
+def nominal_peak_line_neutral_v(vn_kv: float) -> float:
+    """Real balanced peak line-neutral voltage (V) a bus at `vn_kv` (nominal
+    line-to-line RMS, kV) sits at -- the same conversion
+    `_phase_voltage_ref()` below uses to build an EMT NetworkInjection's
+    reference phasors, factored out as a public function so other modules
+    (`animate_sag_propagation.py`, docs/backlog/0006 option 4) can compute
+    the identical real nominal reference for *any* bus's `vn_kv` without
+    reaching into `_phase_voltage_ref()`'s private per-phase angle
+    machinery -- one formula, not two.
+
+    Args:
+        vn_kv: nominal line-to-line RMS voltage of the bus, kV.
+
+    Returns:
+        Peak line-neutral voltage, V (`vn_kv * 1000 * sqrt(2/3)`).
+    """
+    return vn_kv * 1000.0 * math.sqrt(2.0 / 3.0)
+
+
 def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
     """Balanced 3-phase peak line-neutral voltage reference (A, B, C) for an
     EMT NetworkInjection, in volts.
@@ -342,7 +361,7 @@ def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
         expected V_ref shape (validated interactively against dpsim 1.2.1
         in this sandbox).
     """
-    peak = vn_kv * 1000.0 * math.sqrt(2.0 / 3.0)
+    peak = nominal_peak_line_neutral_v(vn_kv)
     angles = (0.0, -2.0 * math.pi / 3.0, 2.0 * math.pi / 3.0)
     return np.array(
         [[complex(peak * math.cos(a), peak * math.sin(a))] for a in angles]
@@ -351,20 +370,98 @@ def _phase_voltage_ref(vn_kv: float) -> np.ndarray:
 
 class DpsimChaosSystem(TypedDict):
     """Everything run_dpsim.py needs to drive the EMT solve and tap the
-    fault substation's node."""
+    fault substation's node(s).
+
+    `fault_switches`/`fault_buses` are plural (tap_name -> switch/bus index)
+    so `to_dpsim_emt_system()` can build N fault-capable switches for N
+    `NetworkFaultGenerator`/`ProtectionTripGenerator` targets in one
+    SystemTopology -- the generalization from Lab 5's original "one fault"
+    to `docs/prd/0001-composable-generator-detector-platform.md`'s ordered
+    list of faults/trips. A single-target caller (today's Lab 5 usage)
+    gets a one-entry dict; nothing about the physics changes for that case.
+
+    `fault_adjacent_lines` is the docs/backlog/0006 option 2 addition: one
+    `dpsimpy.emt.ph3.PiLine` component per fault tap, selected by
+    `_fault_adjacent_line()`, so `run_dpsim.py` can tap that line's real
+    `i_intf` current alongside the fault bus's already-tapped `v_intf`
+    voltage for the R-X impedance-trajectory view.
+    """
 
     system: object  # dpsimpy.SystemTopology
     nodes: dict[int, object]  # local bus index -> dpsimpy.emt.SimNode
-    fault_switch: object  # dpsimpy.emt.ph3.Switch at the target tap bus
-    fault_bus: int
+    fault_switches: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.Switch
+    fault_buses: dict[str, int]  # tap_name -> local bus index
+    fault_adjacent_lines: dict[str, object]  # tap_name -> dpsimpy.emt.ph3.PiLine
+
+
+def _fault_adjacent_line(topology: ChaosTopology, fault_bus: int) -> ChaosLine:
+    """Pick one `PiLine` adjacent to `fault_bus` to tap for the R-X
+    impedance-trajectory view (docs/backlog/0006, option 2).
+
+    Deterministic, seed-independent rule, chosen because `run_dpsim.py`
+    already captures voltage only at the fault bus itself (never at the
+    other end of any line): prefer the line directly connecting
+    `topology["ext_grid_bus"]` (the network's one source injection) to
+    `fault_bus` -- the source-to-fault line, i.e. the line whose current a
+    relay CT co-located with the fault bus's own PT would actually be
+    reading. If no such direct line exists for a given seed's topology
+    (the fault bus isn't a direct neighbour of the source bus), fall back
+    to the first line touching `fault_bus` in `topology["lines"]`'s own
+    build order -- itself deterministic, since `build_chaos_topology()`
+    constructs `lines` from `sorted(graph.edges())`.
+
+    Args:
+        topology: output of build_chaos_topology().
+        fault_bus: local bus index of the fault target.
+
+    Returns:
+        The selected ChaosLine record (a real entry of `topology["lines"]`,
+        never fabricated).
+
+    Raises:
+        ValueError: if `fault_bus` has no adjacent line at all -- would mean
+            an isolated bus, which `build_chaos_topology()`'s
+            connected-graph guarantee (`nx.connected_watts_strogatz_graph`)
+            should never produce.
+    """
+    adjacent = [
+        line for line in topology["lines"]
+        if line["from_bus"] == fault_bus or line["to_bus"] == fault_bus
+    ]
+    if not adjacent:
+        raise ValueError(f"fault bus {fault_bus} has no adjacent line in this topology")
+    ext_bus = topology["ext_grid_bus"]
+    direct = [
+        line for line in adjacent
+        if line["from_bus"] == ext_bus or line["to_bus"] == ext_bus
+    ]
+    return direct[0] if direct else adjacent[0]
+
+
+def fault_adjacent_line_name(topology: ChaosTopology, fault_bus: int) -> str:
+    """The dpsimpy `PiLine` component name for `_fault_adjacent_line()`'s
+    selected line -- matches `to_dpsim_emt_system()`'s own
+    `f"line{from_bus}_{to_bus}"` naming exactly, so callers (e.g.
+    `run_dpsim.py`) can label the tapped line in `dpsim_transient_log.json`
+    without needing dpsimpy's component objects themselves.
+
+    Args:
+        topology: output of build_chaos_topology().
+        fault_bus: local bus index of the fault target.
+
+    Returns:
+        The line's component name, e.g. "line0_12".
+    """
+    line = _fault_adjacent_line(topology, fault_bus)
+    return f"line{line['from_bus']}_{line['to_bus']}"
 
 
 def to_dpsim_emt_system(
-    topology: ChaosTopology, fault_tap_name: str
+    topology: ChaosTopology, fault_tap_name: str | list[str]
 ) -> DpsimChaosSystem:
     """Build a real dpsimpy EMT (3-phase) SystemTopology from a
-    ChaosTopology, with one fault Switch inserted (initially open) at the
-    bus tagged `fault_tap_name`.
+    ChaosTopology, with one fault Switch inserted (initially open) at each
+    bus tagged in `fault_tap_name`.
 
     Requires the `dpsimpy` package (imported lazily here so pandapower-only
     callers -- e.g. generate_topology.py's --step check -- do not need
@@ -372,24 +469,36 @@ def to_dpsim_emt_system(
 
     Args:
         topology: output of build_chaos_topology().
-        fault_tap_name: one of topology["tap_names"] (e.g. "SUB-3") -- the
-            substation the fault switch is attached to.
+        fault_tap_name: one of topology["tap_names"] (e.g. "SUB-3"), or a
+            list of them -- the substation(s) a fault switch is attached
+            to. A bare str is normalized to a one-element list internally;
+            in that single-target case the switch keeps today's exact
+            component name ("fault_switch") so nothing about an existing
+            single-fault run's DPsim component naming changes. Multiple
+            targets get a disambiguated name per tap
+            (`fault_switch_<TAP-NAME>`).
 
     Returns:
-        The assembled DpsimChaosSystem.
+        The assembled DpsimChaosSystem, with one entry per requested tap
+        name in both `fault_switches` and `fault_buses`.
 
     Raises:
-        ValueError: if fault_tap_name is not one of this topology's tagged
-            tap points.
+        ValueError: if any requested tap name is not one of this
+            topology's tagged tap points.
     """
     import dpsimpy  # local import: see docstring
 
-    if fault_tap_name not in topology["tap_names"]:
-        raise ValueError(
-            f"{fault_tap_name!r} is not a tagged tap point of this topology "
-            f"(have {topology['tap_names']})"
-        )
-    fault_bus = topology["tap_buses"][topology["tap_names"].index(fault_tap_name)]
+    tap_names = [fault_tap_name] if isinstance(fault_tap_name, str) else list(fault_tap_name)
+    for name in tap_names:
+        if name not in topology["tap_names"]:
+            raise ValueError(
+                f"{name!r} is not a tagged tap point of this topology "
+                f"(have {topology['tap_names']})"
+            )
+    fault_buses = {
+        name: topology["tap_buses"][topology["tap_names"].index(name)]
+        for name in tap_names
+    }
 
     omega = 2.0 * math.pi * topology["system_frequency_hz"]
     nodes = {
@@ -410,6 +519,7 @@ def to_dpsim_emt_system(
         rx.connect([nodes[load["bus"]]])
         components.append(rx)
 
+    line_components: dict[tuple[int, int], object] = {}
     for line in topology["lines"]:
         r_total = line["r_ohm_per_km"] * line["length_km"]
         x_total = line["x_ohm_per_km"] * line["length_km"]
@@ -424,6 +534,7 @@ def to_dpsim_emt_system(
         )
         pi_line.connect([nodes[line["from_bus"]], nodes[line["to_bus"]]])
         components.append(pi_line)
+        line_components[(line["from_bus"], line["to_bus"])] = pi_line
 
     ext_bus = topology["buses"][topology["ext_grid_bus"]]
     extnet = dpsimpy.emt.ph3.NetworkInjection("extnet", dpsimpy.LogLevel.warn)
@@ -433,24 +544,42 @@ def to_dpsim_emt_system(
     extnet.connect([nodes[topology["ext_grid_bus"]]])
     components.append(extnet)
 
-    fault_switch = dpsimpy.emt.ph3.Switch("fault_switch", dpsimpy.LogLevel.info)
-    fault_switch.set_parameters(
-        np.eye(3) * SWITCH_OPEN_RESISTANCE_OHM,
-        np.eye(3) * FAULT_CLOSED_RESISTANCE_OHM,
-        False,
-    )
-    fault_switch.connect([nodes[fault_bus], dpsimpy.emt.SimNode.gnd])
-    components.append(fault_switch)
+    fault_switches: dict[str, object] = {}
+    for name in tap_names:
+        # Single-target case keeps today's exact component name so nothing
+        # about an existing single-fault run's DPsim component naming
+        # changes (see docstring); multi-target scenarios (new in this
+        # round) disambiguate per tap.
+        switch_name = "fault_switch" if len(tap_names) == 1 else f"fault_switch_{name}"
+        switch = dpsimpy.emt.ph3.Switch(switch_name, dpsimpy.LogLevel.info)
+        switch.set_parameters(
+            np.eye(3) * SWITCH_OPEN_RESISTANCE_OHM,
+            np.eye(3) * FAULT_CLOSED_RESISTANCE_OHM,
+            False,
+        )
+        switch.connect([nodes[fault_buses[name]], dpsimpy.emt.SimNode.gnd])
+        components.append(switch)
+        fault_switches[name] = switch
 
     system = dpsimpy.SystemTopology(
         topology["system_frequency_hz"], list(nodes.values()), components
     )
 
+    # docs/backlog/0006 option 2: one fault-adjacent PiLine per tap, keyed
+    # the same way as fault_switches/fault_buses.
+    fault_adjacent_lines: dict[str, object] = {}
+    for name in tap_names:
+        adj_line = _fault_adjacent_line(topology, fault_buses[name])
+        fault_adjacent_lines[name] = line_components[
+            (adj_line["from_bus"], adj_line["to_bus"])
+        ]
+
     return {
         "system": system,
         "nodes": nodes,
-        "fault_switch": fault_switch,
-        "fault_bus": fault_bus,
+        "fault_switches": fault_switches,
+        "fault_buses": fault_buses,
+        "fault_adjacent_lines": fault_adjacent_lines,
     }
 
 

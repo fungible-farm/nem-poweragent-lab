@@ -1,0 +1,53 @@
+{
+  "generators": {
+    "fault-1": {
+      "time_s": 0.010400000000000001,
+      "tolerance_s": 0.01
+    },
+    "fault-2": {
+      "time_s": 26.00039999996608,
+      "tolerance_s": 0.01
+    },
+    "fault-3": {
+      "time_s": 35.00039999994511,
+      "tolerance_s": 0.01
+    },
+    "trip-group-a": {
+      "time_s": 35.02039999994506,
+      "tolerance_s": 0.01
+    },
+    "fault-4": {
+      "time_s": 40.00039999993346,
+      "tolerance_s": 0.01
+    },
+    "fault-5": {
+      "time_s": 41.000399999931126,
+      "tolerance_s": 0.01
+    },
+    "trip-group-b": {
+      "time_s": 41.05039999993101,
+      "tolerance_s": 0.01
+    },
+    "island-heywood": {
+      "time_s": 41.07039999993096,
+      "tolerance_s": 0.01
+    }
+  },
+  "detectors": {
+    "rocof-wind:rocof": {
+      "time_s": 0.020399999999999963,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "angle-wind-vs-ref:angle_separation": {
+      "time_s": 41.0103999999311,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "classifier-sa2016:composite": {
+      "time_s": 41.0103999999311,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    }
+  }
+}

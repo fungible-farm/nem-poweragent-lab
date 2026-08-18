@@ -8,6 +8,10 @@ See README.md in this directory for the full walkthrough. Four steps:
     uv run labs/02-medium-interconnection-screening/workflow.py --step check-limits
     uv run labs/02-medium-interconnection-screening/workflow.py --step memo [--approve APPROVE]
 
+check-limits also (re)renders a committed sample_contingency_chart.png of the
+two planning-band numbers per contingency (see _plot_contingency_table); the
+--step check gate asserts that chart exists alongside the JSON fixture.
+
 Sandbox note: docs/VISION.md's Lab 2 runs this as a Microsoft Agent Framework
 Sequential+Concurrent workflow, calling a podman-hosted PowerMCP pandapower
 server for every physics step. A real PowerMCP pandapower pod now exists and
@@ -34,6 +38,12 @@ import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional, TypedDict
+
+# Agg (non-interactive) backend before any pyplot import, matching Lab 4/5's
+# chart code -- Lab 2 is a headless script, never a GUI window.
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -90,6 +100,42 @@ APPROVE_TOKEN: str = "APPROVE"
 # solver last-bit noise across numpy/BLAS versions, tighter than any
 # planning-relevant voltage difference.
 FIXTURE_VOLTAGE_ATOL: float = 1e-4
+
+# Committed sample chart: the two planning-band numbers check_limits() already
+# evaluates, rendered per contingency -- same convention as Lab 4's
+# sample_reconciliation_chart.png / Lab 5's sample_topology_plot.png ("the
+# chart is a rendering of an already-verified result, not a new source of
+# truth", docs/backlog/0003). Deterministic output (same case + same lines =>
+# same numbers => same pixels), (re)written on every --step check-limits run
+# and asserted to exist by check_step() -- never pixel-diffed.
+CONTINGENCY_CHART_FILE: Path = LAB_DIR / "sample_contingency_chart.png"
+
+# Bar colors for _plot_contingency_table()'s two stacked panels. Same hexes
+# as Lab 4/5's charts (dataviz skill categorical palette slot 1 blue / slot 8
+# red, validated colorblind-safe as a pair via that skill's
+# validate_palette.js -- not a script in this repo; see Lab 4's
+# reconcile.py for the measured CVD/normal-vision numbers). The loading panel
+# takes the blue main-series slot and the voltage panel the red emphasis
+# slot -- each panel plots one quantity, so the two colors just keep the
+# stacked panels from blending together.
+CONTINGENCY_CHART_LOADING_COLOR: str = "#2a78d6"
+CONTINGENCY_CHART_VOLTAGE_COLOR: str = "#e34948"
+# Dashed limit/band lines and the footnote ink (dataviz skill "Muted
+# (axis/labels)" role), same value as Lab 3/5's footnote/grid colors.
+CONTINGENCY_CHART_LIMIT_COLOR: str = "#898781"
+
+# Matches Lab 4/5's savefig dpi=130 convention. Two stacked panels sharing one
+# x-axis of 21 contingency-line labels need a taller figure than Lab 4's
+# (7, 5) single-panel chart.
+CONTINGENCY_CHART_FIGSIZE: tuple[float, float] = (9.0, 7.0)
+CONTINGENCY_CHART_DPI: int = 130
+
+# Fixed y-axis limits so the 100% thermal-limit line and the 0.90-1.10 pu
+# band are always visible with headroom regardless of the data (real values
+# here are ~97.8% loading / ~0.899 pu). Purely cosmetic placement, not a
+# planning constant.
+CONTINGENCY_CHART_LOADING_YMAX: float = 120.0
+CONTINGENCY_CHART_VOLTAGE_YLIM: tuple[float, float] = (0.85, 1.15)
 
 
 class ContingencyResult(TypedDict):
@@ -248,6 +294,31 @@ def base_case_weak_buses() -> set[int]:
     return set(int(b) for b in outside.index)
 
 
+def base_case_weak_lines() -> set[int]:
+    """Lines already above THERMAL_LIMIT_PERCENT in the base case, before
+    any contingency is applied.
+
+    Mirror of base_case_weak_buses() for the thermal criterion, added so
+    check_limits() can label a loading breach with the same provenance it
+    already labels voltage breaches with. Real-data finding: in snem1803.m
+    no line breaches the 100% thermal limit in the base case (the highest
+    base loadings are line 1070 at ~97.8% and line 79 at ~96.8%), so every
+    loading breach this screen reports is genuinely contingency-induced --
+    in particular dropping line 151 overloads its parallel twin line 152
+    (both [175-608]) to 113.0%, and vice versa to 111.4%, which is exactly
+    the double-circuit N-1 case a screening study exists to catch.
+
+    Returns:
+        Line indices already above THERMAL_LIMIT_PERCENT with no
+        contingency applied.
+    """
+    net = run_base_case(verbose=False)
+    over = net.res_line.loading_percent[
+        net.res_line.loading_percent > THERMAL_LIMIT_PERCENT
+    ]
+    return set(int(li) for li in over.index)
+
+
 def _run_one_contingency(net_json: str, line_idx: int) -> ContingencyResult:
     """Concurrent-step worker: runs in its own OS process (submitted to a
     ProcessPoolExecutor by run_contingencies), given the base net serialized
@@ -332,7 +403,9 @@ def run_contingencies(verbose: bool = True) -> list[ContingencyResult]:
 
 
 def check_limits(
-    results: Optional[list[ContingencyResult]] = None, verbose: bool = True
+    results: Optional[list[ContingencyResult]] = None,
+    verbose: bool = True,
+    refresh_chart: bool = True,
 ) -> list[ContingencyCheckRow]:
     """Sequential step: score each contingency against VOLTAGE_BAND_PU and
     THERMAL_LIMIT_PERCENT -- deterministic rule evaluation, not an LLM
@@ -343,6 +416,12 @@ def check_limits(
         results: contingency results to check; runs them via
             run_contingencies() if not supplied.
         verbose: if True, print the pass/fail table.
+        refresh_chart: if True, (re)render the committed CONTINGENCY_CHART_FILE
+            PNG from this run's real table -- mirrors Lab 4/5's gating of their
+            committed sample charts. check_step() passes False so a self-check
+            re-derivation never mutates the committed chart it is about to
+            assert the existence of; memo_step() passes False too (the memo
+            doesn't need the chart).
 
     Returns:
         One ContingencyCheckRow per contingency, each result plus a
@@ -351,6 +430,7 @@ def check_limits(
     if results is None:
         results = run_contingencies(verbose=False)
     weak_buses = base_case_weak_buses()
+    weak_lines = base_case_weak_lines()
 
     table = []
     for r in results:
@@ -371,9 +451,15 @@ def check_limits(
                 f"{r['worst_voltage_bus']} outside {VOLTAGE_BAND_PU} ({provenance})"
             )
         if not t_ok:
+            provenance = (
+                "pre-existing in base case, not caused by this contingency"
+                if r["worst_loading_line"] in weak_lines
+                else "contingency-induced"
+            )
             reasons.append(
                 f"loading {r['worst_loading_percent']:.1f}% on line "
-                f"{r['worst_loading_line']} exceeds {THERMAL_LIMIT_PERCENT}%"
+                f"{r['worst_loading_line']} exceeds {THERMAL_LIMIT_PERCENT}% "
+                f"({provenance})"
             )
         table.append(
             {**r, "pass": v_ok and t_ok, "reason": "; ".join(reasons) or "within limits"}
@@ -399,7 +485,122 @@ def check_limits(
         breaches = sum(1 for row in table if not row["pass"])
         print(f"{len(table)} contingencies screened, {breaches} breach(es)")
 
+    if refresh_chart:
+        _plot_contingency_table(table, CONTINGENCY_CHART_FILE)
+        print(f"[chart] wrote {CONTINGENCY_CHART_FILE.name}")
+
     return table
+
+
+def _plot_contingency_table(
+    table: list[ContingencyCheckRow], path: Path
+) -> None:
+    """Render the two planning-band numbers check_limits() already evaluates,
+    per screened line (docs/backlog/0001 item 4: "Lab 2's N-1 contingency
+    screen (loading vs. limit) ... a classic bar/time-series comparison"):
+    worst-case line loading % against the 100% thermal limit, and worst-case
+    bus voltage pu against the 0.90-1.10 pu normal band.
+
+    Two stacked panels sharing one x-axis (the screened line indices). Not a
+    `pandapower.plotting` network overlay (docs/backlog/0002's cheapest tier):
+    the N-1 result is a per-contingency table, not per-bus state on one
+    network, so a grouped bar is the legible shape -- same choice as Lab 3/4's
+    charts. The honest real-data picture (see base_case_weak_lines() and the
+    README "Sandbox notes"): 19 of 21 contingencies land on the pre-existing
+    network-wide worst point (bus 1126 at ~0.899 pu, line 1070 at ~97.8%
+    loading) so those bars are flat -- but dropping line 151 overloads its
+    parallel twin 152 (both [175-608]) to 113.0%, and vice versa to 111.4%,
+    which the loading panel shows as the only bars crossing the 100% line.
+    The footnote states both the pre-existing voltage condition and the
+    151/152 finding rather than implying the chart is either flat or clean.
+
+    Matches Lab 4/5's matplotlib convention (Agg backend, fig/ax, tight_layout,
+    dpi=CONTINGENCY_CHART_DPI, plt.close(fig)).
+
+    Args:
+        table: output of check_limits().
+        path: output PNG path.
+
+    Raises:
+        ValueError: if every row is non-converged (nothing real to plot).
+    """
+    rows = [r for r in table if r["converged"]]
+    if not rows:
+        raise ValueError("no converged contingency rows to plot")
+
+    line_ids = [r["line"] for r in rows]
+    loadings = [r["worst_loading_percent"] for r in rows]
+    voltages = [r["worst_voltage_pu"] for r in rows]
+    x_positions = range(len(rows))
+
+    fig, (ax_loading, ax_voltage) = plt.subplots(
+        2, 1, figsize=CONTINGENCY_CHART_FIGSIZE, sharex=True
+    )
+
+    ax_loading.bar(x_positions, loadings, color=CONTINGENCY_CHART_LOADING_COLOR)
+    ax_loading.axhline(
+        THERMAL_LIMIT_PERCENT, ls="--", lw=1.0,
+        color=CONTINGENCY_CHART_LIMIT_COLOR,
+        label=f"thermal limit {THERMAL_LIMIT_PERCENT:.0f}%",
+    )
+    ax_loading.set_ylabel("worst line loading (%)")
+    ax_loading.set_ylim(0, CONTINGENCY_CHART_LOADING_YMAX)
+    ax_loading.legend(loc="lower left", fontsize=8)
+    ax_loading.grid(True, axis="y", linewidth=0.4, alpha=0.4)
+
+    band_lo, band_hi = VOLTAGE_BAND_PU
+    ax_voltage.bar(x_positions, voltages, color=CONTINGENCY_CHART_VOLTAGE_COLOR)
+    ax_voltage.axhspan(
+        band_lo, band_hi, color=CONTINGENCY_CHART_LIMIT_COLOR, alpha=0.12,
+        label=f"normal band {band_lo:.2f}-{band_hi:.2f} pu",
+    )
+    ax_voltage.set_ylabel("worst bus voltage (pu)")
+    ax_voltage.set_ylim(*CONTINGENCY_CHART_VOLTAGE_YLIM)
+    ax_voltage.legend(loc="lower left", fontsize=8)
+    ax_voltage.grid(True, axis="y", linewidth=0.4, alpha=0.4)
+
+    ax_voltage.set_xticks(list(x_positions))
+    ax_voltage.set_xticklabels([str(li) for li in line_ids], rotation=90, fontsize=7)
+    ax_voltage.set_xlabel("line index (dropped in N-1)")
+
+    worst_voltage_row = min(rows, key=lambda r: r["worst_voltage_pu"])
+    worst_loading_row = max(rows, key=lambda r: r["worst_loading_percent"])
+    induced = [
+        r for r in rows
+        if "contingency-induced" in r["reason"]
+    ]
+    if induced:
+        induced_desc = "; ".join(
+            f"dropping line {r['line']} overloads line {r['worst_loading_line']} "
+            f"to {r['worst_loading_percent']:.1f}%"
+            for r in sorted(induced, key=lambda r: -r["worst_loading_percent"])
+        )
+        note = (
+            f"{len(induced)} contingency-induced breach(es): {induced_desc}; "
+            f"bus {worst_voltage_row['worst_voltage_bus']} at "
+            f"{worst_voltage_row['worst_voltage_pu']:.3f} pu is a separate "
+            f"pre-existing base-case condition, unchanged by any outage"
+        )
+    else:
+        note = (
+            f"worst bus {worst_voltage_row['worst_voltage_bus']} "
+            f"({worst_voltage_row['worst_voltage_pu']:.3f} pu) and worst line "
+            f"{worst_loading_row['worst_loading_line']} "
+            f"({worst_loading_row['worst_loading_percent']:.1f}%) are the same "
+            f"pre-existing base-case point for all {len(rows)} contingencies -- "
+            f"no contingency introduces a new breach"
+        )
+    fig.suptitle(
+        f"Lab 2 -- N-1 contingency screen, candidate {CANDIDATE_GEN_MW:.0f} MW "
+        f"at bus {CANDIDATE_BUS}"
+    )
+    fig.text(
+        0.5, 0.005, note,
+        ha="center", fontsize=7, color=CONTINGENCY_CHART_LIMIT_COLOR,
+    )
+    fig.tight_layout(rect=(0, 0.03, 1, 0.97))
+    fig.savefig(path, dpi=CONTINGENCY_CHART_DPI)
+    plt.close(fig)
 
 
 def draft_memo(table: list[ContingencyCheckRow]) -> str:
@@ -419,10 +620,18 @@ def draft_memo(table: list[ContingencyCheckRow]) -> str:
         The memo text (not yet approved -- see memo_step).
     """
     breaches = [row for row in table if not row["pass"]]
+    # A row's `reason` can carry BOTH a pre-existing clause (the network-wide
+    # worst voltage is bus 1126, pre-existing) AND a contingency-induced clause
+    # (dropping line 151 overloads its parallel twin 152) -- so classify on the
+    # explicit "contingency-induced" label, not on the absence of
+    # "pre-existing" (the old `row not in pre_existing` logic mislabeled the
+    # 151/152 rows as entirely pre-existing and hid the real finding).
+    contingency_induced = [
+        row for row in breaches if "contingency-induced" in row["reason"]
+    ]
     pre_existing = [
         row for row in breaches if "pre-existing" in row["reason"]
     ]
-    contingency_induced = [row for row in breaches if row not in pre_existing]
     lines = [
         "SCREENING MEMO (DRAFT) -- candidate interconnection",
         "=" * 60,
@@ -447,8 +656,9 @@ def draft_memo(table: list[ContingencyCheckRow]) -> str:
     if pre_existing:
         lines.append(
             f"NOTE: {len(pre_existing)} contingency(ies) also show a "
-            f"pre-existing base-case voltage issue (present with or without "
-            f"the outage -- see base_case_weak_buses() docstring): "
+            f"pre-existing base-case condition (present with or without the "
+            f"outage -- see base_case_weak_buses()/base_case_weak_lines() "
+            f"docstrings): "
             + ", ".join(f"line {row['line']}" for row in pre_existing)
         )
     lines.append("")
@@ -479,7 +689,7 @@ def memo_step(approve_token: Optional[str]) -> bool:
         draft (either explicitly not approved, or blocked awaiting a human
         in a non-interactive context).
     """
-    table = check_limits(verbose=False)
+    table = check_limits(verbose=False, refresh_chart=False)
     memo = draft_memo(table)
     print(memo)
     print()
@@ -511,9 +721,19 @@ def check_step() -> bool:
     """Self-check gate: re-run the N-1 screen and diff it against
     expected_contingency_table.json.
 
+    Also asserts the committed CONTINGENCY_CHART_FILE PNG artifact exists
+    (mirroring Lab 4's reconcile.py / Lab 5's generate_topology.py
+    `..._FILE.exists()` pattern) so the self-check gate actually covers the
+    chart per AGENTS.md's "every lab is self-checking" rule, not just the
+    JSON fixture. check_step() never regenerates the chart itself (it calls
+    run_contingencies() directly, not check_limits()) -- the committed PNG is
+    (re)written by the normal --step check-limits path, where the data is
+    deterministic, so a self-check re-derivation can't clobber it.
+
     Returns:
         True if every contingency's convergence and worst-case voltage
-        match the fixture within FIXTURE_VOLTAGE_ATOL; False otherwise.
+        match the fixture within FIXTURE_VOLTAGE_ATOL and the committed
+        chart PNG exists; False otherwise.
     """
     actual = run_contingencies(verbose=False)
     if not EXPECTED_FILE.exists():
@@ -534,6 +754,9 @@ def check_step() -> bool:
             if abs(exp["worst_voltage_pu"] - act["worst_voltage_pu"]) > FIXTURE_VOLTAGE_ATOL:
                 print(f"FAIL: voltage mismatch on line {exp['line']}: {exp} vs {act}")
                 ok = False
+    if not CONTINGENCY_CHART_FILE.exists():
+        print(f"[FAIL] no chart at {CONTINGENCY_CHART_FILE}", file=sys.stderr)
+        ok = False
     if ok:
         print(f"MATCH: all {len(actual)} contingencies match expected_contingency_table.json")
     return ok

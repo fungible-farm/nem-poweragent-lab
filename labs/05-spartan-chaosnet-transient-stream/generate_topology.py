@@ -108,19 +108,57 @@ class TopologyCheckSummary(TypedDict):
     mean_vm_pu: float
 
 
+def _build_topology_graph(topology: chaosnet.ChaosTopology) -> nx.Graph:
+    """Reconstruct a small nx.Graph directly from a ChaosTopology's
+    buses/lines lists -- shared by `_plot_topology()` and
+    `animate_sag_propagation.py` (docs/backlog/0006 option 4) so both draw
+    the *identical* graph structure rather than each rebuilding their own.
+
+    Deliberately does not thread through build_chaos_topology()'s internal
+    nx.connected_watts_strogatz_graph object -- keeps this decoupled from
+    that internal graph-building state, so it can plot any ChaosTopology,
+    including one read back from sample_topology.json, not just a
+    freshly-built one.
+
+    Args:
+        topology: output of chaosnet.build_chaos_topology() (or
+            chaosnet.read_topology_json()).
+
+    Returns:
+        An undirected nx.Graph with one node per bus index, one edge per
+        line.
+    """
+    graph = nx.Graph()
+    for bus in topology["buses"]:
+        graph.add_node(bus["index"])
+    for line in topology["lines"]:
+        graph.add_edge(line["from_bus"], line["to_bus"])
+    return graph
+
+
+def _topology_layout(graph: nx.Graph) -> dict[int, tuple[float, float]]:
+    """The one fixed node layout for a chaos-net graph -- `nx.spring_layout()`
+    seeded by `TOPOLOGY_LAYOUT_SEED`, factored out so every renderer of this
+    lab's topology (the static plot below and `animate_sag_propagation.py`'s
+    animation, docs/backlog/0006 option 4) places each bus at the identical
+    (x, y) position -- a reader can overlay or compare the two artifacts by
+    eye.
+
+    Args:
+        graph: output of `_build_topology_graph()`.
+
+    Returns:
+        bus index -> (x, y) position, per nx.spring_layout()'s convention.
+    """
+    return nx.spring_layout(graph, seed=TOPOLOGY_LAYOUT_SEED)
+
+
 def _plot_topology(topology: chaosnet.ChaosTopology, path: Path) -> None:
     """Render the generated chaos-net graph structure -- until now this lab's
     entire premise ("a new topology each run") was only ever visible as a
     bus/line count printed as text (docs/backlog/0004-lab4-lab5-
     visualization-options.md, Lab 5 item 1 / docs/backlog/0001-topology-and-
     results-visualization-gap.md item 1).
-
-    Reconstructs a small nx.Graph directly from the ChaosTopology's
-    buses/lines lists rather than threading through
-    build_chaos_topology()'s internal nx.connected_watts_strogatz_graph
-    object -- simpler, and keeps this function decoupled from that internal
-    graph-building state (it can plot any ChaosTopology, including one
-    read back from sample_topology.json, not just a freshly-built one).
 
     Tap-point buses (chaos_schedule.yaml's fault target, SUB-3, is one of
     them) are drawn larger, in a different color, and labelled with their
@@ -132,13 +170,8 @@ def _plot_topology(topology: chaosnet.ChaosTopology, path: Path) -> None:
             chaosnet.read_topology_json()).
         path: output PNG path.
     """
-    graph = nx.Graph()
-    for bus in topology["buses"]:
-        graph.add_node(bus["index"])
-    for line in topology["lines"]:
-        graph.add_edge(line["from_bus"], line["to_bus"])
-
-    pos = nx.spring_layout(graph, seed=TOPOLOGY_LAYOUT_SEED)
+    graph = _build_topology_graph(topology)
+    pos = _topology_layout(graph)
 
     is_tap_by_index = {bus["index"]: bus["is_tap"] for bus in topology["buses"]}
     nodelist = list(graph.nodes())

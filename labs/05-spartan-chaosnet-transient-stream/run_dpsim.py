@@ -36,6 +36,38 @@ itself is real and fully available here):
    fires the fault at the scheduled *simulated* time inside that solve,
    for real. Both clocks are real; they are just different clocks, named
    here so nobody mistakes one for the other.
+
+dpsim_transient_log.json key convention (extended by docs/backlog/0006
+option 2 -- see chaosnet.fault_adjacent_line_name()/_fault_adjacent_line()):
+
+- `times` -- simulated time (s) per sample.
+- `va`/`vb`/`vc` -- the fault substation's own three phase instantaneous
+  voltages (V), i.e. `v_intf` of the fault bus's SimNode.
+- `ia_line`/`ib_line`/`ic_line` -- three phase instantaneous currents (A),
+  i.e. `i_intf` of the *fault-adjacent* `PiLine` (chaosnet.py's
+  `fault_adjacent_lines[target]`) -- the same tap pattern as `v_intf`,
+  applied to a line's current instead of a node's voltage. Together with
+  va/vb/vc this is what `view_rx_trajectory.py` divides to get the R-X
+  apparent-impedance trajectory Z(t) = V(t)/I(t).
+- `fault_adjacent_line` -- the tapped PiLine's dpsimpy component name
+  (e.g. "line0_12"), so a reader of the log can identify which line
+  ia_line/ib_line/ic_line actually came from.
+- `bus_voltages` -- (docs/backlog/0006 option 4) every bus's own three phase
+  instantaneous voltages (V), i.e. `v_intf` of *every* SimNode in
+  `dsys["nodes"]`, not just the fault bus -- the same `derive_coeff(p, 0)`
+  tap pattern as va/vb/vc above, looped over every bus instead of hard-picked
+  at one. Keyed by local bus index as a JSON string (e.g. "0".."13" for
+  seed 42's 14-bus topology), each value `{"va": [...], "vb": [...], "vc":
+  [...]}` -- the fault bus's own entry here is numerically identical to the
+  top-level va/vb/vc arrays (same v_intf attribute, tapped twice), kept
+  as a convenience for callers that want one uniform bus_voltages dict
+  instead of special-casing the fault bus. `animate_sag_propagation.py`
+  reduces each bus's three phases to a single |V1(t)| positive-sequence
+  magnitude (via phase_model.py's existing DFT machinery) to animate
+  network-wide sag propagation over `generate_topology.py`'s topology
+  layout.
+- `trigger_time_s`/`clear_time_s` -- fault close/open simulated times (s).
+- `target` -- the fault substation name (e.g. "SUB-3").
 """
 from __future__ import annotations
 
@@ -110,6 +142,24 @@ def load_schedule(path: Path) -> list[ScheduleEvent]:
     """
     doc = yaml.safe_load(path.read_text())
     return doc["events"]
+
+
+def _is_condition_triggered(event: dict) -> bool:
+    """True if a raw parsed schedule dict is the condition-triggered shape
+    (carries a `trigger_condition` block) added by
+    `_shared.scenario_engine.scenario`'s schedule extension
+    (docs/prd/0001-composable-generator-detector-platform.md Goal 3),
+    rather than today's plain time-triggered shape
+    (`target/type/trigger_time_s/clearing_duration_s`).
+
+    Args:
+        event: one raw entry from `load_schedule()`'s returned list.
+
+    Returns:
+        True if `event` should be driven by a condition-triggered
+        generator instead of a pre-registered `SwitchEvent3Ph` pair.
+    """
+    return "trigger_condition" in event
 
 
 class DpsimRunSummary(TypedDict):
@@ -212,15 +262,30 @@ def run_step(
     countdown_seconds: int = FAULT_COUNTDOWN_SECONDS,
     verbose: bool = True,
 ) -> DpsimRunSummary:
-    """Run the real DPsim EMT solve against chaos_schedule.yaml's first
-    event.
+    """Run the real DPsim EMT solve against chaos_schedule.yaml's scheduled
+    events.
 
-    Only the first scheduled event is fired: the laptop-portable-core
-    Definition of Done asks for "at least one scheduled fault/switching
-    event", and this lab's `chaos_schedule.yaml` intentionally lists one.
-    Multi-event scheduling (several faults across one solve) is a
-    documented next step, not implemented here -- see chaos_schedule.yaml's
-    own header.
+    Every time-triggered event in the schedule is now fired (looped, not
+    hard-picked at index 0) -- the generalization
+    docs/prd/0001-composable-generator-detector-platform.md Goal 1 asks
+    for ("an ordered list of faults" instead of Lab 5's original single
+    fault). This summary's own top-level fields (`fault_target`,
+    `fault_type`, etc.) still describe the *first* time-triggered event
+    specifically, matching exactly what today's one-event
+    `chaos_schedule.yaml` has always reported -- for that schedule, "first
+    time-triggered event" and "the only event" are the same thing, so this
+    is a zero-behaviour-change regression bar, not a schema change.
+
+    A schedule entry may also carry an optional `trigger_condition` block
+    (PRD-0001 Goal 3's DAG extension) instead of a fixed `trigger_time_s`;
+    such entries are driven by a `_shared.scenario_engine.generators`
+    condition-triggered generator, evaluated every
+    `_shared.scenario_engine.scenario` measurement-cadence tick against
+    the live solve, rather than pre-registered as a
+    `dpsimpy.event.SwitchEvent3Ph`. Today's `chaos_schedule.yaml` has no
+    such entries, so this path is exercised only by schedules that add one
+    (see `labs/_shared/scenario_engine/demo_scenario.py` for a worked
+    example) -- for the regression schedule it is inert.
 
     Args:
         schedule_path: path to a YAML file matching chaos_schedule.yaml's
@@ -233,20 +298,50 @@ def run_step(
 
     Returns:
         A DpsimRunSummary of this run.
+
+    Raises:
+        ValueError: if the schedule has zero time-triggered events (at
+            least one is required to anchor this summary's own fields).
     """
     import dpsimpy  # local import: keeps generate_topology.py runnable
     # without dpsim installed (chaosnet.to_pandapower doesn't need it).
 
     schedule_path = _resolve_schedule_path(schedule_path)
     events = load_schedule(schedule_path)
-    event = events[0]
-    target, fault_type = event["target"], event["type"]
-    trigger_s = float(event["trigger_time_s"])
-    clear_s = trigger_s + float(event["clearing_duration_s"])
-    final_time_s = clear_s + POST_FAULT_SETTLE_S
+    time_triggered = [e for e in events if not _is_condition_triggered(e)]
+    condition_triggered = [e for e in events if _is_condition_triggered(e)]
+    if not time_triggered:
+        raise ValueError(
+            f"{schedule_path} has no time-triggered events -- at least one "
+            "is required to anchor this run's summary fields"
+        )
+
+    # Backward-compat summary anchor: today's schedule has exactly one
+    # event, so "first time-triggered event" and "the schedule's event"
+    # are identical -- see docstring.
+    primary = time_triggered[0]
+    target, fault_type = primary["target"], primary["type"]
+    trigger_s = float(primary["trigger_time_s"])
+    clear_s = trigger_s + float(primary["clearing_duration_s"])
+
+    final_time_s = max(
+        float(e["trigger_time_s"]) + float(e["clearing_duration_s"])
+        for e in time_triggered
+    ) + POST_FAULT_SETTLE_S
 
     topology = chaosnet.build_chaos_topology(seed)
-    dsys = chaosnet.to_dpsim_emt_system(topology, target)
+    # Union of every time- and condition-triggered target, in first-seen
+    # order, deduplicated -- one fault switch per distinct substation
+    # (chaosnet.to_dpsim_emt_system's own plural extension). For today's
+    # one-event schedule this is exactly `[target]`, matching the original
+    # single-target call exactly (same switch name, same physics).
+    fault_targets = list(
+        dict.fromkeys(
+            [e["target"] for e in time_triggered]
+            + [e["target"] for e in condition_triggered]
+        )
+    )
+    dsys = chaosnet.to_dpsim_emt_system(topology, fault_targets)
 
     if verbose:
         print(f"EMT solve running at {TIME_STEP_S * 1e6:.0f}us timestep")
@@ -280,40 +375,141 @@ def run_step(
     sim.set_time_step(TIME_STEP_S)
     sim.set_final_time(final_time_s)
     sim.do_steady_state_init(True)
-    sim.add_event(
-        dpsimpy.event.SwitchEvent3Ph(trigger_s, dsys["fault_switch"], True)
-    )
-    sim.add_event(
-        dpsimpy.event.SwitchEvent3Ph(clear_s, dsys["fault_switch"], False)
-    )
+    # Loop sim.add_event() over every time-triggered schedule entry instead
+    # of assuming exactly one (PRD-0001 Goal 1) -- each against its own
+    # fault switch from chaosnet's plural fault_switches dict.
+    for e in time_triggered:
+        e_trigger_s = float(e["trigger_time_s"])
+        e_clear_s = e_trigger_s + float(e["clearing_duration_s"])
+        e_switch = dsys["fault_switches"][e["target"]]
+        sim.add_event(dpsimpy.event.SwitchEvent3Ph(e_trigger_s, e_switch, True))
+        sim.add_event(dpsimpy.event.SwitchEvent3Ph(e_clear_s, e_switch, False))
 
-    fault_node = dsys["nodes"][dsys["fault_bus"]]
+    fault_node = dsys["nodes"][dsys["fault_buses"][target]]
     v_attr = fault_node.attr("v")
     phase_attrs = [v_attr.derive_coeff(p, 0) for p in range(3)]
+
+    # docs/backlog/0006 option 2: second tap, i_intf on the fault-adjacent
+    # PiLine (chaosnet._fault_adjacent_line()'s deterministic pick), mirroring
+    # the v_intf voltage tap above exactly -- same derive_coeff(p, 0) pattern,
+    # applied to a line's current attribute instead of a node's voltage
+    # attribute. See module docstring's "key convention" section.
+    fault_adjacent_line = dsys["fault_adjacent_lines"][target]
+    fault_adjacent_line_name = chaosnet.fault_adjacent_line_name(
+        topology, dsys["fault_buses"][target]
+    )
+    i_attr = fault_adjacent_line.attr("i_intf")
+    line_phase_attrs = [i_attr.derive_coeff(p, 0) for p in range(3)]
+
+    # docs/backlog/0006 option 4: one v_intf tap per bus in dsys["nodes"],
+    # the same derive_coeff(p, 0) pattern as the fault-bus tap above, looped
+    # over every bus instead of hard-picked at one -- chaosnet.py's own
+    # DpsimChaosSystem docstring already named this exact gap ("run_dpsim.py
+    # picks out exactly one... and discards the rest of the solve's per-step
+    # state"). Only NUM_CHAOS_BUSES=14 buses exist for this lab's topology
+    # (chaosnet.NUM_CHAOS_BUSES), so capturing literally every bus (not a
+    # scoped-down subset) is cheap -- see module docstring's `bus_voltages`
+    # key convention entry and README's measured capture-overhead numbers.
+    all_bus_phase_attrs: dict[int, list] = {
+        bus_idx: [node.attr("v").derive_coeff(p, 0) for p in range(3)]
+        for bus_idx, node in dsys["nodes"].items()
+    }
+
+    # Optional condition-triggered generators (PRD-0001 Goal 3). Empty for
+    # today's chaos_schedule.yaml, so every block gated on
+    # `pending_generators`/`condition_triggered` below is a no-op on the
+    # regression path -- see run_step()'s own docstring.
+    pending_generators: list = []
+    monitored_taps: dict[str, int] = {}
+    cond_phase_attrs: dict[str, list] = {}
+    cond_raw: dict[str, dict[str, list[float]]] = {}
+    cond_history: dict[str, list[tuple[float, float]]] = {}
+    eval_stride = 1
+    if condition_triggered:
+        sys.path.insert(0, str(LAB_DIR.parent))  # for the `_shared` package
+        from _shared.scenario_engine import generators as scenario_generators
+        from _shared.scenario_engine.scenario import eval_stride_steps, step_generators
+
+        eval_stride = eval_stride_steps(TIME_STEP_S)
+        for ce in condition_triggered:
+            ce_target = ce["target"]
+            bus = dsys["fault_buses"][ce_target]
+            monitored_taps[ce_target] = bus
+            node = dsys["nodes"][bus]
+            v_attr_ce = node.attr("v")
+            cond_phase_attrs[ce_target] = [v_attr_ce.derive_coeff(p, 0) for p in range(3)]
+            cond_raw[ce_target] = {"va": [], "vb": [], "vc": []}
+            cond_history[f"{ce_target}_voltage_v"] = []
+            pending_generators.append(
+                scenario_generators.ProtectionTripGenerator(
+                    id=ce["generator_id"],
+                    target=ce_target,
+                    action=ce["action"],
+                    trigger_condition=ce["trigger_condition"],
+                    switch=dsys["fault_switches"][ce_target],
+                )
+            )
 
     num_samples = int(round(final_time_s / TIME_STEP_S))
     times: list[float] = []
     va_series: list[float] = []
     vb_series: list[float] = []
     vc_series: list[float] = []
+    ia_line_series: list[float] = []
+    ib_line_series: list[float] = []
+    ic_line_series: list[float] = []
+    # docs/backlog/0006 option 4: one {"va": [...], "vb": [...], "vc": [...]}
+    # accumulator per bus, keyed the same way as all_bus_phase_attrs above.
+    bus_voltage_series: dict[int, dict[str, list[float]]] = {
+        bus_idx: {"va": [], "vb": [], "vc": []} for bus_idx in all_bus_phase_attrs
+    }
+    scenario_events: list = []
 
     injected_printed = False
     cleared_printed = False
 
     sim.start()
-    for _ in range(num_samples):
+    for step in range(num_samples):
         t = sim.next()
         va, vb, vc = (a.get() for a in phase_attrs)
+        ia_l, ib_l, ic_l = (a.get() for a in line_phase_attrs)
         times.append(t)
         va_series.append(va)
         vb_series.append(vb)
         vc_series.append(vc)
+        ia_line_series.append(ia_l)
+        ib_line_series.append(ib_l)
+        ic_line_series.append(ic_l)
+        for bus_idx, attrs in all_bus_phase_attrs.items():
+            ba, bb, bc = (a.get() for a in attrs)
+            series = bus_voltage_series[bus_idx]
+            series["va"].append(ba)
+            series["vb"].append(bb)
+            series["vc"].append(bc)
+
+        if pending_generators:
+            for tgt, attrs in cond_phase_attrs.items():
+                ca, cb, cc = (a.get() for a in attrs)
+                cond_raw[tgt]["va"].append(ca)
+                cond_raw[tgt]["vb"].append(cb)
+                cond_raw[tgt]["vc"].append(cc)
+            if step % eval_stride == 0:
+                fired, pending_generators = step_generators(
+                    t, pending_generators, monitored_taps, cond_raw, times, cond_history
+                )
+                scenario_events.extend(fired)
+                if verbose:
+                    for ev in fired:
+                        print(
+                            f"[scenario] fired {ev['generator_id']} "
+                            f"({ev['kind']}) at t={ev['time_s']:.4f}s"
+                        )
 
         if verbose and not injected_printed and t >= trigger_s:
             injected_printed = True
             print(
                 f"FAULT INJECTED: {target} {fault_type}, clearing in "
-                f"{event['clearing_duration_s'] * 1000:.0f}ms"
+                f"{primary['clearing_duration_s'] * 1000:.0f}ms"
             )
         if verbose and not cleared_printed and t >= clear_s:
             cleared_printed = True
@@ -334,7 +530,7 @@ def run_step(
         "fault_type": fault_type,
         "time_step_s": TIME_STEP_S,
         "trigger_time_s": trigger_s,
-        "clearing_duration_s": float(event["clearing_duration_s"]),
+        "clearing_duration_s": float(primary["clearing_duration_s"]),
         "final_time_s": final_time_s,
         "num_samples": num_samples,
         "pre_fault_rms_v": round(_rms(pre_fault), 3),
@@ -366,6 +562,14 @@ def run_step(
                 "va": va_series,
                 "vb": vb_series,
                 "vc": vc_series,
+                "ia_line": ia_line_series,
+                "ib_line": ib_line_series,
+                "ic_line": ic_line_series,
+                "fault_adjacent_line": fault_adjacent_line_name,
+                "bus_voltages": {
+                    str(bus_idx): series
+                    for bus_idx, series in bus_voltage_series.items()
+                },
                 "trigger_time_s": trigger_s,
                 "clear_time_s": clear_s,
                 "target": target,
@@ -376,7 +580,9 @@ def run_step(
         print(
             f"[stream] wrote {VILLAS_STREAM_CSV.relative_to(LAB_DIR)} "
             f"(VILLASnode file-node format, {num_samples} samples) and "
-            f"{TRANSIENT_LOG_JSON.name}"
+            f"{TRANSIENT_LOG_JSON.name} "
+            f"({len(bus_voltage_series)} buses x 3 phases x {num_samples} "
+            "samples in bus_voltages, docs/backlog/0006 option 4)"
         )
 
     if schedule_path.resolve() == DEFAULT_SCHEDULE_FILE.resolve() and seed == DEFAULT_SEED:
