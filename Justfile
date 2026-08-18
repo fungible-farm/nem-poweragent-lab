@@ -107,6 +107,7 @@ check-lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py
     uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check
     uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
+    uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -171,6 +172,14 @@ view-lab5-spectrogram:
 # stabilizer_comparison.json (gitignored, regenerated every run).
 lab5-stabilizer:
     uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step run
+
+# PRD-0005 Phase 1.5: translate the above stabilizer_comparison.json result
+# into a steady-state constraint-headroom question against a real
+# pandapower net (chaosnet.to_pandapower(), same topology as the DPsim
+# run) and report the real yes/no on whether a binding constraint changed.
+# Writes headroom_translation.json (gitignored, regenerated every run).
+lab5-headroom:
+    uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step run
 
 # --- Lab 5 VILLASnode stream tap (real podman pod, see README "Sandbox
 # notes" 4-6 and kube/villasnode-tap-pod.yaml's own header) ------------------

@@ -125,6 +125,51 @@ def test_lab5_grid_forming_reduces_peak_sag():
     assert stabilized_sag > 0.0
 
 
+def test_lab5_headroom_translation_check():
+    """PRD-0005 Phase 1.5: headroom_translation.py --step check re-derives
+    Phase 1's real stabilizer_comparison.json numbers, builds a real
+    pandapower net from the identical chaos-net topology (chaosnet.
+    to_pandapower()), and runs two real pp.runpp() limit screens (baseline
+    vs. the (b)-hypothesis rating translation on the fault-adjacent line).
+    Only structural invariants are asserted (both solves converged, the
+    translated max_i_ka increased, and the fault-adjacent line's own
+    loading_percent did not increase after raising its own rating) -- never
+    a hardcoded direction for binding_constraint_set_changed, since "no
+    binding constraint changed" is an explicitly acceptable, honestly
+    reportable real finding per PRD-0005 Phase 1.5, not a test failure.
+    """
+    result = _run_check("headroom_translation.py")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "MATCH" in result.stdout
+
+
+def test_lab5_headroom_translation_reports_real_finding():
+    """Direct check against the real headroom_translation.json the previous
+    test just wrote: the fault-adjacent line's steady-state limit-screen
+    numbers must be real, finite pandapower results (not placeholders), and
+    the (b)-hypothesis translation must have actually been applied (a
+    strictly larger max_i_ka on the translated net) -- whatever the
+    resulting binding_constraint_set_changed verdict honestly turns out to
+    be, per this repo's own "no, nothing changes is an acceptable outcome"
+    discipline for this phase.
+    """
+    headroom_path = LAB_DIR / "headroom_translation.json"
+    if not headroom_path.exists():
+        pytest.skip(
+            "headroom_translation.json not present -- headroom_translation.py "
+            "hasn't run yet"
+        )
+    result = json.loads(headroom_path.read_text())
+    baseline = result["baseline"]
+    translated = result["translated"]
+
+    assert translated["fault_adjacent_line_max_i_ka"] > baseline["fault_adjacent_line_max_i_ka"]
+    assert baseline["worst_loading_percent"] >= 0.0
+    assert 0.0 <= baseline["worst_voltage_pu"] <= 2.0  # sane pu range, not a placeholder
+    assert isinstance(result["binding_constraint_set_changed"], bool)
+    assert result["conclusion"]  # a real, non-empty honest finding was written
+
+
 def _synthetic_wave(va_scale: float, vb_scale: float, vc_scale: float) -> ThreePhaseWaveform:
     """A 0.1 s, 5 kHz synthetic 3-phase 50 Hz cosine set with independently
     scaled per-phase peak amplitudes -- va_scale=vb_scale=vc_scale=1.0 is a
