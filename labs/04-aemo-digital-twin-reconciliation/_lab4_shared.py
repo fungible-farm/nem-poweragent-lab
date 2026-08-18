@@ -34,6 +34,16 @@ DATA_FILE: Final[Path] = REPO_ROOT / "data" / "snemSA.m"
 # (or served from NEMOSIS's own cache) on every clean checkout, exactly like
 # scripts/fetch_csiro_nem_data.py's CHECKSUMS-verified fetch for Labs 1-3.
 NEMOSIS_CACHE_DIR: Final[Path] = REPO_ROOT / "data" / "nemosis_cache"
+# NEMOSIS's dynamic_data_compiler raises UserInputError if raw_data_location
+# doesn't already exist as a directory (confirmed: it does not create it
+# itself) -- fetch_day.py already mkdir'd this before its own nemosis calls,
+# but reconcile.py/map_duids.py/explain_constraint.py called nemosis
+# directly without it, working only by accident on a host where some prior
+# run (or ./install.sh) had already populated data/nemosis_cache/. Created
+# here, once, at import time, so every one of this lab's four scripts gets
+# it regardless of import order -- including a genuinely fresh checkout or
+# container image where data/nemosis_cache/ has never existed before.
+NEMOSIS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # docs/LAB4_AEMO_REAL_DATA.md Part A step 1: "default: SA1, since it lines
 # up with the snemSA.m case already used in Lab 1." snemSA.m is a

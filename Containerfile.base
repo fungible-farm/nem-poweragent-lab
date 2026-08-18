@@ -1,0 +1,75 @@
+# Containerfile.base -- the shared build layer every lab's own
+# labs/0N-.../Containerfile builds FROM (`FROM nem-poweragent-base:local`).
+#
+# Rationale: this repo's own pyproject.toml/uv.lock pull in several large
+# compiled wheels (dpsim, pandapower, numba, nemosis) that take real time to
+# resolve/install. Building that once here, then having every lab's own
+# Containerfile just add a two-line ENTRYPOINT/CMD on top, means adding or
+# rebuilding a lab image never re-pays that cost -- podman/docker's own
+# layer cache reuses this image's layers unchanged as long as
+# pyproject.toml/uv.lock/the repo tree haven't changed. This is the
+# "appropriate to use layers and share a common build" a Containerfile per
+# lab implies, not five independent copies of the same install.
+#
+# Build once (from the repo root):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   (or: docker build -t nem-poweragent-base:local -f Containerfile.base .
+#    -- this file is plain OCI syntax, Docker Desktop on Windows/Mac reads
+#    it identically; "Containerfile" vs "Dockerfile" is only a name)
+#
+# Then any lab image, e.g.:
+#   podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
+#   podman run --rm lab1:local
+#
+# Base: python:3.12-slim -- this repo's pyproject.toml pins
+# requires-python = ">=3.11"; 3.12 has manylinux wheels for every pinned
+# dependency (confirmed for dpsim==1.2.1, this repo's pinned version, which
+# ships manylinux_2_28_x86_64 wheels only -- no native Windows wheel at
+# this pin, which is exactly why running Lab 5 through this container
+# rather than a native Windows install is the recommended path; see the
+# root README's "Running on Windows" section).
+FROM docker.io/library/python:3.12-slim
+
+# DPsim's compiled dpsimpy.*.so (Lab 5's EMT solver) links against these
+# shared libs at runtime but does not vendor them into its wheel -- absent
+# on python:3.12-slim's minimal Debian base, confirmed directly: `ldd
+# dpsimpy.*.so` lists `libexpat.so.1`, `libglib-2.0.so.0`, and
+# `libgobject-2.0.so.0` as "not found" without this, and any `import
+# dpsimpy` then fails with `ImportError: libexpat.so.1: cannot open shared
+# object file`. Labs 1-4 don't need this layer (pandapower/nemosis are pure
+# Python + numpy/scipy, no missing system libs found by the same check),
+# but it costs nothing extra for them since it's part of the one shared
+# base every lab's Containerfile builds from.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libexpat1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv itself by copying the official static binary out of astral's
+# own published image -- this is this image's own internal build step for
+# a fresh container filesystem, a different environment from this repo's
+# own dev venv, so AGENTS.md's "uv run / uv add only" convention (which
+# governs commands run against *this repo's own checked-out environment*)
+# does not apply to how uv itself gets installed inside the image.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /workspace
+
+# Dependency manifests copied first so `uv sync` is its own cached layer,
+# independent of every later change to lab code -- editing a .py file never
+# invalidates this RUN step's cache.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+# Now the rest of the repo. .containerignore (repo root) excludes .venv/,
+# .git/, logs/, __pycache__/, and data/nemosis_cache/. data/*.m (the CSIRO
+# case files Labs 1/2/4 need) is deliberately *not* excluded -- this image
+# bakes in whatever is present in data/ at build time. If data/ is empty,
+# run `uv run scripts/fetch_csiro_nem_data.py` (or `./install.sh`) on the
+# host first, then rebuild.
+COPY . .
+RUN uv sync --frozen
+
+ENV PYTHONUNBUFFERED=1
+
+# No ENTRYPOINT/CMD here -- this base image is never run directly; each
+# lab's own Containerfile supplies both.

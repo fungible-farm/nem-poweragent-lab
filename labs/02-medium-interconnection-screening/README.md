@@ -79,6 +79,24 @@ uv run labs/02-medium-interconnection-screening/workflow.py --step memo --approv
 uv run python -m pytest labs/02-medium-interconnection-screening/test_lab2.py
 ```
 
+## Running in a container (Windows-friendly)
+
+No local `uv`/Python/pandapower install needed — build once, run anywhere Docker Desktop or Podman
+Desktop is installed (both run on Windows via a WSL2 backend, and read a `Containerfile` exactly
+like Linux/macOS native `podman`/`docker`):
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab2:local -f labs/02-medium-interconnection-screening/Containerfile .
+podman run --rm lab2:local
+```
+
+(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
+dependency set once, shared by every other lab's own image — see `Containerfile.base`'s own
+header. The default run reproduces the `--step check` output above exactly; override the `CMD` to
+run another step, e.g. the human-in-the-loop memo gate:
+`podman run --rm lab2:local --step memo --approve APPROVE`.
+
 ## Step-by-step walkthrough (presenter / backup script)
 
 1. **`uv run labs/02-medium-interconnection-screening/workflow.py --step base`**

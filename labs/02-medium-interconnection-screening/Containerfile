@@ -1,0 +1,22 @@
+# labs/02-medium-interconnection-screening/Containerfile -- runs Lab 2
+# (concurrent N-1 contingency screen against real CSIRO snem1803.m data) as
+# a container. No local uv/Python/pandapower install needed -- see this
+# lab's own README.md "Running in a container" section. Works identically
+# under Docker Desktop or Podman Desktop (WSL2 backend) on Windows, or
+# native podman/docker on Linux/macOS.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab2:local -f labs/02-medium-interconnection-screening/Containerfile .
+#
+# Run (the same real check `just check-lab2` runs natively):
+#   podman run --rm lab2:local
+#
+# Override the step to see the full walkthrough (README.md's step table),
+# e.g. the human-in-the-loop memo gate:
+#   podman run --rm lab2:local --step memo -- APPROVE
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["uv", "run", "labs/02-medium-interconnection-screening/workflow.py"]
+CMD ["--step", "check"]

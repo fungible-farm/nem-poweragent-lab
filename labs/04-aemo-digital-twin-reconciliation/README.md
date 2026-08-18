@@ -118,6 +118,24 @@ uv run labs/04-aemo-digital-twin-reconciliation/reconcile.py --date 2016-09-28  
 uv run python -m pytest labs/04-aemo-digital-twin-reconciliation/test_lab4.py
 ```
 
+## Running in a container (Windows-friendly)
+
+No local `uv`/Python/pandapower/nemosis install needed — build once, run anywhere Docker Desktop
+or Podman Desktop is installed (both run on Windows via a WSL2 backend, and read a `Containerfile`
+exactly like Linux/macOS native `podman`/`docker`):
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab4:local -f labs/04-aemo-digital-twin-reconciliation/Containerfile .
+podman run --rm lab4:local
+```
+
+(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
+dependency set once, shared by every other lab's own image — see `Containerfile.base`'s own
+header. Unlike Labs 1-3, this container needs outbound network access at run time — NEMOSIS pulls
+real AEMO data live, no fixture fallback — which podman/docker's default bridge network already
+provides with no extra flag. The default run reproduces the `--step check` output above exactly.
+
 ## Step-by-step walkthrough (presenter / backup script)
 
 1. **`uv run labs/04-aemo-digital-twin-reconciliation/fetch_day.py --region SA1 --date 2026-06-15`**

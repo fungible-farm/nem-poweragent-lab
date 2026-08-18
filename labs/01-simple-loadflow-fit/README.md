@@ -43,6 +43,24 @@ uv run labs/01-simple-loadflow-fit/run.py --step check
 uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py
 ```
 
+## Running in a container (Windows-friendly)
+
+No local `uv`/Python/pandapower install needed — build once, run anywhere Docker Desktop or Podman
+Desktop is installed (both run on Windows via a WSL2 backend, and read a `Containerfile` exactly
+like Linux/macOS native `podman`/`docker`):
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
+podman run --rm lab1:local
+```
+
+(Swap `podman` for `docker` if that's what you have — both read this repo's `Containerfile`s
+identically.) The first `build` installs this repo's full dependency set once, shared by every
+other lab's own image — see `Containerfile.base`'s own header. The default run reproduces the
+`--step check` output above exactly; override the `CMD` to run another step, e.g.
+`podman run --rm lab1:local --step fit`.
+
 ## Step-by-step walkthrough (presenter / backup script)
 
 1. **`uv run labs/01-simple-loadflow-fit/run.py --step load`**

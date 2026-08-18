@@ -404,6 +404,33 @@ uv run python -m pytest labs/05-spartan-chaosnet-transient-stream/ -v
 `villas/chaos_stream.csv` the pod reads (see Sandbox note 4 above; gitignored, regenerated on
 every run, same pattern as Labs 1–4's fetched/derived data).
 
+## Running in a container (recommended on Windows)
+
+This is the **recommended way to run Lab 5 on Windows specifically**: this repo's pinned
+`dpsim==1.2.1` ships `manylinux` wheels only — there is no native Windows wheel at this pin (later
+`dpsim` releases do publish `win_amd64` wheels, but this repo hasn't moved off 1.2.1 — see
+`docs/prd/0005-grid-forming-stabilizer-and-renewable-models.md`'s Phase 0 findings for why). Docker
+Desktop or Podman Desktop (both run on Windows via a WSL2 backend) sidesteps this entirely by
+running the real Linux wheel inside the container, identically to native Linux/macOS:
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab5:local -f labs/05-spartan-chaosnet-transient-stream/Containerfile .
+podman run --rm lab5:local
+```
+
+(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
+dependency set once (including the system shared libs `dpsimpy`'s compiled extension needs but
+`python:3.12-slim` doesn't ship — `libexpat1`/`libglib2.0-0`; see `Containerfile.base`'s own
+header), shared by every other lab's own image. The default run chains the same 5 real DPsim
+checks `just check-lab5` runs natively (topology generation, stream-fixture verification,
+grid-forming stabilizer, EMT→OPF headroom translation, delay compensation) — several minutes
+total, not a quick command like Labs 1-3. `verify_stream.py --step check` validates the committed
+fixture, not a live VILLASnode pod, so no nested podman-in-container is needed for this default;
+the live-pod walkthrough (`podman kube play kube/villasnode-tap-pod.yaml`) still needs a real
+podman/Linux host (or WSL2) — it isn't containerized by `labs/05-spartan-chaosnet-transient-stream/Containerfile`
+itself.
+
 ## Step-by-step walkthrough (presenter / backup script)
 
 1. **`uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py --seed 42`**

@@ -1,21 +1,31 @@
-# Build-context excludes for Containerfile.bakeoff (kube/benchmark-runner-
-# job.yaml's power-agent-bench-lite:local image). `podman build` otherwise
-# sends the *entire* local checkout as build context regardless of
-# .gitignore (that file only governs git, not container build context), so
-# without this file a `COPY . .` step would ship this repo's 1.3G .venv/
-# and 187M logs/ into the image and/or fail on files that don't belong
-# there.
+# Build-context excludes -- shared by every Containerfile built from the
+# repo root context (`podman build -f <any Containerfile> .`): the shared
+# `Containerfile.base` every labs/0N-.../Containerfile builds from,
+# `Containerfile.bakeoff` (kube/benchmark-runner-job.yaml's
+# power-agent-bench-lite:local image), and `Containerfile.powermcp`.
+# `podman build` otherwise sends the *entire* local checkout as build
+# context regardless of .gitignore (that file only governs git, not
+# container build context), so without this file a `COPY . .` step would
+# ship this repo's 1.3G .venv/ and 187M logs/ into the image and/or fail on
+# files that don't belong there.
 #
 # data/*.m (the CSIRO case files `scripts/fetch_csiro_nem_data.py` fetches)
-# is deliberately *not* excluded here: orchestrator.py's --step sweep needs
-# data/snem1803.m to exist, and there is no reasonable way for a
-# Containerfile's own RUN steps to fetch+checksum-verify it during a build
-# (network access during build is best avoided, and the real fetch script
-# is meant to be run once per checkout, not baked into every image build).
-# So this image bakes in whatever data/*.m is present on disk at build
-# time -- run `uv run scripts/fetch_csiro_nem_data.py` on the host before
-# `podman build` if data/ is empty. data/nemosis_cache/ (Lab 4's AEMO
-# download cache, ~160MB, unrelated to Lab 3) is excluded below.
+# is deliberately *not* excluded here: Lab 1/2/3's own `--step` walkthroughs
+# need data/snemSA.m / data/snem1803.m to exist, and there is no reasonable
+# way for a Containerfile's own RUN steps to fetch+checksum-verify it during
+# a build (network access during build is best avoided, and the real fetch
+# script is meant to be run once per checkout, not baked into every image
+# build). So every image bakes in whatever data/*.m is present on disk at
+# build time -- run `uv run scripts/fetch_csiro_nem_data.py` on the host
+# before `podman build` if data/ is empty.
+#
+# data/nemosis_cache/ (Lab 4's AEMO download cache, ~160MB) IS excluded
+# below -- every lab-4 image starts with an empty cache and does a real, live
+# NEMOSIS pull on first run inside the container (Lab 4's own README "Running
+# in a container" section notes the network-access requirement this implies).
+# `_lab4_shared.py` creates this directory itself at import time if absent
+# (NEMOSIS's `dynamic_data_compiler` raises if the directory doesn't already
+# exist), so an empty/absent cache in the image is not a bug.
 .venv/
 .git/
 logs/

@@ -69,6 +69,29 @@ uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report
 uv run python -m pytest labs/03-advanced-provider-bakeoff/test_lab3.py
 ```
 
+## Running in a container (Windows-friendly)
+
+No local `uv`/Python install needed — build once, run anywhere Docker Desktop or Podman Desktop is
+installed (both run on Windows via a WSL2 backend, and read a `Containerfile` exactly like
+Linux/macOS native `podman`/`docker`):
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab3:local -f labs/03-advanced-provider-bakeoff/Containerfile .
+podman run --rm lab3:local
+```
+
+(Swap `podman` for `docker` if that's what you have.) The first `build` installs this repo's full
+dependency set once, shared by every other lab's own image — see `Containerfile.base`'s own
+header. The default run reproduces the `--step check` output above exactly; override the `CMD` to
+run the full sweep instead: `podman run --rm lab3:local --step sweep`.
+
+This lab also has a second, separate image at the repo root — `Containerfile.bakeoff`, built to
+`power-agent-bench-lite:local` — which is the Kubernetes-style provider-partitioned sweep image
+`kube/benchmark-runner-job.yaml` actually runs (see that manifest's own header). The
+`labs/03-advanced-provider-bakeoff/Containerfile` above is the lighter "just run the tutorial"
+path built off the same shared base every other lab uses; the two are deliberately not merged.
+
 ## Step-by-step walkthrough (presenter / backup script)
 
 1. **`uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep`**

@@ -1,0 +1,30 @@
+# labs/03-advanced-provider-bakeoff/Containerfile -- runs Lab 3's own
+# self-check (3 deterministic policy stand-ins scored against
+# expected_scorecard.json) as a container. No local uv/Python install
+# needed -- see this lab's own README.md "Running in a container" section.
+# Works identically under Docker Desktop or Podman Desktop (WSL2 backend)
+# on Windows, or native podman/docker on Linux/macOS.
+#
+# This is deliberately a *different* image from the repo root's
+# `Containerfile.bakeoff` (built to `power-agent-bench-lite:local`) --
+# that one is the Kubernetes-style provider-partitioned sweep image
+# `kube/benchmark-runner-job.yaml` actually runs (see that manifest's own
+# header for its real, podman-verified session and its one documented
+# `podman kube play` limitation). This Containerfile is the lightweight
+# "just run the tutorial" path, built off the shared base image every other
+# lab uses, matching this lab's own README walkthrough exactly.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab3:local -f labs/03-advanced-provider-bakeoff/Containerfile .
+#
+# Run (the same real check `just check-lab3` runs natively):
+#   podman run --rm lab3:local
+#
+# Override the step to run the full sweep instead (README.md's step table):
+#   podman run --rm lab3:local --step sweep
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["uv", "run", "labs/03-advanced-provider-bakeoff/orchestrator.py"]
+CMD ["--step", "check"]

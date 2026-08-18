@@ -1,0 +1,35 @@
+# labs/05-spartan-chaosnet-transient-stream/Containerfile -- runs Lab 5's
+# self-checks (real DPsim EMT solves: chaos-net topology generation,
+# stream-fixture verification, grid-forming stabilizer, EMT->OPF headroom
+# translation, cable-length delay compensation) as a container. No local
+# uv/Python/DPsim/pandapower install needed -- see this lab's own
+# README.md "Running in a container" section.
+#
+# This is the recommended path on Windows specifically: this repo's pinned
+# `dpsim==1.2.1` (see Containerfile.base's own header) ships manylinux
+# wheels only, no native Windows wheel -- Docker Desktop or Podman Desktop
+# (WSL2 backend) sidesteps that entirely by running the real Linux wheel
+# inside the container, identically to native Linux/macOS.
+#
+# check-lab5 is 5 real, independent DPsim runs chained (mirrors the
+# Justfile's own `check-lab5` recipe exactly -- keep both in sync if either
+# changes), several minutes total, not one fast command like Labs 1-3.
+# `verify_stream.py --step check` validates the committed fixture, not a
+# live VILLASnode pod (see its own check_step() docstring) -- no nested
+# podman-in-container needed for this default.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab5:local -f labs/05-spartan-chaosnet-transient-stream/Containerfile .
+#
+# Run (the same real check-lab5 chain `just check-lab5` runs natively):
+#   podman run --rm lab5:local
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["sh", "-c"]
+CMD ["uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py && \
+     uv run labs/05-spartan-chaosnet-transient-stream/verify_stream.py --step check && \
+     uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check && \
+     uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check && \
+     uv run labs/05-spartan-chaosnet-transient-stream/delay_compensation.py --step check"]

@@ -1,0 +1,23 @@
+# labs/01-simple-loadflow-fit/Containerfile -- runs Lab 1 (single-agent
+# load-flow parameter fit against real CSIRO snemSA.m data) as a container.
+# No local uv/Python/pandapower install needed -- see this lab's own
+# README.md "Running in a container" section. Works identically under
+# Docker Desktop or Podman Desktop (WSL2 backend) on Windows, or native
+# podman/docker on Linux/macOS -- a "Containerfile" is plain OCI build
+# syntax, readable by either tool under either name.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
+#
+# Run (the same real check `just check-lab1` runs natively):
+#   podman run --rm lab1:local
+#
+# Override the step to see the full walkthrough instead of just the check
+# (see README.md's own step table):
+#   podman run --rm lab1:local --step base
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["uv", "run", "labs/01-simple-loadflow-fit/run.py"]
+CMD ["--step", "check"]

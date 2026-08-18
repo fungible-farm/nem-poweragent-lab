@@ -1,0 +1,25 @@
+# labs/04-aemo-digital-twin-reconciliation/Containerfile -- runs Lab 4
+# (real NEMOSIS pull of AEMO's live NEMWeb MMS archive + real
+# pandapower.runpp() reconciliation) as a container. No local uv/Python/
+# pandapower/nemosis install needed -- see this lab's own README.md
+# "Running in a container" section. Works identically under Docker Desktop
+# or Podman Desktop (WSL2 backend) on Windows, or native podman/docker on
+# Linux/macOS.
+#
+# Needs outbound network access at run time (NEMOSIS pulls real AEMO data
+# live -- there is no fixture fallback, per this lab's own honesty
+# discipline) -- podman/docker's default bridge network already provides
+# this, no extra flag needed.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab4:local -f labs/04-aemo-digital-twin-reconciliation/Containerfile .
+#
+# Run (the same real check `just check-lab4` runs natively -- pulls live
+# AEMO data, takes longer than Labs 1-3's fully-local checks):
+#   podman run --rm lab4:local
+FROM nem-poweragent-base:local
+
+ENTRYPOINT ["uv", "run", "labs/04-aemo-digital-twin-reconciliation/reconcile.py"]
+CMD ["--step", "check"]

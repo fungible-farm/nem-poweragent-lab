@@ -5,6 +5,26 @@ PowerAgent Tutorial — AEMO Labs
 A training lab (not a product pitch) demonstrating deterministic, agent-driven power-system
 workflows against a real NEM network model, running entirely on local, open-source components.
 
+## Summary
+
+Five runnable labs, each against real public data (CSIRO's Synthetic-NEM-2000-Bus MATPOWER case,
+real historical AEMO NEMWeb market data, or a real DPsim EMT solve), each self-checking (a
+`--step check` that diffs against a committed fixture, plus a `test_labN.py`), and each with its
+own tutorial `README.md` and its own `Containerfile`:
+
+| Lab | What it shows | Real data / physics |
+| --- | --- | --- |
+| [`01-simple-loadflow-fit`](labs/01-simple-loadflow-fit/) | single-agent load-flow parameter fit | real `pandapower.runpp()` against CSIRO `snemSA.m` |
+| [`02-medium-interconnection-screening`](labs/02-medium-interconnection-screening/) | concurrent N-1 contingency screen + human-in-the-loop memo gate | real `pandapower.runpp()` against CSIRO `snem1803.m` |
+| [`03-advanced-provider-bakeoff`](labs/03-advanced-provider-bakeoff/) | provider × task-family scoring harness | 3 task families, real scored comparison |
+| [`04-aemo-digital-twin-reconciliation`](labs/04-aemo-digital-twin-reconciliation/) | digital-twin reconciliation against live AEMO market data | real live NEMWeb pull via NEMOSIS, real `pandapower.runpp()` |
+| [`05-spartan-chaosnet-transient-stream`](labs/05-spartan-chaosnet-transient-stream/) | EMT-domain transient streaming + a real grid-forming stabilizer | real DPsim 200µs-timestep EMT solve, real VILLASnode pod |
+
+Every lab is runnable two ways, documented in that lab's own `README.md`: natively via `uv run`
+(fastest, needs this repo's own toolchain — see Install below), or in a container via that lab's
+own `Containerfile` (no local Python/DPsim/pandapower install at all — see "Running the labs in a
+container" below, and especially the note there for Windows users).
+
 **Start here: [`docs/VISION.md`](docs/VISION.md)** for the full plan — ecosystem map, architecture,
 Labs 1–3 (simple/medium/advanced), and the reasoning behind every technology choice.
 
@@ -51,6 +71,36 @@ with no password anywhere.
 `just proof`, `just check`, per-lab walkthrough steps, `just render` (the MP4 animations), and
 the zero-file-transfer display recipes `just peek <chart>` (chafa, in-terminal) and
 `just watch <anim>` (mpv, windowed over WSLg/ssh -X, or `just watch-tct` in-terminal).
+
+## Running the labs in a container
+
+`./install.sh` above is the fastest path if your host is Linux/macOS (or WSL2) and you don't mind
+a real `uv`/`podman` install. If you'd rather not install this repo's toolchain at all — or you're
+on **Windows without WSL2** — every lab has its own `Containerfile` (`labs/0N-.../Containerfile`),
+built on one shared base layer so the (large: DPsim, pandapower, nemosis, numba) dependency install
+only happens once, not five times:
+
+```
+podman build -t nem-poweragent-base:local -f Containerfile.base .
+podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
+podman run --rm lab1:local
+```
+
+Repeat the last two lines per lab (`lab2`/`labs/02-.../Containerfile`, etc. — each lab's own
+README has the exact commands and image name). `docker` works identically wherever this doc says
+`podman` — a `Containerfile` is plain OCI build syntax, read the same way by either tool.
+
+**Windows note.** Docker Desktop and Podman Desktop both run on Windows via a WSL2 backend and
+build/run these `Containerfile`s exactly as shown above — this is the recommended Windows path,
+especially for **Lab 5**: this repo's pinned `dpsim==1.2.1` ships Linux (`manylinux`) wheels only,
+no native Windows wheel, so Lab 5's container is the only way to run it on Windows without setting
+up WSL2 directly. Labs 1-4 have no such constraint (pandapower/nemosis/numpy/scipy all ship
+Windows wheels), so a native `uv sync` on Windows works for those — but `install.sh`/`Justfile`
+are POSIX shell either way, so the container path (or WSL2) is still the smoothest route for the
+whole repo, not just Lab 5.
+
+Each lab's own `README.md` has a "Running in a container" section with that lab's exact build/run
+commands and what to expect.
 
 ## Connecting to the MCP servers
 
