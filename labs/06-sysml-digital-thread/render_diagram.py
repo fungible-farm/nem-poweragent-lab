@@ -1,13 +1,9 @@
 """Render an iso-IR JSON spec (see `translate_iso_ir.py`) to a deterministic isometric SVG.
 
-This is the named stand-in for a real headless DaanV2/isometric-diagrams render -- see
-`translate_iso_ir.py`'s module docstring for the real attempt (confirmed working via Playwright on
-2026-08-18, not committed to this repo's pipeline: it needs a Node/Svelte toolchain and a
-~290MB headless-Chromium download this Python-only repo doesn't otherwise have). This module
-instead does the isometric-projection math directly -- no browser, no DOM, no external renderer --
-which also trivially satisfies this MVP's own "re-run on unchanged input -> byte-identical SVG"
-kill check: there is no font-shaping engine or animation frame to introduce variance, only fixed
-arithmetic on the iso-IR JSON's own node positions.
+This module does the isometric-projection math directly -- no browser, no DOM, no external
+renderer -- which trivially satisfies this MVP's own "re-run on unchanged input -> byte-identical
+SVG" kill check: there is no font-shaping engine or animation frame to introduce variance, only
+fixed arithmetic on the iso-IR JSON's own node positions.
 
 Projection: standard 2:1 isometric tile math, `sx = (col - row) * TILE_W/2`,
 `sy = (col + row) * TILE_H/2` (the same formula named in this lab's original sprint plan).
@@ -67,10 +63,9 @@ XFMR_GLYPH_R: Final[float] = 4.0
 # directly on top of the buses/branches between its two ends, hiding them.
 BOW_HEIGHT: Final[float] = TILE_H
 
-# One fill colour per DaanV2 NodeType this translator actually assigns (translate_iso_ir.py's
-# TYPE_BY_PART_TYPE) -- arbitrary but fixed, chosen for readable contrast against the dark
-# background this lab's iso-IR specs request (settings.theme: dark, matching every other DaanV2
-# example this lab's translator was checked against).
+# One fill colour per node type this translator actually assigns (translate_iso_ir.py's
+# TYPE_BY_PART_TYPE) -- arbitrary but fixed, chosen for readable contrast against this lab's dark
+# SVG background.
 FILL_BY_TYPE: Final[dict[str, str]] = {
     "generic": "#6b7280",
     "server": "#2563eb",

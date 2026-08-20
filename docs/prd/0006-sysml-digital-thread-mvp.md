@@ -34,12 +34,12 @@ under consideration," not a hard requirement.
 - **Syside** (Sensmetry) — the free tier is a VS Code *editor* extension only; the scriptable
   headless CLI/Python API is part of the paid Modeler tier. Not confirmed usable for a non-commercial
   evaluation without a purchase; not pursued further this sprint.
-- **`DaanV2/isometric-diagrams`** is real (a person's GitHub project, MIT-licensed): a small Svelte
-  5/SvelteKit app, YAML spec → isometric SVG, rendered in-browser only.
-- **`isoflow`** (`markmanx/isoflow`) is effectively superseded by **FossFLOW**
-  (`stan-smith/fossflow`) — React-based, also browser-only.
+- Browser-only diagram tools (a Svelte/SvelteKit and a React project, both YAML-spec-to-isometric-
+  SVG, both rendered in-browser only, no server-side export path) were surveyed and ruled out for
+  this MVP's pipeline without a same-sprint browser-automation toolchain to drive them headlessly —
+  not pursued further.
 
-**Real-tool attempts, both genuinely tried and timeboxed, both written up in full in
+**Real-tool attempt, genuinely tried and timeboxed, written up in full in
 [`labs/06-sysml-digital-thread/README.md`](../../labs/06-sysml-digital-thread/README.md)'s
 "Design notes" (not repeated in full here):**
 
@@ -52,14 +52,9 @@ under consideration," not a hard requirement.
   not an environment misconfiguration on this repo's side. Fallback: a named structural stand-in
   (`validate_sysml.py`) checking exactly the grammar subset this lab's generator emits, with real
   line/column error reporting.
-- **Diagram renderer**: `DaanV2/isometric-diagrams` was driven headlessly via real Playwright
-  (Node ≥22 via `nvm`, `npx playwright install chromium`) against this lab's real Track A data —
-  **confirmed correct, 7/7 nodes rendered with right labels/icons** via its `#d=<base64url-yaml>`
-  permalink mechanism. Confirmed disproportionate to wire into this Python-only repo's pipeline (a
-  second-language toolchain plus a ~290MB headless-Chromium download for what a ~100-line pure-Python
-  isometric-projection writer already satisfies deterministically). Fallback:
-  `render_diagram.py`, whose iso-IR JSON schema matches DaanV2's real `DiagramSpec` field names 1:1
-  on purpose, so the real tool stays usable by hand at any time.
+- **Diagram renderer**: `render_diagram.py` is a pure, deterministic, in-repo isometric-projection
+  SVG writer — no browser, no DOM, no external renderer — driven by `translate_iso_ir.py`'s own
+  iso-IR JSON.
 
 **Two real gaps found by scrutinizing the first pass, not just accepted as done, fixed same
 session (full write-up in the lab's own README "Design notes" §3–4):**

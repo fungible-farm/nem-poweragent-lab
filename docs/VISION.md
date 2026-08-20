@@ -356,13 +356,14 @@ Full concept, tool-evaluation findings, and Definition of Done:
 1–5, this lab isn't a physics/dispatch scenario — it's a greenfield evaluation of whether SysML v2
 (a formal systems-modelling notation) is viable tooling for two emerging business cases: AI
 agent/MCP/data workflow modelling, and grid network topology modelling. One LinkML→`.sysml`
-generator/syntax-gate/isometric-diagram-renderer pipeline runs against two tracks — Track A (this
-repo's own real Agent/MCPServer/DataSource inventory) and Track B (a real bus/generator/line
-cluster pulled from `data/snemSA.m`) — proving the same code generalizes across both. Both the
-normative SysML v2 Pilot Implementation (syntax checking) and the real DaanV2/isometric-diagrams
-tool (diagram rendering) were genuinely attempted first, timeboxed, and precisely root-caused where
-they didn't land; each fell back to a small, named in-repo stand-in. Those findings are themselves
-the sprint's deliverable, not just the working pipeline.
+generator/syntax-gate/isometric-diagram-renderer pipeline runs against three tracks — Track A (this
+repo's own real Agent/MCPServer/DataSource inventory), Track B (a real bus/generator/line cluster
+pulled from `data/snemSA.m`), and Track C (PRD-0005's own real pipeline-phase sequence) — proving
+the same code generalizes across all three. The normative SysML v2 Pilot Implementation (syntax
+checking) was genuinely attempted first, timeboxed, and precisely root-caused where it didn't land;
+it fell back to a small, named in-repo stand-in. The diagram renderer is a pure, deterministic,
+in-repo isometric SVG writer. Those findings are themselves the sprint's deliverable, not just the
+working pipeline.
 
 ## 8. Rust component
 

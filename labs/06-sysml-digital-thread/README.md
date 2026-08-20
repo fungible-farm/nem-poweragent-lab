@@ -68,8 +68,8 @@ of this sprint.
 
 ## Design notes
 
-Most of this pipeline is straightforward generated code; the two places this sprint deliberately
-went and tried the **real** external tool first are the interesting part — this write-up **is** the
+Most of this pipeline is straightforward generated code; the syntax gate is the one place this
+sprint deliberately went and tried the **real** external tool first — that write-up is part of the
 knowledge this sprint set out to buy.
 
 ### 1. Syntax gate: the real SysML v2 Pilot Implementation (`validate_sysml.py`)
@@ -103,29 +103,14 @@ error on the first line that doesn't match an allowed shape, or on unbalanced br
 general SysML v2 parser and doesn't claim to be — a future phase revisiting either real path above
 would replace this one function, not the rest of the pipeline.
 
-### 2. Diagram renderer: the real DaanV2/isometric-diagrams (`translate_iso_ir.py`, `render_diagram.py`)
+### 2. Diagram renderer: an in-repo isometric SVG writer (`translate_iso_ir.py`, `render_diagram.py`)
 
-`translate_iso_ir.py`'s output JSON is deliberately shaped to match the real
-`DaanV2/isometric-diagrams` (MIT-licensed) project's own `DiagramSpec` schema — confirmed by reading
-its `src/lib/types/diagram.ts` directly, and by actually driving its real app headlessly (Playwright,
-via `nvm use 22` + `npx playwright install chromium`) to render this lab's real Track A instance data
-on 2026-08-18: **confirmed real, correct, 7/7 nodes rendered with correct labels and type icons**, via
-its `#d=<base64url-yaml>` permalink mechanism.
-
-That real render is **not** wired into this lab's own pipeline: it needs Node ≥20.19/22.13 (this
-repo's toolchain is Python/uv-only) plus a ~290MB headless-Chromium download, and its own SVG export
-(`src/lib/export.ts`) is DOM-dependent (`getComputedStyle`, `XMLSerializer` inside a live browser
-page) — there is no pure-function/server-side render path in that project, confirmed by reading its
-source. Vendoring a second-language (Node/Svelte) app plus a browser-automation toolchain into this
-Python power-systems repo is real, disproportionate infrastructure for this MVP — a genuine finding
-worth revisiting as a dedicated follow-up phase, not a same-sprint integration.
-
-`render_diagram.py` instead does the isometric-projection math directly in Python — no browser, no
-DOM — which also trivially satisfies this MVP's own "re-run on unchanged input → byte-identical SVG"
-kill check (no font-shaping engine or animation frame to introduce variance). Because the iso-IR
-JSON's field names match DaanV2's real `DiagramSpec` 1:1, dumping it to YAML and opening
-`https://<a running instance of DaanV2/isometric-diagrams>#d=<base64url(that yaml)>` remains a real,
-working way to view this lab's data in the real tool by hand — proven, not just plausible.
+`translate_iso_ir.py` emits a small iso-IR JSON (`title`/`type`/`nodes[].{id,label,type,
+position:{x,y}}`/`edges[]`), and `render_diagram.py` renders it with a pure, deterministic,
+in-repo isometric-projection SVG writer — no browser, no DOM, no external renderer. That also
+trivially satisfies this MVP's own "re-run on unchanged input → byte-identical SVG" kill check:
+there's no font-shaping engine or animation frame to introduce variance, only fixed arithmetic on
+the iso-IR JSON's own node positions.
 
 ### 3. Everything else: real, not simulated
 

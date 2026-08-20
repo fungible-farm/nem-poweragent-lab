@@ -1,34 +1,13 @@
 """Walk the generated `.sysml` text's `part` usages (Part/containment only, matching this MVP's
-scope) into an isometric-diagram intermediate representation (iso-IR) JSON -- deliberately shaped
-to match the real `DaanV2/isometric-diagrams` (MIT-licensed) project's own `DiagramSpec` schema
-(`title`/`type`/`nodes[].{id,label,type,position:{x,y}}`), confirmed by reading that project's
-`src/lib/types/diagram.ts` directly and by driving its real app headlessly (Playwright, via a
-`npx playwright install chromium` + `nvm use 22` container of its own devDependency) to render this
-lab's actual Track A instance data on 2026-08-18 -- confirmed real, correct, 7/7 nodes rendered
-with correct labels and type icons via its `#d=<base64url-yaml>` permalink mechanism.
+scope) into an isometric-diagram intermediate representation (iso-IR) JSON --
+`title`/`type`/`nodes[].{id,label,type,position:{x,y}}` plus an `edges[]` list -- consumed by
+`render_diagram.py`'s own in-repo isometric SVG writer (small, pure, deterministic; see that
+module's own docstring).
 
-That real render is NOT wired into this lab's own pipeline: it needs Node >=20.19/22.13 (this
-repo's toolchain is Python/uv-only; the working host `nvm` versions were a session-local finding,
-not something this repo can assume) plus a ~290MB headless-Chromium download, and its own SVG
-export (`src/lib/export.ts`) is DOM-dependent (`getComputedStyle`, `XMLSerializer` inside a live
-browser page) -- there is no pure-function/server-side render path in that project, confirmed by
-reading its source. Vendoring a second-language (Node/Svelte) app plus a browser automation
-toolchain into this Python power-systems repo is real, disproportionate infrastructure for this
-MVP -- a genuine finding worth revisiting as a dedicated follow-up phase, not a same-sprint
-integration. `render_diagram.py` instead renders this module's iso-IR JSON with a small, pure,
-deterministic, in-repo isometric SVG writer -- see that module's own docstring.
-
-Because the iso-IR JSON's field names match DaanV2's real `DiagramSpec` 1:1, dumping it to YAML and
-opening `https://<a running instance of DaanV2/isometric-diagrams>#d=<base64url(that yaml)>` is a
-real, working way to view this lab's data in the real tool by hand, right now -- proven, not just
-plausible.
-
-Two Lab-6-specific extensions beyond DaanV2's own DiagramSpec (extra JSON fields/values, inert to
-DaanV2 itself if the same file were opened there): edges carry an optional `kind` field
-(`transmission`/`transformer`, read from each Line part's own `kind` attribute) so the renderer can
-draw the two real branch types differently, and Generator parts now also emit an `attachment` edge
-back to their own `bus` attribute -- Track B's generators previously had no visual link to the bus
-they're actually connected to, an omission fixed here, not just a rendering-order issue.
+Edges carry an optional `kind` field (`transmission`/`transformer`, read from each Line part's own
+`kind` attribute) so the renderer can draw the two real branch types differently, and Generator
+parts emit an `attachment` edge back to their own `bus` attribute so Track B's generators have a
+visual link to the bus they're actually connected to.
 """
 
 from __future__ import annotations
@@ -49,22 +28,21 @@ LAB_DIR: Final[Path] = Path(__file__).resolve().parent
 OUTPUT_DIR: Final[Path] = LAB_DIR / "output"
 FIXTURES_DIR: Final[Path] = LAB_DIR / "fixtures"
 
-# DaanV2 DiagramSpec's real NodeType enum (src/lib/types/diagram.ts) -- only the ones this
-# translator actually assigns are listed with their mapping rationale below.
+# This lab's own node-type vocabulary -- only the ones this translator actually assigns are listed
+# with their mapping rationale below.
 TYPE_BY_PART_TYPE: Final[dict[str, str]] = {
     "Agent": "generic",
     "MCPServer": "server",
     "DataSource": "database",
-    "Bus": "router",  # a real grid connection point -- "router" is the closest real DaanV2 node icon
-    "Generator": "warehouse",  # a real generating unit -- "warehouse" reads as a large physical asset
+    "Bus": "router",  # a real grid connection point
+    "Generator": "warehouse",  # a real generating unit -- reads as a large physical asset
     "Line": "generic",  # rendered as an edge below, not a node -- see PART_RE handling
-    "Phase": "generic",  # a real pipeline stage -- no closer real DaanV2 icon exists, kept honest
+    "Phase": "generic",  # a real pipeline stage
 }
 
-# render_diagram.py's shape dispatch, keyed by DaanV2 NodeType string above (not the SysML part
-# type) -- a Lab-6-specific rendering hint, not part of DaanV2's own DiagramSpec vocabulary. Buses
-# render as a flat bar (a real single-line-diagram bus bar convention), generators as a circle
-# ("G" glyph), everything else as the original isometric box.
+# render_diagram.py's shape dispatch, keyed by the node-type string above (not the SysML part
+# type). Buses render as a flat bar (a real single-line-diagram bus bar convention), generators as
+# a circle ("G" glyph), everything else as the original isometric box.
 SHAPE_BY_TYPE: Final[dict[str, str]] = {
     "router": "bar",
     "warehouse": "circle",
