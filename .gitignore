@@ -52,6 +52,11 @@ labs/05-spartan-chaosnet-transient-stream/delay_compensation.json
 labs/05-spartan-chaosnet-transient-stream/dpsim_transient_log_stabilized_delay_comp.json
 labs/05-spartan-chaosnet-transient-stream/dpsim_transient_log_stabilized_repro_check.json
 
+# Lab 3 pypowsybl spike (spike_pypowsybl.py): the real .mat MATPOWER round-trip and the
+# comparison JSON it computes are both regenerated on every run -- committed fixture is
+# expected_pypowsybl_comparison.json instead, same rationale as Lab 5's entries above.
+labs/03-advanced-provider-bakeoff/spike_output/
+
 # docs/backlog/0005: notebooks/lab_playbook.py (jupytext percent format) is
 # the committed source; its rendered .ipynb (jupytext --to notebook
 # --execute) is a regenerated execution artifact with outputs baked in --

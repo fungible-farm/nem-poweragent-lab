@@ -60,6 +60,48 @@ GGUF models or a PowerFM checkpoint. So, concretely:
   missing to make it fully wire up (a Containerfile, and a `PROVIDER_FILTER` env var so each
   indexed completion scores one provider instead of all three).
 
+## pypowsybl spike (solver comparison, not a bake-off provider)
+
+`spike_pypowsybl.py` answers a different question from the rest of this lab: not "which search
+policy is best," but "is [PowSyBl](https://github.com/powsybl) (RTE's open-source power-system
+modelling framework, via its real `pypowsybl` Python bindings) a viable alternative power-flow
+*engine* for this repo's real NEM data at all." It is deliberately **not** wired into the
+provider matrix above — this lab's "providers" are search policies, all running the same
+underlying pandapower solver; a different solver is a different axis entirely.
+
+**Real finding #1 — a genuine toolchain gap, not this repo's bug:** pypowsybl's MATPOWER
+importer only accepts the binary MATLAB `.mat` serialization of a case, not the human-readable
+`.m` script format every `.m` file in this repo (and everything MATPOWER itself ships) actually
+is — confirmed against both `snem1803.m` and a hand-written textbook `case9.m`, both rejected by
+`pypowsybl.network.is_loadable()`, and confirmed against
+[PowSyBl's own MATPOWER import docs](https://powsybl.readthedocs.io/projects/powsybl-core/en/latest/grid_exchange_formats/matpower/),
+which state the same requirement plainly. No MATLAB/Octave is installed in this environment to do
+that conversion the documented way. **Fix used here:** round-trip the already-loaded pandapower
+net through pandapower's own `to_mpc()` (a real `scipy.io.savemat`-backed MATPOWER `.mat` writer)
+before handing it to pypowsybl — both solvers then run against the exact same in-memory network.
+
+**Real finding #2 — the two engines agree, within a small, named, honestly-reported gap:** on the
+real `snem1803.m` case (1803 buses, 2795 branches), pandapower and pypowsybl/OpenLoadFlow both
+converge, total load matches exactly (identical input data), total generation agrees to
+**0.005%**, and total system real-power losses agree to **0.17%** (1035.9 MW vs 1034.1 MW) — the
+line/trafo loss *split* differs somewhat more than the total (886/150 MW vs 912/122 MW), most
+likely a transformer tap-model convention difference between the two solvers' formulations, not a
+solver defect; not investigated further than that within this spike's scope.
+pypowsybl/OpenLoadFlow's own solve is faster (145ms vs pandapower's 2.3s on a cold/first call;
+pandapower drops to ~47ms once its numba JIT is warm) — not a fair head-to-head timing claim
+either way without controlling for both engines' warm-up cost, reported honestly rather than
+picking whichever number favors one side.
+
+**Verdict for this spike:** pypowsybl is a real, usable alternative load-flow engine for this
+repo's NEM case data, gated on the `.m`→`.mat` round-trip step above. Whether it's worth
+promoting onto the golden path (a second MPL-2.0 dependency alongside DPsim — see
+`docs/PSCADOSSE.md`) is an open question for a future PRD, not decided by this spike.
+
+```
+uv run labs/03-advanced-provider-bakeoff/spike_pypowsybl.py --step run
+uv run labs/03-advanced-provider-bakeoff/spike_pypowsybl.py --step check
+```
+
 ## Command
 
 ```
