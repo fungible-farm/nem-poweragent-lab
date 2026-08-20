@@ -107,6 +107,7 @@ def validate(path: Path) -> bool:
 FIXTURES: Final[list[Path]] = [
     LAB_DIR / "fixtures" / "expected_digital_thread.sysml",
     LAB_DIR / "fixtures" / "expected_grid_topology.sysml",
+    LAB_DIR / "fixtures" / "expected_pipeline_phases.sysml",
 ]
 
 

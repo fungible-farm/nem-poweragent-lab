@@ -141,11 +141,11 @@ lab4:
 lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py
 
-# Lab 6 pipeline step for one track, e.g. `just lab6`, `just lab6 run grid`.
+# Lab 6 pipeline step for one track, e.g. `just lab6`, `just lab6 run grid`, `just lab6 run pipeline`.
 lab6 step="check" track="digital-thread":
     uv run labs/06-sysml-digital-thread/generate_sysml.py --track {{track}} --step {{step}}
 
-# Lab 6 full demo: both tracks, chained end to end (see scripts/demo_lab6.sh).
+# Lab 6 full demo: all three tracks, chained end to end (see scripts/demo_lab6.sh).
 lab6-demo:
     ./scripts/demo_lab6.sh
 

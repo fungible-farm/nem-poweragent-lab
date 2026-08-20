@@ -36,6 +36,15 @@ slots:
   owner:
     description: Who/what is responsible for this component within this repo's own conventions.
     required: true
+  uses:
+    description: >-
+      The name of a real MCPServer or DataSource instance this Agent's own script actually
+      imports/calls, confirmed by reading that script (not assumed from role/description) -- e.g.
+      Lab 1's/Lab 3's own direct `_shared.gridfit.load_case()` calls against a real CSIRO case
+      file. Optional: an Agent whose script doesn't call any of this track's other instances
+      (confirmed by the same reading, not just undeclared) leaves this unset rather than a
+      placeholder value.
+    required: false
   agents:
     description: Every Agent instance in this digital thread.
     range: Agent
@@ -61,7 +70,7 @@ classes:
       Something that proposes a next action/value inside one of this repo's labs -- the
       "propose" half of the propose/evaluate split named in Lab 1's README (e.g. a search
       algorithm choosing the next trial value; real physics always evaluates it separately).
-    slots: [name, source, refresh_cadence, owner]
+    slots: [name, source, refresh_cadence, owner, uses]
   MCPServer:
     description: >-
       A real, registered Model Context Protocol tool server this repo runs or connects to (see

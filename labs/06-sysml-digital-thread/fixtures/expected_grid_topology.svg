@@ -1,50 +1,127 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-360.0 -90.0 720.0 413.0" width="720" height="413">
-<rect x="-360.0" y="-90.0" width="720.0" height="413.0" fill="#0f172a"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1053.6 -180.0 1353.6 553.0" width="1354" height="553">
+<rect x="-1053.6" y="-180.0" width="1353.6" height="553.0" fill="#0f172a"/>
 <title>Lab 6 Track B -- Grid Topology</title>
-<line x1="0.0" y1="0.0" x2="120.0" y2="60.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
-<line x1="240.0" y1="120.0" x2="0.0" y2="0.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
-<line x1="0.0" y1="0.0" x2="-120.0" y2="60.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
-<line x1="0.0" y1="0.0" x2="0.0" y2="120.0" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
-<g data-node-id="bus_4128">
-<polygon points="-60.0,0.0 0.0,30.0 0.0,70.0 -60.0,40.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="60.0,0.0 0.0,30.0 0.0,70.0 60.0,40.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="0.0,-30.0 60.0,0.0 0.0,30.0 -60.0,0.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="0.0" y="83.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4128</text>
+<g data-node-id="bus_4052">
+<polygon points="-840.0,-90.0 -780.0,-60.0 -840.0,-30.0 -900.0,-60.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-840.0" y="-17.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4052</text>
 </g>
-<g data-node-id="bus_4148">
-<polygon points="60.0,60.0 120.0,90.0 120.0,130.0 60.0,100.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="180.0,60.0 120.0,90.0 120.0,130.0 180.0,100.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="120.0,30.0 180.0,60.0 120.0,90.0 60.0,60.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="120.0" y="143.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4148</text>
+<g data-node-id="bus_4128">
+<polygon points="-600.0,-90.0 -540.0,-60.0 -600.0,-30.0 -660.0,-60.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-600.0" y="-17.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4128</text>
 </g>
 <g data-node-id="bus_4125">
-<polygon points="180.0,120.0 240.0,150.0 240.0,190.0 180.0,160.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="300.0,120.0 240.0,150.0 240.0,190.0 300.0,160.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="240.0,90.0 300.0,120.0 240.0,150.0 180.0,120.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="240.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4125</text>
+<polygon points="-420.0,-120.0 -360.0,-90.0 -420.0,-60.0 -480.0,-90.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-420.0" y="-47.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4125</text>
 </g>
-<g data-node-id="bus_4052">
-<polygon points="-180.0,60.0 -120.0,90.0 -120.0,130.0 -180.0,100.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="-60.0,60.0 -120.0,90.0 -120.0,130.0 -60.0,100.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="-120.0,30.0 -60.0,60.0 -120.0,90.0 -180.0,60.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="-120.0" y="143.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4052</text>
+<g data-node-id="bus_4148">
+<polygon points="-300.0,180.0 -240.0,210.0 -300.0,240.0 -360.0,210.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-300.0" y="253.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4148</text>
 </g>
 <g data-node-id="bus_4053">
-<polygon points="-60.0,120.0 0.0,150.0 0.0,190.0 -60.0,160.0" fill="#d97706" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="60.0,120.0 0.0,150.0 0.0,190.0 60.0,160.0" fill="#d97706" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="0.0,90.0 60.0,120.0 0.0,150.0 -60.0,120.0" fill="#d97706" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="0.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4053</text>
+<polygon points="-720.0,-30.0 -660.0,0.0 -720.0,30.0 -780.0,0.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-720.0" y="43.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4053</text>
+</g>
+<g data-node-id="bus_4054">
+<polygon points="-600.0,30.0 -540.0,60.0 -600.0,90.0 -660.0,60.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-600.0" y="103.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4054</text>
+</g>
+<g data-node-id="bus_4124">
+<polygon points="0.0,-30.0 60.0,0.0 0.0,30.0 -60.0,0.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="0.0" y="43.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4124</text>
+</g>
+<g data-node-id="bus_4238">
+<polygon points="-480.0,-30.0 -420.0,0.0 -480.0,30.0 -540.0,0.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-480.0" y="43.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4238</text>
+</g>
+<g data-node-id="bus_4129">
+<polygon points="-180.0,120.0 -120.0,150.0 -180.0,180.0 -240.0,150.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-180.0" y="193.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4129</text>
+</g>
+<g data-node-id="bus_4335">
+<polygon points="-420.0,240.0 -360.0,270.0 -420.0,300.0 -480.0,270.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-420.0" y="313.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4335</text>
+</g>
+<g data-node-id="bus_4094">
+<polygon points="-300.0,-60.0 -240.0,-30.0 -300.0,0.0 -360.0,-30.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-300.0" y="13.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4094</text>
+</g>
+<g data-node-id="bus_4095">
+<polygon points="-180.0,0.0 -120.0,30.0 -180.0,60.0 -240.0,30.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-180.0" y="73.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4095</text>
+</g>
+<g data-node-id="bus_4112">
+<polygon points="-60.0,60.0 0.0,90.0 -60.0,120.0 -120.0,90.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-60.0" y="133.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4112</text>
+</g>
+<g data-node-id="bus_4117">
+<polygon points="60.0,120.0 120.0,150.0 60.0,180.0 0.0,150.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="60.0" y="193.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4117</text>
+</g>
+<g data-node-id="bus_4131">
+<polygon points="180.0,180.0 240.0,210.0 180.0,240.0 120.0,210.0" fill="#d97706" fill-opacity="1.0" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="180.0" y="253.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">bus_4131</text>
 </g>
 <g data-node-id="gen_4052">
-<polygon points="60.0,180.0 120.0,210.0 120.0,250.0 60.0,220.0" fill="#7c3aed" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="180.0,180.0 120.0,210.0 120.0,250.0 180.0,220.0" fill="#7c3aed" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="120.0,150.0 180.0,180.0 120.0,210.0 60.0,180.0" fill="#7c3aed" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="120.0" y="263.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4052</text>
+<ellipse cx="-960.0" cy="0.0" rx="33.6" ry="16.8" fill="#7c3aed" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-960.0" y="4.5" font-family="monospace" font-weight="bold" font-size="13" fill="#e2e8f0" text-anchor="middle">G</text>
+<text x="-960.0" y="29.8" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4052</text>
 </g>
 <g data-node-id="gen_4053">
-<polygon points="-300.0,120.0 -240.0,150.0 -240.0,190.0 -300.0,160.0" fill="#7c3aed" fill-opacity="0.7" stroke="#0f172a" stroke-width="1"/>
-<polygon points="-180.0,120.0 -240.0,150.0 -240.0,190.0 -180.0,160.0" fill="#7c3aed" fill-opacity="0.55" stroke="#0f172a" stroke-width="1"/>
-<polygon points="-240.0,90.0 -180.0,120.0 -240.0,150.0 -300.0,120.0" fill="#7c3aed" fill-opacity="1.0" stroke="#0f172a" stroke-width="1"/>
-<text x="-240.0" y="203.0" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4053</text>
+<ellipse cx="-840.0" cy="60.0" rx="33.6" ry="16.8" fill="#7c3aed" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-840.0" y="64.5" font-family="monospace" font-weight="bold" font-size="13" fill="#e2e8f0" text-anchor="middle">G</text>
+<text x="-840.0" y="89.8" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4053</text>
 </g>
+<g data-node-id="gen_4054">
+<ellipse cx="-720.0" cy="120.0" rx="33.6" ry="16.8" fill="#7c3aed" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-720.0" y="124.5" font-family="monospace" font-weight="bold" font-size="13" fill="#e2e8f0" text-anchor="middle">G</text>
+<text x="-720.0" y="149.8" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4054</text>
+</g>
+<g data-node-id="gen_4094">
+<ellipse cx="-420.0" cy="30.0" rx="33.6" ry="16.8" fill="#7c3aed" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-420.0" y="34.5" font-family="monospace" font-weight="bold" font-size="13" fill="#e2e8f0" text-anchor="middle">G</text>
+<text x="-420.0" y="59.8" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4094</text>
+</g>
+<g data-node-id="gen_4095">
+<ellipse cx="-300.0" cy="90.0" rx="33.6" ry="16.8" fill="#7c3aed" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="-300.0" y="94.5" font-family="monospace" font-weight="bold" font-size="13" fill="#e2e8f0" text-anchor="middle">G</text>
+<text x="-300.0" y="119.8" font-family="monospace" font-size="13" fill="#e2e8f0" text-anchor="middle">gen_4095</text>
+</g>
+<line x1="-960.0" y1="0.0" x2="-840.0" y2="-60.0" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>
+<line x1="-840.0" y1="60.0" x2="-720.0" y2="0.0" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>
+<line x1="-720.0" y1="120.0" x2="-600.0" y2="60.0" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>
+<line x1="-420.0" y1="30.0" x2="-300.0" y2="-30.0" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>
+<line x1="-300.0" y1="90.0" x2="-180.0" y2="30.0" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>
+<line x1="60.0" y1="150.0" x2="0.0" y2="0.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="60.0" y1="150.0" x2="180.0" y2="210.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="0.0" y1="0.0" x2="180.0" y2="210.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-300.0" y1="-30.0" x2="0.0" y2="0.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-180.0" y1="30.0" x2="0.0" y2="0.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-60.0" y1="90.0" x2="-180.0" y2="150.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-60.0" y1="90.0" x2="-180.0" y2="150.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-180.0" y1="150.0" x2="-300.0" y2="210.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-60.0" y1="90.0" x2="0.0" y2="0.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="0.0" y1="0.0" x2="-420.0" y2="-90.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-420.0" y1="-90.0" x2="-600.0" y2="-60.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-600.0" y1="-60.0" x2="-300.0" y2="210.0" stroke="#38bdf8" stroke-width="3"/>
+<line x1="-420.0" y1="-90.0" x2="-480.0" y2="0.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-440.0" cy="-60.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-460.0" cy="-30.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-420.0" y1="-90.0" x2="-480.0" y2="0.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-440.0" cy="-60.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-460.0" cy="-30.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-600.0" y1="-60.0" x2="-840.0" y2="-60.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-680.0" cy="-60.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-760.0" cy="-60.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-600.0" y1="-60.0" x2="-720.0" y2="0.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-640.0" cy="-40.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-680.0" cy="-20.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-600.0" y1="-60.0" x2="-600.0" y2="60.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-600.0" cy="-20.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-600.0" cy="20.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-300.0" y1="210.0" x2="-420.0" y2="270.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-340.0" cy="230.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-380.0" cy="250.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<line x1="-300.0" y1="210.0" x2="-420.0" y2="270.0" stroke="#f59e0b" stroke-width="3"/>
+<circle cx="-340.0" cy="230.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<circle cx="-380.0" cy="250.0" r="4.0" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
 </svg>

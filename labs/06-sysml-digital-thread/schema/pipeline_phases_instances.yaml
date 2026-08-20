@@ -1,0 +1,42 @@
+# Track C seed data: PRD-0005's own real, already-implemented Phase 0/1/1.5/2 sequence (Lab 5,
+# the grid-forming-stabilizer sprint) -- not invented, not a hypothetical roadmap. Every `source`
+# below is a real, committed file in this repo; `role` is drawn directly from that phase's own
+# module docstring / PRD-0005's own "## Phasing" section, not paraphrased from memory. Phase 3
+# onward are deliberately excluded: PRD-0005 itself marks them "not started"/"aspirational" (see
+# its own Phasing section), and this track's own discipline (matching Track A/B) is real,
+# already-implemented work only, not a roadmap.
+#
+# `next` is this track's one relationship, and it's what its whole layout is built around
+# (translate_iso_ir.py's `_sequence_positions`, README Design notes -- new section for Track C):
+# a real declared execution order, not an undirected graph-degree hub the way Track B's buses are.
+
+phases:
+  - name: phase0_source_location
+    source: docs/prd/0005-grid-forming-stabilizer-and-renewable-models.md
+    role: >-
+      Locate the real public IEC 61400-27-1 Type 4 Modelica source before Phase 4 depends on it --
+      resolved: it lives in RTE's own dynawo/dynawo GitHub repository (MPL-2.0), not a standalone
+      repo. A research finding, not a script -- source above is the PRD's own "Open questions"
+      section recording that resolution.
+    next: phase1_grid_forming
+
+  - name: phase1_grid_forming
+    source: labs/05-spartan-chaosnet-transient-stream/grid_forming.py
+    role: >-
+      Build a VSM-style grid-forming stabilizer against Lab 5's real chaos_schedule.yaml fault and
+      measure a real before/after mitigation number from an actual DPsim run.
+    next: phase1_5_headroom_translation
+
+  - name: phase1_5_headroom_translation
+    source: labs/05-spartan-chaosnet-transient-stream/headroom_translation.py
+    role: >-
+      Translate Phase 1's real EMT-domain mitigation into an OPF constraint-headroom question
+      against the same fault-adjacent line, and report whether any binding constraint actually
+      changes -- turning "the stabilizer works" into "the stabilizer is operationally meaningful."
+    next: phase2_delay_compensation
+
+  - name: phase2_delay_compensation
+    source: labs/05-spartan-chaosnet-transient-stream/delay_compensation.py
+    role: >-
+      Add a deadtime/Smith-predictor cable-length delay-compensation term to Phase 1's controller
+      and report, with a real comparison, whether it measurably helps versus Phase 1's baseline.

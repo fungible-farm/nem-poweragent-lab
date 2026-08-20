@@ -1,92 +1,368 @@
 {
   "edges": [
     {
-      "from": "bus_4128",
-      "id": "line_4128_4148",
+      "from": "gen_4052",
+      "id": "gen_4052_attach",
+      "to": "bus_4052",
+      "type": "attachment"
+    },
+    {
+      "from": "gen_4053",
+      "id": "gen_4053_attach",
+      "to": "bus_4053",
+      "type": "attachment"
+    },
+    {
+      "from": "gen_4054",
+      "id": "gen_4054_attach",
+      "to": "bus_4054",
+      "type": "attachment"
+    },
+    {
+      "from": "gen_4094",
+      "id": "gen_4094_attach",
+      "to": "bus_4094",
+      "type": "attachment"
+    },
+    {
+      "from": "gen_4095",
+      "id": "gen_4095_attach",
+      "to": "bus_4095",
+      "type": "attachment"
+    },
+    {
+      "from": "bus_4117",
+      "id": "line_4117_4124",
+      "kind": "transmission",
+      "to": "bus_4124",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4117",
+      "id": "line_4117_4131",
+      "kind": "transmission",
+      "to": "bus_4131",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4124",
+      "id": "line_4124_4131",
+      "kind": "transmission",
+      "to": "bus_4131",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4094",
+      "id": "line_4094_4124",
+      "kind": "transmission",
+      "to": "bus_4124",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4095",
+      "id": "line_4095_4124",
+      "kind": "transmission",
+      "to": "bus_4124",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4112",
+      "id": "line_4112_4129",
+      "kind": "transmission",
+      "to": "bus_4129",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4112",
+      "id": "line_4112_4129_2",
+      "kind": "transmission",
+      "to": "bus_4129",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4129",
+      "id": "line_4129_4148",
+      "kind": "transmission",
       "to": "bus_4148",
-      "type": "network"
+      "type": "branch"
+    },
+    {
+      "from": "bus_4112",
+      "id": "line_4112_4124",
+      "kind": "transmission",
+      "to": "bus_4124",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4124",
+      "id": "line_4124_4125",
+      "kind": "transmission",
+      "to": "bus_4125",
+      "type": "branch"
     },
     {
       "from": "bus_4125",
       "id": "line_4125_4128",
+      "kind": "transmission",
       "to": "bus_4128",
-      "type": "network"
+      "type": "branch"
+    },
+    {
+      "from": "bus_4128",
+      "id": "line_4128_4148",
+      "kind": "transmission",
+      "to": "bus_4148",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4125",
+      "id": "xfmr_4125_4238",
+      "kind": "transformer",
+      "to": "bus_4238",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4125",
+      "id": "xfmr_4125_4238_2",
+      "kind": "transformer",
+      "to": "bus_4238",
+      "type": "branch"
     },
     {
       "from": "bus_4128",
       "id": "xfmr_4128_4052",
+      "kind": "transformer",
       "to": "bus_4052",
-      "type": "network"
+      "type": "branch"
     },
     {
       "from": "bus_4128",
       "id": "xfmr_4128_4053",
+      "kind": "transformer",
       "to": "bus_4053",
-      "type": "network"
+      "type": "branch"
+    },
+    {
+      "from": "bus_4128",
+      "id": "xfmr_4128_4054",
+      "kind": "transformer",
+      "to": "bus_4054",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4148",
+      "id": "xfmr_4148_4335",
+      "kind": "transformer",
+      "to": "bus_4335",
+      "type": "branch"
+    },
+    {
+      "from": "bus_4148",
+      "id": "xfmr_4148_4335_2",
+      "kind": "transformer",
+      "to": "bus_4335",
+      "type": "branch"
     }
   ],
   "nodes": [
     {
-      "id": "bus_4128",
-      "label": "bus_4128",
+      "id": "bus_4052",
+      "label": "bus_4052",
       "position": {
-        "x": 0,
-        "y": 0
+        "x": -8.0,
+        "y": 6.0
       },
+      "shape": "bar",
       "type": "router"
     },
     {
-      "id": "bus_4148",
-      "label": "bus_4148",
+      "id": "bus_4128",
+      "label": "bus_4128",
       "position": {
-        "x": 2,
-        "y": 0
+        "x": -6.0,
+        "y": 4.0
       },
+      "shape": "bar",
       "type": "router"
     },
     {
       "id": "bus_4125",
       "label": "bus_4125",
       "position": {
-        "x": 4,
-        "y": 0
+        "x": -5.0,
+        "y": 2.0
       },
+      "shape": "bar",
       "type": "router"
     },
     {
-      "id": "bus_4052",
-      "label": "bus_4052",
+      "id": "bus_4148",
+      "label": "bus_4148",
       "position": {
-        "x": 0,
-        "y": 2
+        "x": 1.0,
+        "y": 6.0
       },
+      "shape": "bar",
       "type": "router"
     },
     {
       "id": "bus_4053",
       "label": "bus_4053",
       "position": {
-        "x": 2,
-        "y": 2
+        "x": -6.0,
+        "y": 6.0
       },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4054",
+      "label": "bus_4054",
+      "position": {
+        "x": -4.0,
+        "y": 6.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4124",
+      "label": "bus_4124",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4238",
+      "label": "bus_4238",
+      "position": {
+        "x": -4.0,
+        "y": 4.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4129",
+      "label": "bus_4129",
+      "position": {
+        "x": 1.0,
+        "y": 4.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4335",
+      "label": "bus_4335",
+      "position": {
+        "x": 1.0,
+        "y": 8.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4094",
+      "label": "bus_4094",
+      "position": {
+        "x": -3.0,
+        "y": 2.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4095",
+      "label": "bus_4095",
+      "position": {
+        "x": -1.0,
+        "y": 2.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4112",
+      "label": "bus_4112",
+      "position": {
+        "x": 1.0,
+        "y": 2.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4117",
+      "label": "bus_4117",
+      "position": {
+        "x": 3.0,
+        "y": 2.0
+      },
+      "shape": "bar",
+      "type": "router"
+    },
+    {
+      "id": "bus_4131",
+      "label": "bus_4131",
+      "position": {
+        "x": 5.0,
+        "y": 2.0
+      },
+      "shape": "bar",
       "type": "router"
     },
     {
       "id": "gen_4052",
       "label": "gen_4052",
       "position": {
-        "x": 4,
-        "y": 2
+        "x": -8.0,
+        "y": 8.0
       },
+      "shape": "circle",
       "type": "warehouse"
     },
     {
       "id": "gen_4053",
       "label": "gen_4053",
       "position": {
-        "x": 0,
-        "y": 4
+        "x": -6.0,
+        "y": 8.0
       },
+      "shape": "circle",
+      "type": "warehouse"
+    },
+    {
+      "id": "gen_4054",
+      "label": "gen_4054",
+      "position": {
+        "x": -4.0,
+        "y": 8.0
+      },
+      "shape": "circle",
+      "type": "warehouse"
+    },
+    {
+      "id": "gen_4094",
+      "label": "gen_4094",
+      "position": {
+        "x": -3.0,
+        "y": 4.0
+      },
+      "shape": "circle",
+      "type": "warehouse"
+    },
+    {
+      "id": "gen_4095",
+      "label": "gen_4095",
+      "position": {
+        "x": -1.0,
+        "y": 4.0
+      },
+      "shape": "circle",
       "type": "warehouse"
     }
   ],

@@ -4,6 +4,7 @@ package DigitalThread {
 
     part def Agent {
         attribute source : String;
+        attribute uses : String;
         attribute refreshCadence : String;
         attribute owner : String;
     }
@@ -23,12 +24,14 @@ package DigitalThread {
     part digitalThread {
         part lab1_bisection_search : Agent {
             attribute source = "labs/01-simple-loadflow-fit/run.py";
+            attribute uses = "csiro_synthetic_nem_2000bus";
             attribute refreshCadence = "on every lab run (--step fit)";
             attribute owner = "Lab 1 -- load-flow parameter fit";
         }
 
         part lab3_local_policy_search : Agent {
             attribute source = "labs/03-advanced-provider-bakeoff/orchestrator.py";
+            attribute uses = "csiro_synthetic_nem_2000bus";
             attribute refreshCadence = "on every --step sweep";
             attribute owner = "Lab 3 -- multi-provider bake-off (local-policy-A/B/C)";
         }

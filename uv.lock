@@ -1882,6 +1882,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "cyclonedx-python-lib" },
     { name = "dpsim" },
+    { name = "kiwisolver" },
     { name = "linkml" },
     { name = "linkml-runtime" },
     { name = "matplotlib" },
@@ -1911,6 +1912,7 @@ dev = [
 requires-dist = [
     { name = "cyclonedx-python-lib", specifier = ">=11.12.0" },
     { name = "dpsim", specifier = ">=1.2.1" },
+    { name = "kiwisolver", specifier = ">=1.5.0" },
     { name = "linkml", specifier = ">=1.11.1" },
     { name = "linkml-runtime", specifier = ">=1.11.1" },
     { name = "matplotlib", specifier = ">=3.11.1" },

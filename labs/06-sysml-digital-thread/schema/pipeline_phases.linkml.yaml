@@ -1,0 +1,64 @@
+id: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/pipeline-phases
+name: digital-thread-track-c
+description: >-
+  Track C of Lab 6's SysML v2 digital-thread evaluation: business case 3, visualizing a real
+  multi-phase implementation pipeline as it runs -- the same "diagram AI/agent workflow state" job
+  the `ledgrrr` codebase's own `ledger-core/src/visualize.rs` uses a Kasuari-backed layout solver
+  for (a Mermaid `stateDiagram-v2` of pipeline states), reused here as the third proof that this
+  lab's one schema/generator/validator/renderer pipeline generalizes across business cases. One
+  class -- Phase -- seeded from PRD-0005 (Lab 5's grid-forming-stabilizer sprint)'s own real,
+  already-implemented Phase 0/1/1.5/2 sequence, not invented. See instances.yaml's header for
+  provenance.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  pipeline_phases: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/pipeline-phases/
+
+default_prefix: pipeline_phases
+default_range: string
+
+imports:
+  - linkml:types
+
+slots:
+  name:
+    identifier: true
+    description: Short, unique, SysML-part-def-safe identifier (no spaces).
+    required: true
+  source:
+    description: >-
+      The real, already-committed script (or, for a research-only phase with no script, the PRD
+      section) that implements this phase. Never a placeholder.
+    required: true
+  role:
+    description: What this phase actually does, in plain words -- this track's equivalent of
+      Track A's `owner`/Track B's implicit role-by-type, since a pipeline phase's whole identity
+      is its role in the sequence.
+    required: true
+  next:
+    description: >-
+      The name of the real next phase in this pipeline, if any -- the last phase leaves this
+      unset. This is the one relationship this track's whole layout is built around (see
+      translate_iso_ir.py's `_sequence_positions`): a real declared order, not an undirected
+      graph-degree hub the way Track B's buses are.
+    required: false
+  phases:
+    description: Every Phase instance in this pipeline, in real execution order.
+    range: Phase
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+classes:
+  Phase:
+    description: >-
+      One real, already-implemented stage of PRD-0005's grid-forming-stabilizer sprint (Lab 5) --
+      not a hypothetical roadmap item; every instance here has a real committed script (or a
+      resolved research finding) behind it.
+    slots: [name, source, role, next]
+  PipelinePhases:
+    description: >-
+      The root container this lab's generator reads: every Phase instance in Track C's real
+      pipeline, in order.
+    tree_root: true
+    slots: [phases]

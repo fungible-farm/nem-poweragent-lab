@@ -1,66 +1,87 @@
 {
+  "edges": [
+    {
+      "from": "lab1_bisection_search",
+      "id": "lab1_bisection_search_attach",
+      "to": "csiro_synthetic_nem_2000bus",
+      "type": "attachment"
+    },
+    {
+      "from": "lab3_local_policy_search",
+      "id": "lab3_local_policy_search_attach",
+      "to": "csiro_synthetic_nem_2000bus",
+      "type": "attachment"
+    }
+  ],
   "nodes": [
     {
       "id": "lab1_bisection_search",
       "label": "lab1_bisection_search",
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 3.0,
+        "y": 2.0
       },
+      "shape": "box",
       "type": "generic"
     },
     {
       "id": "lab3_local_policy_search",
       "label": "lab3_local_policy_search",
       "position": {
-        "x": 2,
-        "y": 0
+        "x": 5.0,
+        "y": 2.0
       },
+      "shape": "box",
       "type": "generic"
     },
     {
       "id": "powermcp_pandapower",
       "label": "powermcp_pandapower",
       "position": {
-        "x": 4,
-        "y": 0
+        "x": 6.0,
+        "y": 0.0
       },
+      "shape": "box",
       "type": "server"
     },
     {
       "id": "codebase_memory",
       "label": "codebase_memory",
       "position": {
-        "x": 0,
-        "y": 2
+        "x": 2.0,
+        "y": 0.0
       },
+      "shape": "box",
       "type": "server"
     },
     {
       "id": "csiro_synthetic_nem_2000bus",
       "label": "csiro_synthetic_nem_2000bus",
       "position": {
-        "x": 2,
-        "y": 2
+        "x": 4.0,
+        "y": 0.0
       },
+      "shape": "box",
       "type": "database"
     },
     {
       "id": "aemo_nemweb_nemosis",
       "label": "aemo_nemweb_nemosis",
       "position": {
-        "x": 4,
-        "y": 2
+        "x": 0.0,
+        "y": 0.0
       },
+      "shape": "box",
       "type": "database"
     },
     {
       "id": "simbench_1_mv_rural",
       "label": "simbench_1_mv_rural",
       "position": {
-        "x": 0,
-        "y": 4
+        "x": 8.0,
+        "y": 0.0
       },
+      "shape": "box",
       "type": "database"
     }
   ],

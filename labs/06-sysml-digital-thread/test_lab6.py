@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 LAB_DIR = Path(__file__).resolve().parent
-TRACKS = ["digital-thread", "grid"]
+TRACKS = ["digital-thread", "grid", "pipeline"]
 
 
 def _run(script: str, *args: str) -> subprocess.CompletedProcess:
@@ -26,7 +26,13 @@ def test_k8s_fixture_matches_real_kube_manifests():
     assert "MATCH" in result.stdout
 
 
-def test_generated_sysml_matches_fixture_both_tracks():
+def test_grid_instances_matches_real_snemsa_case():
+    result = _run("build_grid_instances.py", "--step", "check")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "MATCH" in result.stdout
+
+
+def test_generated_sysml_matches_fixture_all_tracks():
     for track in TRACKS:
         result = _run("generate_sysml.py", "--track", track, "--step", "check")
         assert result.returncode == 0, result.stdout + result.stderr
@@ -48,14 +54,14 @@ def test_syntax_gate_rejects_broken_input(tmp_path):
     assert ":" in result.stdout  # a real line:column locator, not a bare "invalid"
 
 
-def test_iso_ir_matches_fixture_both_tracks():
+def test_iso_ir_matches_fixture_all_tracks():
     for track in TRACKS:
         result = _run("translate_iso_ir.py", "--track", track, "--step", "check")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "MATCH" in result.stdout
 
 
-def test_rendered_svg_matches_fixture_both_tracks():
+def test_rendered_svg_matches_fixture_all_tracks():
     for track in TRACKS:
         result = _run("render_diagram.py", "--track", track, "--step", "check")
         assert result.returncode == 0, result.stdout + result.stderr
