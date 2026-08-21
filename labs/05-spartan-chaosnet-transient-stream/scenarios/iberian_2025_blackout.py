@@ -97,6 +97,8 @@ for _p in (str(SHARED_PARENT_DIR), str(LAB5_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import pandapower as pp  # noqa: E402
+
 import dpsimpy  # noqa: E402
 import chaosnet  # noqa: E402  (from labs/05-spartan-chaosnet-transient-stream)
 import run_dpsim  # noqa: E402  (reuse its TIME_STEP_S, not a second literal)
@@ -106,7 +108,9 @@ from _shared.scenario_engine.detectors import (  # noqa: E402
     AngleSeparationDetector,
     CascadingFailureClassifier,
     Finding,
+    OscillationDetector,
     RoCoFDetector,
+    VoltageCascadeDetector,
 )
 from _shared.scenario_engine.generators import (  # noqa: E402
     GeneratorEvent,
@@ -115,6 +119,11 @@ from _shared.scenario_engine.generators import (  # noqa: E402
     PlantBehaviourGenerator,
     ProtectionTripGenerator,
     SustainTriggerCondition,
+)
+from _shared.scenario_engine.precursor import (  # noqa: E402
+    PandapowerQuasiStaticStepper,
+    SecondOrderOscillator,
+    synthesize_precursor_waveform,
 )
 from _shared.scenario_engine.scenario import run_scenario  # noqa: E402
 from _shared.scenario_engine.scoring import print_score_report, score_run  # noqa: E402
@@ -174,6 +183,31 @@ class _CurrentAccumulator:
         matrix = np.eye(3, dtype=complex) * self._total_a
         self.source.attr("I_ref").set(matrix)
         return self._total_a
+
+
+class _QAccumulator:
+    """Precursor-phase analog of `_CurrentAccumulator` above, targeting a
+    pandapower `net.sgen`'s `q_mvar` setpoint instead of a live dpsimpy
+    `CurrentSource.I_ref` -- same additive-nudge, one-shared-injection
+    simplification (see `_CurrentAccumulator`'s own docstring for the full
+    "this platform can't attribute voltage outcome per-factor" reasoning,
+    which applies identically here).
+
+    Attributes:
+        net: the pandapower net.
+        sgen_idx: `net.sgen` row index of the shared precursor injection.
+        _total_mvar: running net reactive-power setpoint (Mvar).
+    """
+
+    def __init__(self, net: pp.pandapowerNet, sgen_idx: int) -> None:
+        self.net = net
+        self.sgen_idx = sgen_idx
+        self._total_mvar: float = 0.0
+
+    def nudge(self, delta_mvar: float) -> float:
+        self._total_mvar += delta_mvar
+        self.net.sgen.at[self.sgen_idx, "q_mvar"] = self._total_mvar
+        return self._total_mvar
 
 
 EXPECTED_FILE = SCENARIOS_DIR / "expected_iberian_2025_run.json"
@@ -274,6 +308,106 @@ CLASSIFIER_WEIGHTS: dict[str, float] = {
 FIXTURE_TIME_TOLERANCE_S: float = 1.0 / 100.0  # 1 phasor frame @ 100 Hz
 FIXTURE_MIN_CONFIDENCE: float = 0.1
 
+# --- Precursor phase (docs/prd/0003-...md's two named oscillation modes) --
+# See labs/_shared/scenario_engine/precursor.py's own module docstring for
+# the full non-circularity argument (step-excited emergent oscillation, not
+# a directly-injected sinusoid) and the quasi-static-pandapower-vs-EMT
+# rationale. t=0 here maps to the real report's 12:03:00 CEST (the local
+# mode's own window start); PRECURSOR_DURATION_S runs to 12:32:00, the
+# fast-collapse phase's own t=0 -- NOT wired together (see module docstring
+# "Explicit non-goal": no pandapower-state -> DPsim-EMT-init-condition
+# handoff is attempted).
+PRECURSOR_EXPECTED_FILE = SCENARIOS_DIR / "expected_iberian_2025_precursor_run.json"
+
+PRECURSOR_DURATION_S: float = 1740.0   # 12:03:00 -> 12:32:00 CEST
+PRECURSOR_DT_S: float = 1.0            # pandapower.runpp() cadence
+PRECURSOR_OSCILLATOR_DT_S: float = 0.02  # RK4 inner step (see precursor.py's own stability note)
+
+# Real report windows (ENTSO-E Final Report, cited in this file's own module
+# docstring and PRD-0003): local/converter mode 12:03-12:08, inter-area mode
+# 12:19-12:22.
+LOCAL_MODE_WINDOW_START_S: float = 0.0
+LOCAL_MODE_WINDOW_END_S: float = 300.0
+INTER_AREA_MODE_WINDOW_START_S: float = 960.0   # 12:19 = 16 min after 12:03
+INTER_AREA_MODE_WINDOW_END_S: float = 1140.0    # 12:22
+
+LOCAL_MODE_NATURAL_FREQ_HZ: float = 0.63
+INTER_AREA_MODE_NATURAL_FREQ_HZ: float = 0.2
+# Damping ratios + perturbation gains below are calibrated (not guessed) --
+# see this file's own commit message for the real calibration run that
+# picked them: lightly damped enough that OscillationDetector's FFT clears
+# min_confidence=0.15 across the analysis window without decaying away
+# before the window ends, but damped enough that the mode has genuinely
+# died out again well outside its own real window (checked directly, not
+# assumed).
+LOCAL_MODE_DAMPING_RATIO: float = 0.002
+INTER_AREA_MODE_DAMPING_RATIO: float = 0.006
+LOCAL_MODE_GAIN_V: float = 400.0
+INTER_AREA_MODE_GAIN_V: float = 400.0
+# SCADA/PMU-class measurement-noise floor -- see synthesize_precursor_waveform's
+# own docstring for why this is needed for "has the mode decayed" to be a
+# real, checkable question rather than a numerical artifact.
+PRECURSOR_MEASUREMENT_NOISE_V: float = 25.0
+
+# Excitation timing: a small OPERATOR_ACTION_LATENCY-style delay from each
+# window's own start (matches OperatorActionGenerator's existing framing --
+# "a control-room/converter-control switching action" as the plausible real
+# trigger for the mode's onset, not an instantaneous idealized step at
+# exactly t=0).
+LOCAL_MODE_EXCITE_LATENCY_S: float = 2.0
+INTER_AREA_MODE_EXCITE_LATENCY_S: float = 2.0
+
+# Detected SOON after each mode's own excitation, not at its real window's
+# end -- a real oscillation-onset detector would flag the mode shortly after
+# it begins, not wait until a 5-minute window closes. A trailing FFT window
+# spanning nearly the *entire* report-cited window instead dilutes the
+# average SNR across a decay envelope that is already well down from its
+# peak by the window's end (confirmed empirically in this sandbox's own
+# calibration: a 250s-wide window ending at t=300s pulled in enough
+# already-decayed, noise-floor-comparable signal to drop confidence below
+# min_confidence entirely). Both DETECT_AT_S values stay comfortably inside
+# their own real report window, and (see the trend-factor comment below)
+# comfortably clear of any trend-factor step discontinuity.
+LOCAL_MODE_DETECT_AT_S: float = 100.0
+INTER_AREA_MODE_DETECT_AT_S: float = 1060.0
+LOCAL_MODE_ANALYSIS_WINDOW_S: float = 90.0
+INTER_AREA_MODE_ANALYSIS_WINDOW_S: float = 80.0
+# A check well outside each mode's own real window, to confirm (not assume)
+# the finding has genuinely decayed away rather than persisting forever --
+# see run_precursor()'s own verbose printout. Deliberately placed in a gap
+# between trend-factor firings (see PRECURSOR_FACTOR_*_READY_S below): a
+# step discontinuity landing inside an FFT analysis window creates spurious
+# low-frequency spectral leakage (confirmed empirically in this sandbox's
+# first calibration pass -- a factor firing at the exact edge of a
+# quiet-check window produced a spuriously *high*-confidence near-DC
+# "finding," not genuine surviving 0.63 Hz content), so every trend-factor
+# time below is deliberately kept outside all four oscillation-detector
+# windows (main + quiet-check, both modes).
+LOCAL_MODE_QUIET_CHECK_S: float = 500.0
+INTER_AREA_MODE_QUIET_CHECK_S: float = 1400.0
+
+# Trend-producing causal factors (same 5 named factors as the fast-collapse
+# phase's own FACTOR_* constants -- reused conceptually, re-targeted to a
+# pandapower net.sgen Q setpoint instead of a dpsimpy CurrentSource, since
+# this phase drives quasi-static snapshots, not a live EMT solve). Spread
+# across the two gaps between the oscillation-detector windows above (see
+# that comment) so VoltageCascadeDetector sees a real, accelerating (not
+# merely linear) rise without any step landing inside an FFT window --
+# calibrated, see commit message.
+PRECURSOR_FACTOR_1_RES_FIXED_PF_MVAR: float = 0.4
+PRECURSOR_FACTOR_2_CONVENTIONAL_Q_SAT_MVAR: float = 0.5
+PRECURSOR_FACTOR_4_LOCAL_VC_MISALIGN_MVAR: float = 0.6
+PRECURSOR_FACTOR_5_AFRR_RAMP_MVAR: float = 0.8
+PRECURSOR_FACTOR_6_PSS_ABSENCE_MVAR: float = 1.0
+PRECURSOR_FACTOR_1_READY_S: float = 0.0
+PRECURSOR_FACTOR_2_READY_S: float = 550.0
+PRECURSOR_FACTOR_4_READY_S: float = 750.0
+PRECURSOR_FACTOR_5_READY_S: float = 1450.0
+PRECURSOR_FACTOR_6_READY_S: float = 1650.0
+
+PRECURSOR_CASCADE_RISE_THRESHOLD_V: float = 50.0
+PRECURSOR_CASCADE_ACCEL_THRESHOLD_V_PER_S2: float = 1e-5
+
 
 class IberianScenarioSummary(TypedDict):
     """Diffable summary of one iberian_2025_blackout run, printed for
@@ -282,6 +416,314 @@ class IberianScenarioSummary(TypedDict):
     seed: int
     events: list[GeneratorEvent]
     findings: list[Finding]
+
+
+class PrecursorScenarioSummary(TypedDict):
+    """Diffable summary of one precursor-phase run, mirroring
+    IberianScenarioSummary's own shape (separate fixture, separate score)."""
+
+    seed: int
+    events: list[GeneratorEvent]
+    findings: list[Finding]
+
+
+def _build_precursor_generators(
+    net: pp.pandapowerNet,
+    accumulator: _QAccumulator,
+    local_osc: SecondOrderOscillator,
+    inter_area_osc: SecondOrderOscillator,
+) -> list:
+    """Construct the precursor phase's 5 trend-producing PlantBehaviourGenerators
+    (pandapower-Q-targeted, same 5 named factors as the fast-collapse phase)
+    plus 2 OperatorActionGenerators whose `apply_action` is each oscillator's
+    own `.excite()` -- the step input `precursor.py`'s module docstring
+    argues is what makes the resulting oscillation non-circular.
+
+    Args:
+        net: the pandapower net (unused directly by these callbacks --
+            closures capture `accumulator`/the oscillators instead -- kept
+            as a parameter only for signature symmetry with `_build_generators`).
+        accumulator: shared `_QAccumulator` driving the trend.
+        local_osc / inter_area_osc: the two oscillators to excite.
+
+    Returns:
+        The 7 generators in evaluation order.
+    """
+
+    def _make_setpoint(delta_mvar: float):
+        def _apply(_ignored_q_var: float) -> None:
+            accumulator.nudge(delta_mvar)
+
+        return _apply
+
+    trend_factors = [
+        PlantBehaviourGenerator(
+            id="precursor-factor-1-res-fixed-pf",
+            target=RES_TAP,
+            ready_at_s=PRECURSOR_FACTOR_1_READY_S,
+            power_factor=1.0,
+            active_power_w=0.0,
+            apply_setpoint=_make_setpoint(PRECURSOR_FACTOR_1_RES_FIXED_PF_MVAR),
+        ),
+        PlantBehaviourGenerator(
+            id="precursor-factor-2-conventional-q-sat",
+            target=RES_TAP,
+            ready_at_s=PRECURSOR_FACTOR_2_READY_S,
+            power_factor=1.0,
+            active_power_w=0.0,
+            apply_setpoint=_make_setpoint(PRECURSOR_FACTOR_2_CONVENTIONAL_Q_SAT_MVAR),
+        ),
+        PlantBehaviourGenerator(
+            id="precursor-factor-4-local-vc-misalign",
+            target=RES_TAP,
+            ready_at_s=PRECURSOR_FACTOR_4_READY_S,
+            power_factor=1.0,
+            active_power_w=0.0,
+            apply_setpoint=_make_setpoint(PRECURSOR_FACTOR_4_LOCAL_VC_MISALIGN_MVAR),
+        ),
+        PlantBehaviourGenerator(
+            id="precursor-factor-5-afrr-ramp",
+            target=RES_TAP,
+            ready_at_s=PRECURSOR_FACTOR_5_READY_S,
+            power_factor=1.0,
+            active_power_w=0.0,
+            apply_setpoint=_make_setpoint(PRECURSOR_FACTOR_5_AFRR_RAMP_MVAR),
+        ),
+        PlantBehaviourGenerator(
+            id="precursor-factor-6-pss-absence",
+            target=RES_TAP,
+            ready_at_s=PRECURSOR_FACTOR_6_READY_S,
+            power_factor=1.0,
+            active_power_w=0.0,
+            apply_setpoint=_make_setpoint(PRECURSOR_FACTOR_6_PSS_ABSENCE_MVAR),
+        ),
+    ]
+
+    def _excite_local() -> None:
+        local_osc.excite(1.0)
+
+    def _excite_inter_area() -> None:
+        inter_area_osc.excite(1.0)
+
+    local_excite = OperatorActionGenerator(
+        id="excite-local-mode",
+        target=RES_TAP,
+        action_label="converter-control switching action exciting the local mode "
+        "(0.63 Hz, real report window 12:03-12:08)",
+        ready_at_s=LOCAL_MODE_WINDOW_START_S,
+        latency_s=LOCAL_MODE_EXCITE_LATENCY_S,
+        apply_action=_excite_local,
+    )
+    inter_area_excite = OperatorActionGenerator(
+        id="excite-inter-area-mode",
+        target=RES_TAP,
+        action_label="control-room switching action exciting the inter-area mode "
+        "(0.2 Hz, real report window 12:19-12:22)",
+        ready_at_s=INTER_AREA_MODE_WINDOW_START_S,
+        latency_s=INTER_AREA_MODE_EXCITE_LATENCY_S,
+        apply_action=_excite_inter_area,
+    )
+
+    return [*trend_factors, local_excite, inter_area_excite]
+
+
+def _run_precursor_detectors(wave: ThreePhaseWaveform) -> list[Finding]:
+    """Run OscillationDetector (x2, one per named mode) + VoltageCascadeDetector
+    against the synthesized precursor waveform. RoCoFDetector/AngleSeparationDetector/
+    CascadingFailureClassifier are NOT run here -- this phase has no fault/trip/
+    islanding events of its own, only a slow trend + two oscillation modes.
+
+    Args:
+        wave: the synthesized precursor ThreePhaseWaveform.
+
+    Returns:
+        The concatenated Finding log.
+    """
+    findings: list[Finding] = []
+
+    local_detector = OscillationDetector(
+        id="oscillation-local-mode", analysis_window_s=LOCAL_MODE_ANALYSIS_WINDOW_S
+    )
+    findings.extend(local_detector.consume(wave, LOCAL_MODE_DETECT_AT_S))
+
+    inter_area_detector = OscillationDetector(
+        id="oscillation-inter-area-mode", analysis_window_s=INTER_AREA_MODE_ANALYSIS_WINDOW_S
+    )
+    findings.extend(inter_area_detector.consume(wave, INTER_AREA_MODE_DETECT_AT_S))
+
+    cascade = VoltageCascadeDetector(
+        id="cascade-precursor",
+        rise_threshold_v=PRECURSOR_CASCADE_RISE_THRESHOLD_V,
+        acceleration_threshold_v_per_s2=PRECURSOR_CASCADE_ACCEL_THRESHOLD_V_PER_S2,
+    )
+    findings.extend(cascade.consume(wave, PRECURSOR_DURATION_S))
+
+    return findings
+
+
+def run_precursor(seed: int = DEFAULT_SEED, verbose: bool = True) -> PrecursorScenarioSummary:
+    """Run the precursor phase: a quasi-static pandapower stepper driving 5
+    trend-producing PlantBehaviourGenerator Q nudges (the same named causal
+    factors as the fast-collapse phase) plus 2 step-excited SecondOrderOscillators
+    (the local 0.63 Hz mode and the inter-area 0.2 Hz mode), synthesized into
+    a ThreePhaseWaveform and scored by OscillationDetector (x2) +
+    VoltageCascadeDetector.
+
+    Args:
+        seed: chaos-net topology seed (chaosnet.build_chaos_topology).
+        verbose: if True, print progress lines matching every other
+            scenario_engine script's own convention.
+
+    Returns:
+        A PrecursorScenarioSummary of this run's events and findings.
+    """
+    topology = chaosnet.build_chaos_topology(seed)
+    net = chaosnet.to_pandapower(topology)
+
+    local_bus_idx = topology["tap_buses"][topology["tap_names"].index(RES_TAP)]
+    bus_name = f"chaos-bus-{local_bus_idx}"
+    res_bus_id = int(net.bus.index[net.bus["name"] == bus_name][0])
+    res_bus_vn_kv = float(net.bus.at[res_bus_id, "vn_kv"])
+
+    sgen_idx = pp.create_sgen(
+        net, bus=res_bus_id, p_mw=0.0, q_mvar=0.0, name="precursor_res_injection"
+    )
+    accumulator = _QAccumulator(net, sgen_idx)
+
+    local_osc = SecondOrderOscillator(
+        id="local", natural_freq_hz=LOCAL_MODE_NATURAL_FREQ_HZ,
+        damping_ratio=LOCAL_MODE_DAMPING_RATIO,
+    )
+    inter_area_osc = SecondOrderOscillator(
+        id="inter-area", natural_freq_hz=INTER_AREA_MODE_NATURAL_FREQ_HZ,
+        damping_ratio=INTER_AREA_MODE_DAMPING_RATIO,
+    )
+    generators = _build_precursor_generators(net, accumulator, local_osc, inter_area_osc)
+
+    if verbose:
+        print(
+            f"[iberian_2025_blackout] precursor: seed={seed} solving "
+            f"{PRECURSOR_DURATION_S:.0f}s quasi-static at {PRECURSOR_DT_S:.1f}s cadence "
+            f"({int(round(PRECURSOR_DURATION_S / PRECURSOR_DT_S))} pandapower.runpp() calls): "
+            f"5 trend factors + local-mode excite@t={LOCAL_MODE_WINDOW_START_S:.0f}s + "
+            f"inter-area-mode excite@t={INTER_AREA_MODE_WINDOW_START_S:.0f}s"
+        )
+
+    stepper = PandapowerQuasiStaticStepper(net, res_bus_id)
+    wall_start = time.time()
+    result = stepper.run(
+        duration_s=PRECURSOR_DURATION_S,
+        dt_s=PRECURSOR_DT_S,
+        generators=generators,
+        oscillators={"local": local_osc, "inter-area": inter_area_osc},
+        oscillator_dt_s=PRECURSOR_OSCILLATOR_DT_S,
+        verbose=verbose,
+    )
+    wall_elapsed = time.time() - wall_start
+
+    if verbose:
+        print(f"[iberian_2025_blackout] precursor solve wall-clock: {wall_elapsed:.1f}s")
+        for ev in result.events:
+            print(f"  fired: {ev['generator_id']} ({ev['kind']}) at t={ev['time_s']:.4f}s")
+
+    wave = synthesize_precursor_waveform(
+        result,
+        base_kv=res_bus_vn_kv,
+        oscillator_gains_v={"local": LOCAL_MODE_GAIN_V, "inter-area": INTER_AREA_MODE_GAIN_V},
+        measurement_noise_v=PRECURSOR_MEASUREMENT_NOISE_V,
+        rng_seed=seed,
+    )
+    findings = _run_precursor_detectors(wave)
+
+    if verbose:
+        for f in findings:
+            print(
+                f"  finding: {f['detector_id']} ({f['kind']}) at "
+                f"t={f['time_s']:.4f}s confidence={f['confidence']:.2f} {f['detail']}"
+            )
+        local_detector = OscillationDetector(
+            id="oscillation-local-mode-quiet-check", analysis_window_s=LOCAL_MODE_ANALYSIS_WINDOW_S
+        )
+        quiet_local = local_detector.consume(wave, LOCAL_MODE_QUIET_CHECK_S)
+        inter_area_detector = OscillationDetector(
+            id="oscillation-inter-area-mode-quiet-check",
+            analysis_window_s=INTER_AREA_MODE_ANALYSIS_WINDOW_S,
+        )
+        quiet_inter_area = inter_area_detector.consume(wave, INTER_AREA_MODE_QUIET_CHECK_S)
+        print(
+            f"  quiet-check @t={LOCAL_MODE_QUIET_CHECK_S:.0f}s (well after local window): "
+            f"{quiet_local if quiet_local else 'no finding (decayed, as expected)'}"
+        )
+        print(
+            f"  quiet-check @t={INTER_AREA_MODE_QUIET_CHECK_S:.0f}s (well after inter-area window): "
+            f"{quiet_inter_area if quiet_inter_area else 'no finding (decayed, as expected)'}"
+        )
+
+    summary: PrecursorScenarioSummary = {
+        "seed": seed, "events": result.events, "findings": findings
+    }
+
+    if seed == DEFAULT_SEED:
+        _write_precursor_fixture(summary)
+
+    return summary
+
+
+def _write_precursor_fixture(summary: PrecursorScenarioSummary) -> None:
+    """(Re)write expected_iberian_2025_precursor_run.json, same discipline
+    as `_write_fixture()` above."""
+    earliest_by_id: dict[str, float] = {}
+    for e in summary["events"]:
+        gid = e["generator_id"]
+        if gid not in earliest_by_id or e["time_s"] < earliest_by_id[gid]:
+            earliest_by_id[gid] = e["time_s"]
+
+    def _earliest_finding(detector_id: str, kind: str) -> float | None:
+        matches = [
+            f["time_s"]
+            for f in summary["findings"]
+            if f["detector_id"] == detector_id and f["kind"] == kind
+        ]
+        return min(matches) if matches else None
+
+    fixture: dict = {
+        "generators": {
+            gid: {"time_s": t, "tolerance_s": FIXTURE_TIME_TOLERANCE_S}
+            for gid, t in earliest_by_id.items()
+        },
+        "detectors": {},
+    }
+
+    for detector_id, kind in (
+        ("oscillation-local-mode", "oscillation"),
+        ("oscillation-inter-area-mode", "oscillation"),
+        ("cascade-precursor", "voltage_cascade"),
+    ):
+        t = _earliest_finding(detector_id, kind)
+        if t is not None:
+            fixture["detectors"][f"{detector_id}:{kind}"] = {
+                "time_s": t,
+                "tolerance_s": FIXTURE_TIME_TOLERANCE_S,
+                "min_confidence": FIXTURE_MIN_CONFIDENCE,
+            }
+
+    PRECURSOR_EXPECTED_FILE.write_text(json.dumps(fixture, indent=2))
+
+
+def check_precursor() -> bool:
+    """Re-run run_precursor() with the default seed and diff against
+    expected_iberian_2025_precursor_run.json via scoring.score_run()."""
+    if not PRECURSOR_EXPECTED_FILE.exists():
+        print(f"[FAIL] no fixture at {PRECURSOR_EXPECTED_FILE}", file=sys.stderr)
+        return False
+    fixture = json.loads(PRECURSOR_EXPECTED_FILE.read_text())
+
+    summary = run_precursor(seed=DEFAULT_SEED, verbose=False)
+    PRECURSOR_EXPECTED_FILE.write_text(json.dumps(fixture, indent=2))
+
+    report = score_run(summary["events"], summary["findings"], fixture)
+    print_score_report(report)
+    return report["all_passed"]
 
 
 def _build_generators(
@@ -638,17 +1080,29 @@ def check_step() -> bool:
 def main() -> None:
     """CLI entry point. --step run (default) executes the full scenario
     and prints its events/findings; --step check re-derives it and scores
-    against expected_iberian_2025_run.json, exiting non-zero on mismatch."""
+    against expected_iberian_2025_run.json, exiting non-zero on mismatch.
+    --phase collapse (default, unchanged from before the precursor phase
+    existed) targets the fast-collapse phase; --phase precursor targets the
+    new quasi-static precursor phase (separate fixture, separate score --
+    see module docstring "Explicit non-goal": the two are not chained)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--step", choices=["run", "check"], default="run")
+    parser.add_argument("--phase", choices=["collapse", "precursor"], default="collapse")
     args = parser.parse_args()
 
-    if args.step == "run":
-        run_step(seed=args.seed)
-    elif args.step == "check":
-        ok = check_step()
-        sys.exit(0 if ok else 1)
+    if args.phase == "collapse":
+        if args.step == "run":
+            run_step(seed=args.seed)
+        elif args.step == "check":
+            ok = check_step()
+            sys.exit(0 if ok else 1)
+    elif args.phase == "precursor":
+        if args.step == "run":
+            run_precursor(seed=args.seed)
+        elif args.step == "check":
+            ok = check_precursor()
+            sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

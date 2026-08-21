@@ -1,0 +1,49 @@
+{
+  "generators": {
+    "precursor-factor-1-res-fixed-pf": {
+      "time_s": 0.0,
+      "tolerance_s": 0.01
+    },
+    "excite-local-mode": {
+      "time_s": 2.0,
+      "tolerance_s": 0.01
+    },
+    "precursor-factor-2-conventional-q-sat": {
+      "time_s": 550.0,
+      "tolerance_s": 0.01
+    },
+    "precursor-factor-4-local-vc-misalign": {
+      "time_s": 750.0,
+      "tolerance_s": 0.01
+    },
+    "excite-inter-area-mode": {
+      "time_s": 962.0,
+      "tolerance_s": 0.01
+    },
+    "precursor-factor-5-afrr-ramp": {
+      "time_s": 1450.0,
+      "tolerance_s": 0.01
+    },
+    "precursor-factor-6-pss-absence": {
+      "time_s": 1650.0,
+      "tolerance_s": 0.01
+    }
+  },
+  "detectors": {
+    "oscillation-local-mode:oscillation": {
+      "time_s": 100.0,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "oscillation-inter-area-mode:oscillation": {
+      "time_s": 1060.0,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "cascade-precursor:voltage_cascade": {
+      "time_s": 18.0,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    }
+  }
+}
