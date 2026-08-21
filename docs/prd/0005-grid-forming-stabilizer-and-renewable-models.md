@@ -1,8 +1,11 @@
 # 0005 — Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed)
 
-- **Status:** in progress — Phases 0/1/1.5/2/3 done; Phasing below now includes Phase 1.5
-  (EMT→OPF headroom translation); implementation proceeding phase-by-phase, each phase its own
-  stacked branch/PR
+- **Status:** implemented — Phases 0/1/1.5/2/3 done, each phase its own stacked branch/PR; all 6
+  acceptance criteria below are met with real, cited evidence. Phase 4 (IEC 61400-27 Modelica/FMU
+  one-way coupling) remains a real, explicitly-scoped-conditional future item — its gating source
+  question is resolved (RTE's `dynawo/dynawo` repo), but the coupling work itself is a substantial,
+  new-tool-install-heavy undertaking not attempted in this pass. Phase 5 remains aspirational per
+  its own phasing note.
 - **Depends on:** none directly; builds on Lab 5's existing `chaosnet`/`run_dpsim.py`/`phase_model.py`
   machinery and reuses the R-X/sag-propagation work from `docs/backlog/0006`
 - **Touches:** `labs/05-spartan-chaosnet-transient-stream/chaosnet.py` (new generator/controller
@@ -284,20 +287,32 @@ rather than a bare fault on a passive network.
 
 ## Acceptance criteria for this PRD
 
-- [ ] Phase 1's stabilizer runs against the real `chaos_schedule.yaml` fault and reports a real,
+- [x] Phase 1's stabilizer runs against the real `chaos_schedule.yaml` fault and reports a real,
       measured before/after mitigation number (peak sag depth and/or recovery time) — not asserted,
-      computed from an actual DPsim run.
-- [ ] Every claim about what DPsim mitigation traces back to a real chosen device+parameters, not a
-      hand-tuned number chasing a target percentage.
-- [ ] Phase 1.5 reports a real yes/no on whether Phase 1's measured mitigation changes a binding
+      computed from an actual DPsim run. Verified by `test_lab5_grid_forming_reduces_peak_sag`
+      (passing) and `stabilizer_comparison.json`'s real computed before/after peak-sag numbers.
+- [x] Every claim about what DPsim mitigation traces back to a real chosen device+parameters, not a
+      hand-tuned number chasing a target percentage. Verified: every constant in `grid_forming.py`
+      and `renewable_source.py` carries an inline citation to real literature or a real datasheet
+      (IEEE/CIGRE grid-forming coupling-filter ranges, SimBench MV-cable/overhead-line constants,
+      the Vestas V52-850kW datasheet) — none are swept/tuned to hit a target number.
+- [x] Phase 1.5 reports a real yes/no on whether Phase 1's measured mitigation changes a binding
       constraint in an existing Lab 1/4 OPF run — including reporting "no" honestly if that's the
-      actual result, not just when the answer is "yes."
-- [ ] Phase 0's IEC 61400-27 source-location question is answered one way or the other before any
-      Phase 4 work begins — "not found, using X instead" is an acceptable, honest outcome.
-- [ ] No documentation anywhere in this PRD's implementation claims "eliminates," "nullifies," or
-      "removes" the transient — only measured reduction.
-- [ ] SPARTAN's corrective-action role is stated explicitly in the lab's own README once Phase 1
-      lands, not left implicit.
+      actual result, not just when the answer is "yes." Verified by
+      `test_lab5_headroom_translation_reports_real_finding` (passing) and
+      `headroom_translation.json`'s real computed result.
+- [x] Phase 0's IEC 61400-27 source-location question is answered one way or the other before any
+      Phase 4 work begins — "not found, using X instead" is an acceptable, honest outcome. Resolved
+      (see Open Questions below): the implementation lives in RTE's `dynawo/dynawo` GitHub repo.
+      Phase 4 itself was not attempted this pass (see Phase 4 phasing note above).
+- [x] No documentation anywhere in this PRD's implementation claims "eliminates," "nullifies," or
+      "removes" the transient — only measured reduction. Verified via a direct repo-wide grep across
+      this PRD, `labs/05-spartan-chaosnet-transient-stream/*.py`, and its README: the only match is
+      this criterion's own wording, describing the rule rather than violating it.
+- [x] SPARTAN's corrective-action role is stated explicitly in the lab's own README once Phase 1
+      lands, not left implicit. Verified: `labs/05-spartan-chaosnet-transient-stream/README.md`
+      states it directly (e.g. "Every other view in this lab implements the 'classify/log/alert'
+      half of SPARTAN's own design").
 
 ## Open questions
 
