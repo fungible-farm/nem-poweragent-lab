@@ -56,6 +56,76 @@ Both rows are marked FAIL for this reason specifically, distinct from the bus-11
 condition. `sample_contingency_chart.png` plots this directly: 19 of 21 bars sit flat at the
 pre-existing ~97.8% / 0.899 pu point, while the 151/152 bars visibly cross the 100% line.
 
+## pypowsybl N-1 cross-check (a real second opinion, not another stand-in)
+
+> Full write-up, conclusions, and implications:
+> [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](../../docs/POWERFLOW_ENGINE_SHOOTOUT.md).
+
+`pypowsybl_cross_check.py` re-solves the exact same 21 contingencies as an independent, real
+second opinion: [PowSyBl](https://github.com/powsybl) (RTE's power-system framework, via its real
+`pypowsybl` Python bindings, OpenLoadFlow solver) against `workflow.py`'s own pandapower screen.
+This promotes pypowsybl from `labs/03-advanced-provider-bakeoff/spike_pypowsybl.py`'s standalone
+aggregate-loss comparison into a real, wired-in capability — a genuine cross-validation of the
+same screening decision this lab already makes, using `labs/_shared/gridfit.py`'s
+`to_pypowsybl_network()` / `pypowsybl_element_id_map()` helpers (shared with the Lab 3 spike, not
+duplicated).
+
+**Two more real pypowsybl data-fidelity gaps found while building this** (beyond Lab 3's
+`.m`→`.mat` finding), both worked around in the shared helper, not silently masked:
+
+- **Bus-id correlation is not `pandapower_bus_id + 1`.** pandapower's own bus index preserves the
+  original MATPOWER bus numbers (often large and non-sequential — this repo's cases can go past
+  10000), but the `.mat` file `to_mpc()` writes uses a *completely different*, internally
+  renumbered 1-based sequence (pandapower's own `to_ppc()` bus compaction). Naively assuming
+  `pandapower_bus_id + 1` matched pypowsybl's `LINE-<a>-<b>` element ids on only 14 of 1215 real
+  lines; using pandapower's own `net._pd2ppc_lookups["bus"]` (the exact table `to_ppc()` builds
+  internally) matched 1215/1215.
+- **`matpower.import.ignore-base-voltage` defaults to `true`.** pypowsybl's MATPOWER importer
+  silently discards the real per-bus base-kV column by default — every bus came back at
+  `nominal_v=1.0` regardless of this repo's real NEM voltage levels (132kV, 66kV, 33kV, 11kV,
+  etc., genuinely present in the `.mat` file), making reported voltages and currents physically
+  meaningless. Confirmed this is a pure reporting-convention default (total system generation/
+  load/loss are bit-identical either way) — `to_pypowsybl_network()` always passes this parameter
+  as `false`.
+
+**Result:** worst-case bus voltage per contingency matches to within **0.00000 pu** across all 21
+contingencies (both engines independently confirm the base-case 0.899 pu breach at bus 1126 /
+`VL-910`). Worst-case line loading agrees closely for the two *genuinely contingency-induced*
+thermal breaches this lab exists to catch — lines 151/152's parallel-pair overload — matching
+**exactly** (113.00% / 111.37%, both engines, both directions). The other 19 (non-contingency-
+induced, pre-existing base-case) contingencies show a real ~3% relative loading difference,
+consistent with a per-branch current-modelling difference between the two solvers (see
+`pypowsybl_cross_check.py`'s own tolerance comment) — named honestly rather than tightened away.
+**21/21 contingencies agree** within the documented tolerances.
+
+```
+uv run labs/02-medium-interconnection-screening/pypowsybl_cross_check.py --step run
+uv run labs/02-medium-interconnection-screening/pypowsybl_cross_check.py --step check
+```
+
+## Network diagram (`sample_network_diagram.svg`)
+
+`render_network_diagram.py` draws the same 14-bus/21-line N-1 neighbourhood `workflow.py`'s own
+screen already computes — the diagram is a rendering of an already-verified result, not a new
+source of truth (same convention as `sample_contingency_chart.png` above). Deliberately scoped to
+this local neighbourhood, not the full `snem1803.m` (1803 buses, no geographic coordinates —
+would render as an unreadable hairball); layout is `networkx.kamada_kawai_layout` (deterministic,
+no RNG), rendered to a real vector SVG via matplotlib's `Agg` backend.
+
+Candidate bus 175 is marked distinctly (orange, larger). Every real parallel-line pair in this
+neighbourhood — not just the well-known 151/152 pair — is drawn as two genuinely separate curved
+edges rather than collapsed into one: 143/150 (175↔249), 145/146 (175↔275), 147/148 (175↔328),
+181/182 (185↔254), and 151/152 (175↔608). Edge color/width encodes base-case `loading_percent`
+(a blue scale, deliberately *not* a red-family colormap — 181/182 load up to 43.6%/36.7%, near
+the top of this neighbourhood's range, and a red colormap there would look identical to the one
+genuine finding below). Lines 151/152 are the sole exception: hard-coded bright red, since they
+are the only *contingency-induced* breach this lab's screen actually found (see Sandbox notes
+above) — every other parallel pair here is a normal double-circuit, not a violation.
+
+```
+uv run labs/02-medium-interconnection-screening/render_network_diagram.py
+```
+
 ## Command
 
 ```

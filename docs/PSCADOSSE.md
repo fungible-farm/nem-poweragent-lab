@@ -28,7 +28,7 @@ reaching for a proprietary or novel re-implementation.
 | numpy / scipy / numba | numeric stack | BSD-3 / BSD-3 / BSD-2 | |
 | matplotlib | charts/animations | PSF / BSD-style | |
 | mcp | MCP SDK (smoke test) | MIT | |
-| DPsim | EMT engine (Lab 5) | **MPL-2.0** | the golden path's one exception — OSI-approved, file-level copyleft only, foundation-friendly; documented so nobody mistakes it for Apache |
+| DPsim | EMT engine (Lab 5) | **MPL-2.0** | one of two documented MPL-2.0 exceptions (see pypowsybl below) — OSI-approved, file-level copyleft only, foundation-friendly; documented so nobody mistakes it for Apache |
 | simbench | Lab 5 seed grid dataset | university license (Kassel / TU Dortmund / RWTH) | dataset attribution terms |
 | just / uv | command runner / env | CC0 / MIT-or-Apache | |
 | CSIRO Synthetic-NEM data | Labs 1-5 case files | CC-BY-4.0 | fetched by scripts/fetch_csiro_nem_data.py |
@@ -40,11 +40,13 @@ reaching for a proprietary or novel re-implementation.
 | cyclonedx-python-lib | Lab 6 Track A SBOM generation | Apache-2.0 | plus its own direct deps `boolean.py` (BSD-2-Clause), `license-expression` (Apache-2.0), `packageurl-python` (MIT), `py-serializable` (Apache-2.0), `sortedcontainers` (Apache-2.0) |
 | kiwisolver | Lab 6 Track B diagram layout (Cassowary constraint solver) | BSD-3-Clause | was already an installed transitive dep of matplotlib; promoted to a direct dependency once `translate_iso_ir.py` started importing it |
 | linkml's ~65 transitive deps (rdflib/pyshex/sphinx/sqlalchemy family) | pulled in by `linkml`/`linkml-runtime`, not imported directly by any Lab 6 script | overwhelmingly MIT/BSD/Apache/CC0 | **two flagged exceptions, checked individually, not assumed away**: `rfc3987` (an optional `jsonschema[format]` IRI-format checker) is **GPLv3+**, and `fqdn` (same `format` extra) is **MPL-2.0** — both are part of `jsonschema`'s opt-in `format` validator group, invoked only if a JSON Schema declares an `iri`/`fqdn`-format field, which neither of this lab's two LinkML schemas does; neither module is imported by this lab's own code. Same "external, not linked into the golden path's own logic" reasoning as the mpv/chafa/ffmpeg row above, documented rather than silently omitted. |
+| pypowsybl | Lab 3 `spike_pypowsybl.py` (solver-comparison spike) + Lab 2 `pypowsybl_cross_check.py` (real N-1 second-opinion cross-check, via shared `labs/_shared/gridfit.py` helpers) | **MPL-2.0** | license-verified from installed metadata (`pypowsybl==1.16.1`); a genuine second MPL-2.0 component alongside DPsim, not spike-only anymore — full comparison write-up and conclusions: [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](POWERFLOW_ENGINE_SHOOTOUT.md) |
 
 ### The distinction that keeps the policy honest
 
-- **Golden-path *library/API* surface**: permissive (BSD/MIT/Apache) with
-  DPsim/MPL-2.0 as the documented single exception.
+- **Golden-path *library/API* surface**: permissive (BSD/MIT/Apache) with DPsim and pypowsybl as
+  two documented MPL-2.0 exceptions (both file-level copyleft only, both foundation-backed —
+  DPsim/RWTH Aachen, pypowsybl/RTE).
 - **External CLIs used for display/rendering** (mpv, chafa, ffmpeg): copyleft,
   fine — they are subprocess-invoked tools, never linked into the deliverable.
 - **Data**: CC-BY-4.0 (CSIRO) and MIT (AEMO constraints vendor) carry their own

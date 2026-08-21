@@ -58,6 +58,11 @@ each technology choice. [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.m
 this repo is built against, and [`docs/PSCADOSSE.md`](docs/PSCADOSSE.md) covers the open-source
 licensing policy.
 
+**Solver evaluation: [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](docs/POWERFLOW_ENGINE_SHOOTOUT.md)** —
+cross-validates pandapower (this repo's golden-path solver) against PowSyBl/pypowsybl on the same
+real CSIRO case and the same real N-1 screen (Labs 2/3): both engines agree, and two real
+pypowsybl import defects were found and fixed along the way.
+
 ## Install
 
 ```
