@@ -57,6 +57,22 @@ def test_generated_sysml_matches_fixture_all_tracks():
         assert "MATCH" in result.stdout
 
 
+def test_grid_topology_carries_cim_class_uri_for_every_kind():
+    """PRD-0007: the generated grid .sysml must carry a real CIM16 class URI for at least one Bus,
+    one Generator, one transmission Line, and one transformer Line instance -- explicit beyond the
+    fixture-diff coverage `test_generated_sysml_matches_fixture_all_tracks` already gives it."""
+    result = _run("generate_sysml.py", "--track", "grid", "--step", "run")
+    assert result.returncode == 0, result.stdout + result.stderr
+    text = (OUTPUT_DIR / "grid_topology.sysml").read_text()
+    for expected_uri in (
+        "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode",
+        "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine",
+        "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment",
+        "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer",
+    ):
+        assert f'attribute cimClassUri = "{expected_uri}";' in text, expected_uri
+
+
 def test_syntax_gate_accepts_clean_fixtures():
     result = _run("validate_sysml.py", "--step", "check")
     assert result.returncode == 0, result.stdout + result.stderr

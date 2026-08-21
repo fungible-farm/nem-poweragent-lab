@@ -5,12 +5,14 @@ package GridTopology {
     part def Bus {
         attribute source : String;
         attribute voltageKV : Real;
+        attribute cimClassUri : String;
     }
 
     part def Generator {
         attribute source : String;
         attribute bus : String;
         attribute ratedMW : Real;
+        attribute cimClassUri : String;
     }
 
     part def Line {
@@ -19,112 +21,133 @@ package GridTopology {
         attribute toBus : String;
         attribute kind : String;
         attribute lengthKM : Real;
+        attribute cimClassUri : String;
     }
 
     part gridTopology {
         part bus_4052 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1683)";
             attribute voltageKV = 15.75;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4128 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1744)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4125 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1741)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4148 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1763)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4053 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1684)";
             attribute voltageKV = 15.75;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4054 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1685)";
             attribute voltageKV = 15.75;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4124 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1740)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4238 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1852)";
             attribute voltageKV = 66.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4129 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1745)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4335 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1945)";
             attribute voltageKV = 66.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4094 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1714)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4095 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1715)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4112 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1728)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4117 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1733)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part bus_4131 : Bus {
             attribute source = "data/snemSA.m (pandapower bus index 1746)";
             attribute voltageKV = 275.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#TopologicalNode";
         }
 
         part gen_4052 : Generator {
             attribute source = "data/snemSA.m (pandapower gen table, bus 1683)";
             attribute bus = "bus_4052";
             attribute ratedMW = 127.3;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine";
         }
 
         part gen_4053 : Generator {
             attribute source = "data/snemSA.m (pandapower gen table, bus 1684)";
             attribute bus = "bus_4053";
             attribute ratedMW = 135.2;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine";
         }
 
         part gen_4054 : Generator {
             attribute source = "data/snemSA.m (pandapower gen table, bus 1685)";
             attribute bus = "bus_4054";
             attribute ratedMW = 137.6;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine";
         }
 
         part gen_4094 : Generator {
             attribute source = "data/snemSA.m (pandapower gen table, bus 1714)";
             attribute bus = "bus_4094";
             attribute ratedMW = 0.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine";
         }
 
         part gen_4095 : Generator {
             attribute source = "data/snemSA.m (pandapower gen table, bus 1715)";
             attribute bus = "bus_4095";
             attribute ratedMW = 0.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#SynchronousMachine";
         }
 
         part line_4117_4124 : Line {
@@ -133,6 +156,7 @@ package GridTopology {
             attribute toBus = "bus_4124";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4117_4131 : Line {
@@ -141,6 +165,7 @@ package GridTopology {
             attribute toBus = "bus_4131";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4124_4131 : Line {
@@ -149,6 +174,7 @@ package GridTopology {
             attribute toBus = "bus_4131";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4094_4124 : Line {
@@ -157,6 +183,7 @@ package GridTopology {
             attribute toBus = "bus_4124";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4095_4124 : Line {
@@ -165,6 +192,7 @@ package GridTopology {
             attribute toBus = "bus_4124";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4112_4129 : Line {
@@ -173,6 +201,7 @@ package GridTopology {
             attribute toBus = "bus_4129";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4112_4129_2 : Line {
@@ -181,6 +210,7 @@ package GridTopology {
             attribute toBus = "bus_4129";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4129_4148 : Line {
@@ -189,6 +219,7 @@ package GridTopology {
             attribute toBus = "bus_4148";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4112_4124 : Line {
@@ -197,6 +228,7 @@ package GridTopology {
             attribute toBus = "bus_4124";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4124_4125 : Line {
@@ -205,6 +237,7 @@ package GridTopology {
             attribute toBus = "bus_4125";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4125_4128 : Line {
@@ -213,6 +246,7 @@ package GridTopology {
             attribute toBus = "bus_4128";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part line_4128_4148 : Line {
@@ -221,6 +255,7 @@ package GridTopology {
             attribute toBus = "bus_4148";
             attribute kind = "transmission";
             attribute lengthKM = 1.0;
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#ACLineSegment";
         }
 
         part xfmr_4125_4238 : Line {
@@ -228,6 +263,7 @@ package GridTopology {
             attribute fromBus = "bus_4125";
             attribute toBus = "bus_4238";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4125_4238_2 : Line {
@@ -235,6 +271,7 @@ package GridTopology {
             attribute fromBus = "bus_4125";
             attribute toBus = "bus_4238";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4128_4052 : Line {
@@ -242,6 +279,7 @@ package GridTopology {
             attribute fromBus = "bus_4128";
             attribute toBus = "bus_4052";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4128_4053 : Line {
@@ -249,6 +287,7 @@ package GridTopology {
             attribute fromBus = "bus_4128";
             attribute toBus = "bus_4053";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4128_4054 : Line {
@@ -256,6 +295,7 @@ package GridTopology {
             attribute fromBus = "bus_4128";
             attribute toBus = "bus_4054";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4148_4335 : Line {
@@ -263,6 +303,7 @@ package GridTopology {
             attribute fromBus = "bus_4148";
             attribute toBus = "bus_4335";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
 
         part xfmr_4148_4335_2 : Line {
@@ -270,6 +311,7 @@ package GridTopology {
             attribute fromBus = "bus_4148";
             attribute toBus = "bus_4335";
             attribute kind = "transformer";
+            attribute cimClassUri = "http://iec.ch/TC57/2013/CIM-schema-cim16#PowerTransformer";
         }
     }
 }

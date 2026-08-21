@@ -38,6 +38,16 @@ REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 CASE_PATH: Final[Path] = REPO_ROOT / "data" / "snemSA.m"
 OUTPUT_PATH: Final[Path] = Path(__file__).resolve().parent / "schema" / "grid_instances.yaml"
 
+# CIM16/CGMES 2.4 class URIs (PRD-0007) -- the fixed mapping table cited in
+# schema/grid_topology.linkml.yaml's own header. Applied here, never hand-entered per instance.
+CIM_NAMESPACE: Final[str] = "http://iec.ch/TC57/2013/CIM-schema-cim16#"
+CIM_CLASS_BY_KIND: Final[dict[str, str]] = {
+    "bus": f"{CIM_NAMESPACE}TopologicalNode",
+    "generator": f"{CIM_NAMESPACE}SynchronousMachine",
+    "transmission": f"{CIM_NAMESPACE}ACLineSegment",
+    "transformer": f"{CIM_NAMESPACE}PowerTransformer",
+}
+
 # The real generator bus this walk starts from -- see module docstring for why this one, not the
 # case's single largest generator. Named explicitly, not left as an implicit "whatever the search
 # happens to land on" (AGENTS.md "no undocumented magic numbers").
@@ -116,6 +126,7 @@ def build_instances() -> dict[str, Any]:
             "name": _bus_name(net, idx),
             "source": f"data/snemSA.m (pandapower bus index {idx})",
             "voltage_kv": float(net.bus.loc[idx, "vn_kv"]),
+            "cim_class_uri": CIM_CLASS_BY_KIND["bus"],
         }
         for idx in cluster_order
     ]
@@ -129,6 +140,7 @@ def build_instances() -> dict[str, Any]:
             "source": f"data/snemSA.m (pandapower gen table, bus {int(row['bus'])})",
             "bus": _bus_name(net, int(row["bus"])),
             "rated_mw": round(float(row["p_mw"]), 1),
+            "cim_class_uri": CIM_CLASS_BY_KIND["generator"],
         }
         for _, row in net.gen.iterrows()
         if int(row["bus"]) in cluster_set
@@ -145,6 +157,7 @@ def build_instances() -> dict[str, Any]:
             "to_bus": _bus_name(net, int(row.to_bus)),
             "kind": "transmission",
             "length_km": float(row.length_km),
+            "cim_class_uri": CIM_CLASS_BY_KIND["transmission"],
         }
         for _, row in net.line.iterrows()
         if int(row.from_bus) in cluster_set and int(row.to_bus) in cluster_set
@@ -156,6 +169,7 @@ def build_instances() -> dict[str, Any]:
             "from_bus": _bus_name(net, int(row.hv_bus)),
             "to_bus": _bus_name(net, int(row.lv_bus)),
             "kind": "transformer",
+            "cim_class_uri": CIM_CLASS_BY_KIND["transformer"],
         }
         for _, row in net.trafo.iterrows()
         if int(row.hv_bus) in cluster_set and int(row.lv_bus) in cluster_set
@@ -233,6 +247,7 @@ def _render_yaml(instances: dict[str, Any], header: str) -> str:
             f"  - name: {b['name']}",
             f'    source: "{b["source"]}"',
             f"    voltage_kv: {_fmt_number(b['voltage_kv'])}",
+            f'    cim_class_uri: "{b["cim_class_uri"]}"',
         ]
         if i != len(instances["buses"]) - 1:
             lines.append("")
@@ -243,6 +258,7 @@ def _render_yaml(instances: dict[str, Any], header: str) -> str:
             f'    source: "{gen["source"]}"',
             f"    bus: {gen['bus']}",
             f"    rated_mw: {_fmt_number(gen['rated_mw'])}",
+            f'    cim_class_uri: "{gen["cim_class_uri"]}"',
         ]
         if i != len(instances["generators"]) - 1:
             lines.append("")
@@ -257,6 +273,7 @@ def _render_yaml(instances: dict[str, Any], header: str) -> str:
         ]
         if "length_km" in ln:
             lines.append(f"    length_km: {_fmt_number(ln['length_km'])}")
+        lines.append(f'    cim_class_uri: "{ln["cim_class_uri"]}"')
         if i != len(instances["lines"]) - 1:
             lines.append("")
     return "\n".join(lines) + "\n"

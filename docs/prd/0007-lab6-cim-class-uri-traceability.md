@@ -1,6 +1,6 @@
 # 0007 — Lab 6 Phase 4a: CIM class-URI traceability annotations for Track B
 
-- **Status:** proposed
+- **Status:** implemented
 - **Depends on:** 0006 (Lab 6 SysML v2 digital-thread MVP) — Track B's `Bus`/`Generator`/`Line`
   LinkML schema and its `generate_sysml.py`/`validate_sysml.py` pipeline are what this issue
   annotates; nothing here works standalone
@@ -79,37 +79,31 @@ bar.
 
 ## Scope — in
 
-- [ ] Class mapping table in `grid_topology.linkml.yaml`'s own header comment (or a small adjacent
-      committed file if the header gets unwieldy — implementer's call, but it must live in one
-      reviewable place, not scattered):
-      - `Bus → cim:TopologicalNode` (see reasoning above; confirm against a real CGMES profile
-        doc before committing, and document the ConnectivityNode-vs-TopologicalNode choice inline)
+- [x] Class mapping table in `grid_topology.linkml.yaml`'s own header comment:
+      - `Bus → cim:TopologicalNode` (confirmed, not just recommended, against IEC61970::Base::
+        Topology docs and ENTSO-E's CGM Building Process guide during implementation — see
+        "What was checked" below)
       - `Generator → cim:SynchronousMachine`
       - `Line(kind="transmission") → cim:ACLineSegment`
       - `Line(kind="transformer") → cim:PowerTransformer`
-      - Use the existing `kind` slot (`grid_topology.linkml.yaml:47-53`) as the `Line` dispatch key
-        — no new class or slot needed for the dispatch itself.
-- [ ] Add a `cim_class_uri` slot to `Bus`/`Generator`/`Line` in `grid_topology.linkml.yaml`,
-      computed from the mapping table (a small lookup in `build_grid_instances.py` or
-      `generate_sysml.py` — implementer's call on which stage owns it), never hand-entered per
-      instance, matching this lab's existing "generated, not hand-transcribed" discipline
-      (`build_grid_instances.py`'s own header).
-- [ ] `generate_sysml.py`: emit `attribute cimClassUri : String;` on each of the three `part def`
-      blocks (alongside the existing `source`/`voltageKV`/etc. attributes,
-      `generate_sysml.py:106-120`) and `attribute cimClassUri = "<uri>";` on each instance
-      (alongside `generate_sysml.py:136-165`) — confirmed above to need no grammar change.
-- [ ] Pin the exact CIM namespace/version used (recommend CIM16 /
-      `http://iec.ch/TC57/2013/CIM-schema-cim16#`, per the confirmed real source above, unless
-      implementation-time research finds a stronger reason to target CIM100/CGMES 3.0 instead) and
-      cite the source in `grid_topology.linkml.yaml`'s own header, matching this repo's existing
-      "ground every field in a real source" convention (e.g. `grid_instances.yaml`'s own header).
-- [ ] Extend `test_lab6.py` with one test asserting `cimClassUri` reaches the generated `.sysml`
-      output (`output/grid_topology.sysml` / `fixtures/expected_grid_topology.sysml`) for at least
-      one instance of each of Bus, Generator, and both Line kinds.
-- [ ] Regenerate and commit `fixtures/expected_grid_topology.sysml` (and re-derive
-      `fixtures/expected_grid_topology_iso_ir.json`/`.svg` if the diagram renderer surfaces the new
-      attribute — not required by this issue, but don't let the fixtures drift out of sync with a
-      pipeline stage that does pick it up).
+      - Uses the existing `kind` slot as the `Line` dispatch key — no new class or slot needed for
+        dispatch itself.
+- [x] Added a `cim_class_uri` slot to `Bus`/`Generator`/`Line` in `grid_topology.linkml.yaml`,
+      computed from a `CIM_CLASS_BY_KIND` lookup table in `build_grid_instances.py` (the stage that
+      already owns "generated, not hand-transcribed" for this schema), never hand-entered per
+      instance.
+- [x] `generate_sysml.py` emits `attribute cimClassUri : String;` on each of the three `part def`
+      blocks and `attribute cimClassUri = "<uri>";` on each instance — confirmed to need zero
+      `validate_sysml.py` grammar change, exactly as predicted.
+- [x] Pinned CIM16 / `http://iec.ch/TC57/2013/CIM-schema-cim16#`, cited in
+      `grid_topology.linkml.yaml`'s own header.
+- [x] Added `test_grid_topology_carries_cim_class_uri_for_every_kind` to `test_lab6.py`, asserting
+      all four real CIM16 URIs (`TopologicalNode`/`SynchronousMachine`/`ACLineSegment`/
+      `PowerTransformer`) appear in generated `output/grid_topology.sysml`.
+- [x] Regenerated and committed `fixtures/expected_grid_topology.sysml`. Confirmed
+      `translate_iso_ir.py` does not capture non-reference attributes into the IR at all (only
+      `fromBus`/`toBus`/`kind`/`bus`/`uses`/`next`), so `expected_grid_topology_iso_ir.json`/`.svg`
+      are genuinely unaffected — verified via `--step check` on both, both still MATCH.
 
 ## Scope — out (do not do in this issue)
 
@@ -135,26 +129,27 @@ Same as "Scope — out" above; not repeated here.
 
 ## Acceptance criteria
 
-- [ ] `just check-lab6` passes with the new CIM annotation present in generated output for Bus,
+- [x] `just check-lab6` passes with the new CIM annotation present in generated output for Bus,
       Generator, and both Line kinds.
-- [ ] The class mapping table and the CIM namespace/version citation are reviewable in one file
-      (`grid_topology.linkml.yaml`'s header, or one small adjacent file it points to), not
-      scattered across the codebase.
-- [ ] `docs/prd/0006-sysml-digital-thread-mvp.md`'s Open Questions section updated: the CIM mapping
-      question marked resolved for the annotation layer, explicitly still open for schema-of-record
-      (option 3 above).
-- [ ] `docs/prd/README.md` gets a new row for this PRD, matching the existing table's format.
+- [x] The class mapping table and the CIM namespace/version citation are reviewable in one file
+      (`grid_topology.linkml.yaml`'s header).
+- [x] `docs/prd/0006-sysml-digital-thread-mvp.md`'s Open Questions section already reads correctly
+      as of this PRD's implementation: CIM mapping marked resolved for the annotation layer,
+      explicitly still open for schema-of-record (option 3 above) — no edit needed, it was written
+      forward-looking when PRD-0007 was first scoped.
+- [x] `docs/prd/README.md` row added, status flipped to implemented.
 
 ## Open questions
 
-- **CIM16 (CGMES 2.4) vs. CIM100 (CGMES 3.0) as the pinned namespace** — this PRD recommends CIM16
-  based on real, confirmed usage in ENTSO-E's own published conformity data, but didn't check
-  whether CIM100 is now the more current reference target for a from-scratch mapping done in 2026;
-  worth a direct check at implementation time.
-- **`ConnectivityNode` vs. `TopologicalNode` for `Bus`** — this PRD recommends `TopologicalNode`
-  from CIM's own node-breaker/bus-branch modelling split, but that reasoning wasn't checked against
-  a fetched CIM profile document; confirm before committing the mapping table (see "What was
-  checked" above).
+- **CIM16 (CGMES 2.4) vs. CIM100 (CGMES 3.0) as the pinned namespace** — CIM16 confirmed and used;
+  whether CIM100 becomes the more current target for a future from-scratch mapping remains open,
+  not re-checked at implementation time.
+- **`ConnectivityNode` vs. `TopologicalNode` for `Bus`** — resolved during implementation via a
+  direct web search against IEC61970::Base::Topology reference docs and ENTSO-E's CGM Building
+  Process Implementation Guide: `ConnectivityNode` is a physical terminal-level connection point
+  (one per switch position); `TopologicalNode` is the logical bus a topology processor derives
+  after collapsing connectivity nodes on closed switches. `snemSA.m` (MATPOWER, no switch/breaker
+  model) is already a bus-branch abstraction, confirming `TopologicalNode` as the correct choice.
 - **Does this annotation layer, once real, change the calculus on PRD-0006's own open Phase-4
-  third-artifact question** (equipment register / NER asset schedule shape)? Not answered here —
-  worth revisiting once this issue lands.
+  third-artifact question** (equipment register / NER asset schedule shape)? Still not answered —
+  worth revisiting in a future session.

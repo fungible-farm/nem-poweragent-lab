@@ -105,12 +105,14 @@ def render_grid_topology(instances: dict[str, Any]) -> str:
         "    part def Bus {",
         "        attribute source : String;",
         "        attribute voltageKV : Real;",
+        "        attribute cimClassUri : String;",
         "    }",
         "",
         "    part def Generator {",
         "        attribute source : String;",
         "        attribute bus : String;",
         "        attribute ratedMW : Real;",
+        "        attribute cimClassUri : String;",
         "    }",
         "",
         "    part def Line {",
@@ -119,6 +121,7 @@ def render_grid_topology(instances: dict[str, Any]) -> str:
         "        attribute toBus : String;",
         "        attribute kind : String;",
         "        attribute lengthKM : Real;",
+        "        attribute cimClassUri : String;",
         "    }",
         "",
         "    part gridTopology {",
@@ -135,6 +138,7 @@ def render_grid_topology(instances: dict[str, Any]) -> str:
             f"        part {b['name']} : Bus {{",
             f'            attribute source = "{_esc(b["source"])}";',
             f"            attribute voltageKV = {b['voltage_kv']};",
+            f'            attribute cimClassUri = "{_esc(b["cim_class_uri"])}";',
             "        }",
         ]
         i += 1
@@ -147,6 +151,7 @@ def render_grid_topology(instances: dict[str, Any]) -> str:
             f'            attribute source = "{_esc(g["source"])}";',
             f'            attribute bus = "{g["bus"]}";',
             f"            attribute ratedMW = {g['rated_mw']};",
+            f'            attribute cimClassUri = "{_esc(g["cim_class_uri"])}";',
             "        }",
         ]
         i += 1
@@ -163,6 +168,7 @@ def render_grid_topology(instances: dict[str, Any]) -> str:
         ]
         if line.get("length_km") is not None:
             lines.append(f"            attribute lengthKM = {line['length_km']};")
+        lines.append(f'            attribute cimClassUri = "{_esc(line["cim_class_uri"])}";')
         lines.append("        }")
         i += 1
         if i != total:

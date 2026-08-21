@@ -6,6 +6,28 @@ description: >-
   cluster of CSIRO's Synthetic-NEM-2000-Bus `snemSA.m` (the same case Lab 1 loads), not invented.
   See grid_instances.yaml's header for exactly how that cluster was selected.
 
+  CIM class-URI traceability (PRD-0007): every Bus/Generator/Line instance also carries a
+  `cim_class_uri` pointing at the real IEC CIM/CGMES class it corresponds to, computed by
+  `build_grid_instances.py` from the fixed mapping table below -- never hand-entered per instance.
+  LinkML remains this track's schema authority; CIM is referenced metadata, not a dependency swap
+  (CGMES RDF-XML import/export and CIM-as-schema-of-record are explicitly out of scope here).
+
+  Mapping table (pinned to CIM16 / CGMES 2.4, namespace `http://iec.ch/TC57/2013/CIM-schema-cim16#`
+  -- confirmed against ENTSO-E's own published CGMES v2.4 conformity test data, which declares this
+  exact namespace and uses `cim:SynchronousMachine`/`cim:PowerTransformer`/`cim:ACLineSegment` as
+  real element names in it; a newer CIM100/CGMES 3.0 namespace also exists but CIM16 remains the
+  safer default citation given how much current tooling and test data still targets it):
+    - `Bus -> cim:TopologicalNode` (not `cim:ConnectivityNode`): IEC 61970's own node-breaker vs.
+      bus-branch split makes `ConnectivityNode` a physical terminal-level connection point (one per
+      switch position) and `TopologicalNode` the logical bus a topology processor derives after
+      collapsing connectivity nodes on closed switches -- confirmed via IEC61970::Base::Topology
+      docs and ENTSO-E's CGM Building Process guide. `snemSA.m` is a MATPOWER case with no
+      switch/breaker model at all, i.e. already a bus-branch abstraction, which structurally
+      matches `TopologicalNode`, not `ConnectivityNode`.
+    - `Generator -> cim:SynchronousMachine`
+    - `Line(kind="transmission") -> cim:ACLineSegment`
+    - `Line(kind="transformer") -> cim:PowerTransformer`
+
 prefixes:
   linkml: https://w3id.org/linkml/
   grid_topology: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/grid-topology/
@@ -54,6 +76,12 @@ slots:
   length_km:
     description: Line only, transmission kind -- real per-branch length from snemSA.m. Not set for transformers.
     range: float
+  cim_class_uri:
+    description: >-
+      The real IEC CIM/CGMES class URI this instance corresponds to (CIM16 namespace, see this
+      file's header for the full mapping table and sourcing). Computed by build_grid_instances.py
+      from the fixed mapping table, never hand-entered per instance.
+    required: true
   buses:
     description: Every Bus instance in this grid topology.
     range: Bus
@@ -76,13 +104,13 @@ slots:
 classes:
   Bus:
     description: A real connection point in snemSA.m -- generators, loads, and lines attach here.
-    slots: [name, source, voltage_kv]
+    slots: [name, source, voltage_kv, cim_class_uri]
   Generator:
     description: A real generating unit modelled in snemSA.m, attached at one Bus.
-    slots: [name, source, bus, rated_mw]
+    slots: [name, source, bus, rated_mw, cim_class_uri]
   Line:
     description: A real branch (transmission line or transformer) connecting two buses in snemSA.m.
-    slots: [name, source, from_bus, to_bus, kind, length_km]
+    slots: [name, source, from_bus, to_bus, kind, length_km, cim_class_uri]
   GridTopology:
     description: >-
       The root container this lab's generator reads: every Bus/Generator/Line instance in Track
