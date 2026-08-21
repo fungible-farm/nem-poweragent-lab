@@ -1,0 +1,61 @@
+{
+  "generators": {
+    "plant-res-fixed-pf": {
+      "time_s": 0.010400000000000001,
+      "tolerance_s": 0.01
+    },
+    "plant-conventional-q-sat": {
+      "time_s": 2.0003999999998126,
+      "tolerance_s": 0.01
+    },
+    "plant-local-vc-misalign": {
+      "time_s": 5.0004000000017035,
+      "tolerance_s": 0.01
+    },
+    "plant-afrr-ramp": {
+      "time_s": 20.000399999980065,
+      "tolerance_s": 0.01
+    },
+    "trip-wave-1": {
+      "time_s": 20.05039999997995,
+      "tolerance_s": 0.01
+    },
+    "plant-pss-absence": {
+      "time_s": 45.000399999921804,
+      "tolerance_s": 0.01
+    },
+    "operator-late-mitigation": {
+      "time_s": 65.00039999991073,
+      "tolerance_s": 0.01
+    },
+    "trip-wave-2": {
+      "time_s": 65.03039999991172,
+      "tolerance_s": 0.01
+    },
+    "trip-wave-3": {
+      "time_s": 65.04039999991205,
+      "tolerance_s": 0.01
+    },
+    "island-es-fr": {
+      "time_s": 65.10039999991405,
+      "tolerance_s": 0.01
+    }
+  },
+  "detectors": {
+    "rocof-res:rocof": {
+      "time_s": 0.020399999999999963,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "angle-res-vs-ref:angle_separation": {
+      "time_s": 65.05039999991239,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    },
+    "classifier-iberian2025:composite": {
+      "time_s": 65.05039999991239,
+      "tolerance_s": 0.01,
+      "min_confidence": 0.1
+    }
+  }
+}
