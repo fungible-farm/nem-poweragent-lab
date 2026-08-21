@@ -206,6 +206,12 @@ session (full write-up in the lab's own README "Design notes" §3–4):**
   editor-only and this sprint didn't purchase access to check its scriptable API directly?
 - **What is Track B's own third downstream artifact** (an equipment register? a NER asset schedule
   shape?), now that SBOM is confirmed Track-A-only — not decided in this PRD, a Phase 4 question.
+- **Does Track B map onto CIM (IEC 61970/61968, the CGMES profile) for network-model exchange
+  traceability?** Resolved for the annotation layer only —
+  [PRD-0007](0007-lab6-cim-class-uri-traceability.md) (Phase 4a) scopes a small class-URI mapping
+  on generated `.sysml` output, LinkML remaining the schema authority. Still genuinely open: whether
+  CIM/CGMES RDF-XML should ever become Track B's schema-of-record instead of LinkML — explicitly
+  out of PRD-0007's scope, a larger, separate workstream if pursued at all.
 - **Would a newer/maintained SysML v2 API container (replacing the stale `2023-02`-pinned
   `gorenje/sysmlv2-jupyter-docker`) or a fixed `sysand-maven-plugin` release change the syntax-gate
   finding?** Worth re-checking periodically, not attempted again this sprint.
