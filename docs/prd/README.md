@@ -15,6 +15,7 @@ on other PRDs explicitly (don't assume reading order from the number alone).
 | [0003](0003-iberian-2025-blackout-scenario.md) | Iberian Peninsula 2025 blackout — new scenario | 0001 | proposed |
 | [0004](0004-plexos-direct-mcp-and-strangler-fig.md) | PLEXOS direct-access MCP + open-source strangler fig (plexosdb, R2X, Sienna) | — (sibling to PowerMCP) | proposed |
 | [0005](0005-grid-forming-stabilizer-and-renewable-models.md) | Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed) | — (builds on Lab 5 + 0006) | in progress |
+| [0006](0006-sysml-digital-thread-mvp.md) | SysML v2 digital-thread MVP: MBSE tooling evaluation (Lab 6) | — (reuses Labs 1/3/4/5 as seed data) | implemented |
 
 ## Why this shape
 

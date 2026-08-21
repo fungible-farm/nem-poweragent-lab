@@ -154,6 +154,13 @@ result on a clean checkout is.
   own module docstring for its tap-role mapping and named engineering deviations from the PRD's
   original sketch. Self-checked by `test_sa_2016_black_system.py`, skipped by default (opt in with
   `RUN_SLOW_SCENARIOS=1`) since its `--step check` solves ~43s of grid time.
+- `labs/06-sysml-digital-thread/` — implemented (both tracks). A SysML v2/MBSE tooling evaluation
+  (PRD-0006), not a physics lab: two tracks (Track A — this repo's own real Agent/MCPServer/
+  DataSource inventory; Track B — a real `data/snemSA.m` bus/generator/line cluster; Track C —
+  PRD-0005's own real pipeline-phase sequence) share one LinkML→`.sysml`→syntax-gate→isometric-SVG
+  (+Track A SBOM) pipeline. See the lab's own `README.md` "Design notes" for the real-tool
+  evaluation (SysML v2 Pilot Implementation via a GraalVM container) and exactly why it fell back to
+  a named in-repo stand-in.
 - `kube/benchmark-runner-job.yaml` — a written, valid Kubernetes Job manifest for Lab 3, not yet
   executed with `podman` in this sandbox (Lab 3's own fixture doesn't require it); see the file's
   own header. `kube/villasnode-tap-pod.yaml` (Lab 5), by contrast, has been actually run with

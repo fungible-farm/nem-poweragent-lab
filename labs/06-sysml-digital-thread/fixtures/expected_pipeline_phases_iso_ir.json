@@ -1,0 +1,66 @@
+{
+  "edges": [
+    {
+      "from": "phase0_source_location",
+      "id": "phase0_source_location_next",
+      "to": "phase1_grid_forming",
+      "type": "sequence"
+    },
+    {
+      "from": "phase1_grid_forming",
+      "id": "phase1_grid_forming_next",
+      "to": "phase1_5_headroom_translation",
+      "type": "sequence"
+    },
+    {
+      "from": "phase1_5_headroom_translation",
+      "id": "phase1_5_headroom_translation_next",
+      "to": "phase2_delay_compensation",
+      "type": "sequence"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "phase0_source_location",
+      "label": "phase0_source_location",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "shape": "box",
+      "type": "generic"
+    },
+    {
+      "id": "phase1_grid_forming",
+      "label": "phase1_grid_forming",
+      "position": {
+        "x": 2.0,
+        "y": 0.0
+      },
+      "shape": "box",
+      "type": "generic"
+    },
+    {
+      "id": "phase1_5_headroom_translation",
+      "label": "phase1_5_headroom_translation",
+      "position": {
+        "x": 4.0,
+        "y": 0.0
+      },
+      "shape": "box",
+      "type": "generic"
+    },
+    {
+      "id": "phase2_delay_compensation",
+      "label": "phase2_delay_compensation",
+      "position": {
+        "x": 6.0,
+        "y": 0.0
+      },
+      "shape": "box",
+      "type": "generic"
+    }
+  ],
+  "title": "Lab 6 Track C -- Pipeline Phases",
+  "type": "generic"
+}

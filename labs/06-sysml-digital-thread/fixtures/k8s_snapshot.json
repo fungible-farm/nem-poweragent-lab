@@ -1,0 +1,114 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "poweragent-lab",
+          "component": "mcp-tool-server"
+        },
+        "name": "powermcp-pandapower-pod"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "localhost/powermcp-pandapower:local",
+            "name": "powermcp",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "hostPort": 8001
+              }
+            ]
+          }
+        ]
+      },
+      "status": {
+        "phase": "Unknown"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "spartan-chaosnet",
+          "substation": "sub-3"
+        },
+        "name": "sub-3-tap-pod"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.git.rwth-aachen.de/acs/public/villas/node:latest",
+            "name": "villasnode",
+            "ports": []
+          }
+        ]
+      },
+      "status": {
+        "phase": "Unknown"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "poweragent-lab",
+          "component": "llm-server"
+        },
+        "name": "llamacpp-phi-pod"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "ghcr.io/ggml-org/llama.cpp:server",
+            "name": "llamacpp-server",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "hostPort": 8091
+              }
+            ]
+          }
+        ]
+      },
+      "status": {
+        "phase": "Unknown"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "power-agent-bench-lite"
+        },
+        "name": "power-agent-bench-lite-sweep-pod",
+        "ownerReferences": [
+          {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "name": "power-agent-bench-lite-sweep"
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "power-agent-bench-lite:local",
+            "name": "bakeoff-sweep",
+            "ports": []
+          }
+        ]
+      },
+      "status": {
+        "phase": "Unknown"
+      }
+    }
+  ],
+  "kind": "List"
+}

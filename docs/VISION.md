@@ -177,12 +177,13 @@ nem-poweragent-lab/
 │   ├── 02-medium-interconnection-screening/
 │   ├── 03-advanced-provider-bakeoff/
 │   ├── 04-aemo-digital-twin-reconciliation/
-│   └── 05-spartan-chaosnet-transient-stream/
+│   ├── 05-spartan-chaosnet-transient-stream/
+│   └── 06-sysml-digital-thread/
 └── benchmarks/
     └── power-agent-bench-lite/
 ```
 
-## 7. The five labs
+## 7. The six labs
 
 Each lab folder will contain: a numbered `README.md` (do this → run this → you should see this →
 here's why an AEMO modeller cares — plus, per every lab's README, a "presenter/backup script"
@@ -347,6 +348,22 @@ validation against the actual Radxa Dragon Q8B hardware is an optional, separate
 extension. It does not implement SPARTAN's anomaly-detection logic (a subsequent phase) and does
 not claim any generated topology represents a real substation network — both caveats must appear
 in the lab's own README, not only in the design doc.
+
+### Lab 6 — SysML v2 Digital-Thread MVP (MBSE tooling evaluation)
+
+Full concept, tool-evaluation findings, and Definition of Done:
+[`docs/prd/0006-sysml-digital-thread-mvp.md`](prd/0006-sysml-digital-thread-mvp.md). Unlike Labs
+1–5, this lab isn't a physics/dispatch scenario — it's a greenfield evaluation of whether SysML v2
+(a formal systems-modelling notation) is viable tooling for two emerging business cases: AI
+agent/MCP/data workflow modelling, and grid network topology modelling. One LinkML→`.sysml`
+generator/syntax-gate/isometric-diagram-renderer pipeline runs against three tracks — Track A (this
+repo's own real Agent/MCPServer/DataSource inventory), Track B (a real bus/generator/line cluster
+pulled from `data/snemSA.m`), and Track C (PRD-0005's own real pipeline-phase sequence) — proving
+the same code generalizes across all three. The normative SysML v2 Pilot Implementation (syntax
+checking) was genuinely attempted first, timeboxed, and precisely root-caused where it didn't land;
+it fell back to a small, named in-repo stand-in. The diagram renderer is a pure, deterministic,
+in-repo isometric SVG writer. Those findings are themselves the sprint's deliverable, not just the
+working pipeline.
 
 ## 8. Rust component
 

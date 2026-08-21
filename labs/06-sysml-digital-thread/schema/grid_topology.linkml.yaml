@@ -1,0 +1,92 @@
+id: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/grid-topology
+name: digital-thread-track-b
+description: >-
+  Track B of Lab 6's SysML v2 digital-thread evaluation: business case 2, grid network system
+  design/simulation. Three classes -- Bus, Generator, Line -- seeded from a real, small, connected
+  cluster of CSIRO's Synthetic-NEM-2000-Bus `snemSA.m` (the same case Lab 1 loads), not invented.
+  See grid_instances.yaml's header for exactly how that cluster was selected.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  grid_topology: https://github.com/fungible-farm/nem-poweragent-lab/labs/06-sysml-digital-thread/grid-topology/
+
+default_prefix: grid_topology
+default_range: string
+
+imports:
+  - linkml:types
+
+slots:
+  name:
+    identifier: true
+    description: Short, unique, SysML-part-def-safe identifier (no spaces).
+    required: true
+  source:
+    description: >-
+      Where this instance's real value comes from -- always "data/snemSA.m" for this track, plus
+      the bus/branch index within it, so the number is auditable back to the case file.
+    required: true
+  voltage_kv:
+    description: Nominal voltage at this bus, kV -- Bus only. From snemSA.m's own vn_kv column.
+    range: float
+  bus:
+    description: The Bus this Generator is connected to -- Generator only, a reference to Bus.name.
+    range: Bus
+  rated_mw:
+    description: >-
+      Real modelled active-power output for this unit at the case's base operating point, MW --
+      Generator only. From snemSA.m's own gen table p_mw column, not a nameplate rating (this
+      synthetic case does not carry one separately).
+    range: float
+  from_bus:
+    description: Line only -- one end of the connection, a reference to Bus.name.
+    range: Bus
+  to_bus:
+    description: Line only -- the other end, a reference to Bus.name.
+    range: Bus
+  kind:
+    description: >-
+      Line only -- "transmission" for a real modelled line, "transformer" for a real modelled
+      step-up/step-down transformer. Both are real branches in snemSA.m; kept as one class with a
+      kind slot rather than a fourth class, matching this MVP's "3 classes" scope -- see
+      grid_instances.yaml's header for why the transformer sn_mva values look implausibly large.
+    range: string
+  length_km:
+    description: Line only, transmission kind -- real per-branch length from snemSA.m. Not set for transformers.
+    range: float
+  buses:
+    description: Every Bus instance in this grid topology.
+    range: Bus
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  generators:
+    description: Every Generator instance in this grid topology.
+    range: Generator
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  lines:
+    description: Every Line instance in this grid topology.
+    range: Line
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+classes:
+  Bus:
+    description: A real connection point in snemSA.m -- generators, loads, and lines attach here.
+    slots: [name, source, voltage_kv]
+  Generator:
+    description: A real generating unit modelled in snemSA.m, attached at one Bus.
+    slots: [name, source, bus, rated_mw]
+  Line:
+    description: A real branch (transmission line or transformer) connecting two buses in snemSA.m.
+    slots: [name, source, from_bus, to_bus, kind, length_km]
+  GridTopology:
+    description: >-
+      The root container this lab's generator reads: every Bus/Generator/Line instance in Track
+      B's model. Adding one entry here and re-running the generator is Track B's version of the
+      same demo Track A shows for the AI-workflow schema.
+    tree_root: true
+    slots: [buses, generators, lines]

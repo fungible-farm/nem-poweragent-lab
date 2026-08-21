@@ -283,8 +283,9 @@ call, simpler than the PowerMCP precedent.
   that skips a pod entirely)
 - `kube/r2x-translate-pod.yaml`, `Containerfile.r2x-translate` (Rust `r2x-cli` binary + Julia
   runtime for the Sienna solve step)
-- `labs/06-plexos-direct-and-strangler-fig/` (proposed new lab, Phase 1 onward), following Labs
-  1–5's fetch→run→check/README-with-Sandbox-notes shape
+- `labs/07-plexos-direct-and-strangler-fig/` (proposed new lab, Phase 1 onward, renumbered from the
+  originally-proposed `labs/06-...` — PRD-0006 claimed Lab 6 first, for the SysML v2 digital-thread
+  MVP), following Labs 1–5's fetch→run→check/README-with-Sandbox-notes shape
 - `docs/VISION.md` §3: proposed new ecosystem rows for `plexosdb`, `plexosdb-mcp`, `R2X`
   (`r2x-cli`/`r2x-core`/`r2x-plexos`/`r2x-sienna`/`infrasys`), and Sienna
   (PowerSystems.jl/PowerSimulations.jl) — all open-source, all free to run locally

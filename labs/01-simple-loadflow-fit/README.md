@@ -1,37 +1,37 @@
 # Lab 1 (Simple) — Load-Flow Parameter Fit
 
-> Status: **implemented**. `run.py`, `expected_results.json`, and `test_lab1.py` are real, runnable
-> code — see `docs/VISION.md` §7 "Lab 1" for the original spec this implements, and the "Sandbox
-> notes" section below for where this run deviates from that spec and why.
+Fitting a model to match a real measurement is one of the most common tasks in power-systems
+engineering: you have a grid model, you have one real reading from the field (a SCADA meter), and
+they don't quite agree — so you adjust a parameter until they do. This lab does the smallest
+possible version of that.
+
+*New to power flow / pu voltage? See the root [README's Concepts section](../../README.md#concepts-in-plain-terms).*
 
 ## What you'll do
 
-1. Load `snemSA.m` (South Australia subset of the CSIRO Synthetic-NEM-2000-Bus model) via `powerio`
-   into a pandapower network.
-2. Solve the base-case AC power flow — note bus 2008's modelled voltage (the real bus this
-   implementation uses in place of the spec's illustrative "bus 14" — see Sandbox notes).
-3. Bisect a load-scaling parameter, within ±10%, until the modelled voltage at bus 2008 matches a
-   fixed synthetic "field SCADA" target (0.9422 pu) to within 0.002 pu — every trial is a real
-   `pandapower.runpp()` call, never an eyeballed guess.
-4. Compare the fitted parameter and residual against `expected_results.json`.
+1. Load `snemSA.m` — the South Australia slice of CSIRO's Synthetic-NEM-2000-Bus grid model — into
+   [pandapower](https://www.pandapower.org/) via `powerio`.
+2. Solve the base-case power flow and note the modelled voltage at bus 2008.
+3. Search for a load-scaling factor (within ±10%) that brings bus 2008's modelled voltage to match
+   a fixed "field SCADA" target (0.9422 pu) within 0.002 pu. Each trial value is picked by a simple
+   bisection search (repeatedly halving the search range toward the answer); every trial is scored
+   by a real `pandapower.runpp()` call, never guessed.
+4. Compare the fitted parameter and residual against a known-good answer (`expected_results.json`).
 
-## Why an AEMO modeller should care
+The point of the lab is the split between the two roles: something *proposes* a trial value
+(here, bisection search — the spec's original design uses a small local LLM instead, see below),
+and pandapower's real physics *evaluates* it. The physics is never in the proposer.
 
-This is the smallest possible version of "model calibration against field data" — the same
-mechanic used (at far larger scale) whenever a base case is tuned to match a real SCADA snapshot
-before it's trusted for a study. The point of the lab is narrow on purpose: the physics never lives
-in the proposer, it only chooses the next trial value in a search loop that pandapower evaluates.
+## Design note: no LLM in this build
 
-## Sandbox notes (read this before the walkthrough)
+The original spec (`docs/VISION.md` §7) has a local LLM choosing each trial value over MCP instead
+of a plain bisection search. This build uses bisection because it's the simplest way to show the
+propose/evaluate split without needing a model server running — the search loop and the real
+pandapower physics underneath it are unaffected either way. See `labs/_shared/gridfit.py` for the
+swap point if you want to wire an LLM (or anything else) back in.
 
-`docs/VISION.md`'s Lab 1 has a local Phi-4-mini LLM (served by llama.cpp in a podman pod) choosing
-each trial value over MCP. This sandbox has no `podman` and no budget to download/serve a GGUF
-model, so `run.py` uses `labs/_shared/gridfit.py`'s deterministic bisection search in place of that
-decision — named explicitly in both files' docstrings, not hidden. The physics on every iteration
-is still a real `pandapower.runpp()` call; that split (proposer proposes, pandapower disposes) is
-the actual point of the lab and is unaffected by the swap. Bus 2008 stands in for the spec's
-illustrative "bus 14" because `snemSA.m`'s real bus IDs are non-sequential (986, 1633, 1634, ...),
-so there is no bus literally named 14.
+(Bus 2008 stands in for `docs/VISION.md`'s illustrative "bus 14" — `snemSA.m`'s real bus numbers
+are non-sequential IDs like 986, 1633, 1634, so there's no bus literally called 14.)
 
 ## Command
 
@@ -45,9 +45,8 @@ uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py
 
 ## Running in a container (Windows-friendly)
 
-No local `uv`/Python/pandapower install needed — build once, run anywhere Docker Desktop or Podman
-Desktop is installed (both run on Windows via a WSL2 backend, and read a `Containerfile` exactly
-like Linux/macOS native `podman`/`docker`):
+No local install needed — works identically under Docker Desktop, Podman Desktop, or native
+podman/docker:
 
 ```
 podman build -t nem-poweragent-base:local -f Containerfile.base .
@@ -55,55 +54,31 @@ podman build -t lab1:local -f labs/01-simple-loadflow-fit/Containerfile .
 podman run --rm lab1:local
 ```
 
-(Swap `podman` for `docker` if that's what you have — both read this repo's `Containerfile`s
-identically.) The first `build` installs this repo's full dependency set once, shared by every
-other lab's own image — see `Containerfile.base`'s own header. The default run reproduces the
-`--step check` output above exactly; override the `CMD` to run another step, e.g.
+This reproduces the `--step check` output below. Override the step with, e.g.,
 `podman run --rm lab1:local --step fit`.
 
-## Step-by-step walkthrough (presenter / backup script)
+## Step-by-step walkthrough
 
-1. **`uv run labs/01-simple-loadflow-fit/run.py --step load`**
-   — You should see: `Loaded snemSA.m via powerio: 503 buses, 57 generators` followed by
-   `Base-case power flow converged: bus 2008 voltage = 0.935 pu`.
-   — Why it matters: this is the "before" state — a modelled voltage that doesn't yet match the
-   field reading, the same gap a modeller would see calibrating any base case.
-2. **`uv run labs/01-simple-loadflow-fit/run.py --step fit`**
-   — You should see: one line per iteration —
-   `iter 1: trial=1.0000x -> 0.935 pu (residual -0.0074)`,
-   `iter 2: trial=0.9500x -> 0.940 pu (residual -0.0025)`,
-   `iter 3: trial=0.9250x -> 0.941 pu (residual -0.0008)`, ending in
-   `converged: trial=0.9250x, bus 2008 = 0.941 pu, residual -0.0008 (PASS, tol 0.002)`, followed by
-   `[chart] wrote sample_network_chart.png`.
-   — Why it matters: every line comes from an actual `pandapower.runpp()` call — the proposer only
-   picks which trial value to try next; watching this scroll makes that split concrete rather than
-   asserted. The chart (`sample_network_chart.png`) renders the fitted network via
-   `pandapower.plotting` — every bus colored by its real solved voltage, bus 2008 highlighted — so
-   the calibration target is visible in the wider network, not just a number in a log line
-   (docs/backlog/0001-topology-and-results-visualization-gap.md item 2 / docs/backlog/0002's free
-   tier).
-3. **`uv run labs/01-simple-loadflow-fit/run.py --step check`**
-   — You should see: the fitted parameter and residual printed as JSON, then
-   `MATCH: fitted_scale=0.925 residual_pu=-0.000791 vs expected_results.json`.
-   — *Backup if you don't want to run the fit live*: read `expected_results.json` directly and
-   narrate it as "here's what a passing run prints" — the fixture exists precisely so this lab
-   never needs a live run to be explainable.
-4. **`uv run python -m pytest labs/01-simple-loadflow-fit/test_lab1.py`**
-   — You should see: `2 passed`. This is the same check step (plus a dedicated chart-artifact
-   assertion) wrapped for CI/`scripts/run_labs_1_3.sh`.
+1. **`--step load`** — You should see `Loaded snemSA.m via powerio: 503 buses, 57 generators` then
+   `Base-case power flow converged: bus 2008 voltage = 0.935 pu`. This is the "before" state: a
+   modelled voltage that doesn't yet match the field reading.
+2. **`--step fit`** — One line per search iteration, e.g. `iter 1: trial=1.0000x -> 0.935 pu
+   (residual -0.0074)`, ending in `converged: trial=0.9250x, bus 2008 = 0.941 pu, residual -0.0008
+   (PASS, tol 0.002)`, then `[chart] wrote sample_network_chart.png` — a network diagram with every
+   bus colored by its solved voltage and bus 2008 highlighted, so the calibration target is visible
+   in the wider network, not just a log line.
+3. **`--step check`** — Prints the fit result as JSON, then `MATCH: fitted_scale=0.925
+   residual_pu=-0.000791 vs expected_results.json`. If you don't want to run the fit live, reading
+   `expected_results.json` directly shows the same thing this step prints on success.
+4. **`pytest test_lab1.py`** — `2 passed`: the same check, plus an assertion that the chart file
+   exists.
 
 ## Files
 
-- `run.py` — the three-step walkthrough script (`load` / `fit` / `check`) described above.
-  `--step fit` also (re)writes the committed `sample_network_chart.png`, gated by `refresh_chart`
-  so `--step check`'s self-check re-derivation never mutates it (see `fit_step`'s docstring).
-- `expected_results.json` — committed fixture `--step check` diffs against.
-- `sample_network_chart.png` — committed `pandapower.plotting` network diagram: every bus of the
-  fitted network colored by its real solved voltage (`vm_pu`), bus 2008 (the calibration target)
-  highlighted. Regenerate via `run.py --step fit`; see `_plot_network`'s docstring in `run.py` for
-  the exact pandapower.plotting APIs used and why (docs/backlog/0001 item 2, docs/backlog/0002).
-- `animate_convergence.py` — renders `animate_convergence.mp4` (gitignored; this script is the
-  committed artifact that re-derives it) from a real bisection-fit run, for presenter use. See its
-  own module docstring.
-- `test_lab1.py` — pytest wrapper around `--step check` plus a dedicated assertion that
-  `sample_network_chart.png` exists.
+- `run.py` — the `load` / `fit` / `check` steps above. `--step fit` also regenerates
+  `sample_network_chart.png`; `--step check` never touches it.
+- `expected_results.json` — the known-good fixture `--step check` compares against.
+- `sample_network_chart.png` — the committed network diagram (see `_plot_network` in `run.py`).
+- `animate_convergence.py` — renders an animated version of the bisection search for presenter use
+  (`animate_convergence.mp4`, not committed — regenerate with this script).
+- `test_lab1.py` — pytest wrapper: `--step check` plus the chart-file assertion.

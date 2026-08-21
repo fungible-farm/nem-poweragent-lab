@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
@@ -112,6 +112,9 @@ check-lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
     uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check
     uv run labs/05-spartan-chaosnet-transient-stream/delay_compensation.py --step check
+
+check-lab6:
+    ./scripts/demo_lab6.sh
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -140,6 +143,14 @@ lab4:
 
 lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/generate_topology.py
+
+# Lab 6 pipeline step for one track, e.g. `just lab6`, `just lab6 run grid`, `just lab6 run pipeline`.
+lab6 step="check" track="digital-thread":
+    uv run labs/06-sysml-digital-thread/generate_sysml.py --track {{track}} --step {{step}}
+
+# Lab 6 full demo: all three tracks, chained end to end (see scripts/demo_lab6.sh).
+lab6-demo:
+    ./scripts/demo_lab6.sh
 
 # --- demo: render the animations (PowerPoint-friendly MP4s) -----------------
 render: render-lab1 render-lab2 render-lab5
