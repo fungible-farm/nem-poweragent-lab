@@ -34,6 +34,20 @@ def test_lab2_memo_finalizes_with_approval():
     assert "MEMO FINALIZED" in result.stdout
 
 
+def test_pypowsybl_n1_cross_check_matches_fixture():
+    """pypowsybl_cross_check.py is a real second-engine cross-validation of workflow.py's own
+    N-1 screen (see its module docstring) -- this only checks its own --step check gate, the
+    same discipline every other self-checking step in this repo follows."""
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "pypowsybl_cross_check.py"), "--step", "check"],
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "MATCH" in result.stdout
+
+
 def test_lab2_memo_reports_contingency_induced_breaches():
     """Regression gate for draft_memo()'s classification bug: a row whose
     reason carries BOTH a pre-existing voltage clause AND a

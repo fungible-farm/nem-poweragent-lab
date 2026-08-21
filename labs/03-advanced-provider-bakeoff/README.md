@@ -93,9 +93,15 @@ either way without controlling for both engines' warm-up cost, reported honestly
 picking whichever number favors one side.
 
 **Verdict for this spike:** pypowsybl is a real, usable alternative load-flow engine for this
-repo's NEM case data, gated on the `.m`→`.mat` round-trip step above. Whether it's worth
-promoting onto the golden path (a second MPL-2.0 dependency alongside DPsim — see
-`docs/PSCADOSSE.md`) is an open question for a future PRD, not decided by this spike.
+repo's NEM case data, gated on the `.m`→`.mat` round-trip step above.
+
+**Update — promoted beyond this spike:** the `.mat` round-trip and bus-id-mapping machinery this
+spike proved out moved into `labs/_shared/gridfit.py` (`to_pypowsybl_network()`,
+`pypowsybl_element_id_map()`) and now backs a real, wired-in capability —
+[Lab 2's N-1 pypowsybl cross-check](../02-medium-interconnection-screening/README.md#pypowsybl-n-1-cross-check-a-real-second-opinion-not-another-stand-in),
+a genuine second-engine validation of that lab's own contingency screen, not just a standalone
+comparison. `docs/PSCADOSSE.md` records pypowsybl as an active MPL-2.0 dependency accordingly
+(a second one alongside DPsim, not a documented single exception anymore).
 
 ```
 uv run labs/03-advanced-provider-bakeoff/spike_pypowsybl.py --step run

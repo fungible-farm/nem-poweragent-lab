@@ -28,19 +28,20 @@ reaching for a proprietary or novel re-implementation.
 | numpy / scipy / numba | numeric stack | BSD-3 / BSD-3 / BSD-2 | |
 | matplotlib | charts/animations | PSF / BSD-style | |
 | mcp | MCP SDK (smoke test) | MIT | |
-| DPsim | EMT engine (Lab 5) | **MPL-2.0** | the golden path's one exception — OSI-approved, file-level copyleft only, foundation-friendly; documented so nobody mistakes it for Apache |
+| DPsim | EMT engine (Lab 5) | **MPL-2.0** | one of two documented MPL-2.0 exceptions (see pypowsybl below) — OSI-approved, file-level copyleft only, foundation-friendly; documented so nobody mistakes it for Apache |
 | simbench | Lab 5 seed grid dataset | university license (Kassel / TU Dortmund / RWTH) | dataset attribution terms |
 | just / uv | command runner / env | CC0 / MIT-or-Apache | |
 | CSIRO Synthetic-NEM data | Labs 1-5 case files | CC-BY-4.0 | fetched by scripts/fetch_csiro_nem_data.py |
 | AEMO NEM constraints | Lab 4 constraint decode | MIT (vendored, LICENSE-NEM_constraints) | |
 | mpv / chafa / ffmpeg / fzf | demo display/render/launcher (CLIs) | GPL-2.0+ / LGPL-3.0+ / LGPL-GPL / MIT | mpv, chafa, ffmpeg are copyleft but invoked as external CLIs — **not** part of the linked API surface; fzf (MIT) is permissive, used by the `just demo` launcher |
 | jupytext / nbconvert / ipykernel | dev-only: `notebooks/lab_playbook.py` percent-format notebook + its `--execute` render (docs/backlog/0005) | MIT / BSD-3-Clause / BSD-3-Clause | `[dependency-groups].dev` only, never imported by lab code itself |
-| pypowsybl | Lab 3 `spike_pypowsybl.py` — alternative power-flow engine evaluation, not the golden path | **MPL-2.0** | spike-only dependency, license-verified from installed metadata (`pypowsybl==1.16.1`); if this is ever promoted onto the golden path, update the "documented single exception" line below since it would be a second MPL-2.0 component alongside DPsim |
+| pypowsybl | Lab 3 `spike_pypowsybl.py` (solver-comparison spike) + Lab 2 `pypowsybl_cross_check.py` (real N-1 second-opinion cross-check, via shared `labs/_shared/gridfit.py` helpers) | **MPL-2.0** | license-verified from installed metadata (`pypowsybl==1.16.1`); a genuine second MPL-2.0 component alongside DPsim, not spike-only anymore — see the note below |
 
 ### The distinction that keeps the policy honest
 
-- **Golden-path *library/API* surface**: permissive (BSD/MIT/Apache) with
-  DPsim/MPL-2.0 as the documented single exception.
+- **Golden-path *library/API* surface**: permissive (BSD/MIT/Apache) with DPsim and pypowsybl as
+  two documented MPL-2.0 exceptions (both file-level copyleft only, both foundation-backed —
+  DPsim/RWTH Aachen, pypowsybl/RTE).
 - **External CLIs used for display/rendering** (mpv, chafa, ffmpeg): copyleft,
   fine — they are subprocess-invoked tools, never linked into the deliverable.
 - **Data**: CC-BY-4.0 (CSIRO) and MIT (AEMO constraints vendor) carry their own

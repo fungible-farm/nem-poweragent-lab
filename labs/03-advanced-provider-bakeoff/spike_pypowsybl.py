@@ -35,12 +35,10 @@ from typing import Final
 
 import pandapower as pp
 import pypowsybl.loadflow as lf
-import pypowsybl.network as pn
-from pandapower.converter.matpower import to_mpc
 
 LAB_DIR: Final[Path] = Path(__file__).resolve().parent
 sys.path.insert(0, str(LAB_DIR.parent / "_shared"))
-from gridfit import load_case  # noqa: E402  (needs sys.path insert above)
+from gridfit import load_case, to_pypowsybl_network  # noqa: E402  (needs sys.path insert above)
 
 DATA_FILE: Final[Path] = LAB_DIR.parent.parent / "data" / "snem1803.m"  # same case orchestrator.py uses
 SPIKE_OUTPUT_DIR: Final[Path] = LAB_DIR / "spike_output"
@@ -81,11 +79,12 @@ def run_pandapower(net: pp.pandapowerNet) -> dict[str, float]:
     }
 
 
-def run_pypowsybl(mat_file: Path) -> dict[str, float]:
-    """Load the real `.mat` round-trip (see module docstring) and run pypowsybl's own AC load
-    flow (OpenLoadFlow, pypowsybl's bundled default solver)."""
+def run_pypowsybl(pp_net: pp.pandapowerNet, mat_file: Path) -> dict[str, float]:
+    """Round-trip `pp_net` to a real `.mat` file (see module docstring and
+    `gridfit.to_pypowsybl_network()`) and run pypowsybl's own AC load flow (OpenLoadFlow,
+    pypowsybl's bundled default solver)."""
     t0 = time.time()
-    net = pn.load(str(mat_file))
+    net = to_pypowsybl_network(pp_net, mat_file)
     results = lf.run_ac(net)
     elapsed = time.time() - t0
     if results[0].status != lf.ComponentStatus.CONVERGED:
@@ -127,8 +126,7 @@ def main() -> int:
         print(f"powerio conversion warnings ({len(warnings)}): {warnings}")
 
     pp_result = run_pandapower(net)
-    to_mpc(net, str(MAT_FILE))
-    sb_result = run_pypowsybl(MAT_FILE)
+    sb_result = run_pypowsybl(net, MAT_FILE)
 
     loss_diff_pct = (
         abs(pp_result["total_loss_mw"] - sb_result["total_loss_mw"])

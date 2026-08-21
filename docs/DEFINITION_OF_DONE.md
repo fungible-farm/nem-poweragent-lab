@@ -63,7 +63,11 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
       Verified: `./scripts/run_labs_1_3.sh`.
 - [x] Lab 2 (medium): the Agent Framework Sequential+Concurrent workflow runs end to end against
       `snem1803.m`, produces a pass/fail table for the N-1 screen, and the human-in-the-loop
-      checkpoint actually blocks until acknowledged (not a no-op).
+      checkpoint actually blocks until acknowledged (not a no-op). Beyond the original scope:
+      `pypowsybl_cross_check.py` re-solves the same 21 contingencies with a real second engine
+      (pypowsybl/OpenLoadFlow) and cross-validates against the pandapower screen — 21/21 agree,
+      including an exact match on both genuinely contingency-induced thermal breaches (see the
+      lab's own README "pypowsybl N-1 cross-check" section).
 - [x] Lab 3 (advanced) — **partially met, gap named below, not silently checked off**: the
       bake-off runs 3 deterministic search-policy stand-ins (not 2+ *live local LLM* providers —
       that swap-in was never done, same named gap as Labs 1-2, see their own Sandbox notes) across
