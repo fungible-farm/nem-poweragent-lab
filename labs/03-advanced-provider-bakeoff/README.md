@@ -62,6 +62,9 @@ GGUF models or a PowerFM checkpoint. So, concretely:
 
 ## pypowsybl spike (solver comparison, not a bake-off provider)
 
+> Full write-up, conclusions, and implications:
+> [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](../../docs/POWERFLOW_ENGINE_SHOOTOUT.md).
+
 `spike_pypowsybl.py` answers a different question from the rest of this lab: not "which search
 policy is best," but "is [PowSyBl](https://github.com/powsybl) (RTE's open-source power-system
 modelling framework, via its real `pypowsybl` Python bindings) a viable alternative power-flow

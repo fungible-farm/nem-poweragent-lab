@@ -35,7 +35,7 @@ reaching for a proprietary or novel re-implementation.
 | AEMO NEM constraints | Lab 4 constraint decode | MIT (vendored, LICENSE-NEM_constraints) | |
 | mpv / chafa / ffmpeg / fzf | demo display/render/launcher (CLIs) | GPL-2.0+ / LGPL-3.0+ / LGPL-GPL / MIT | mpv, chafa, ffmpeg are copyleft but invoked as external CLIs — **not** part of the linked API surface; fzf (MIT) is permissive, used by the `just demo` launcher |
 | jupytext / nbconvert / ipykernel | dev-only: `notebooks/lab_playbook.py` percent-format notebook + its `--execute` render (docs/backlog/0005) | MIT / BSD-3-Clause / BSD-3-Clause | `[dependency-groups].dev` only, never imported by lab code itself |
-| pypowsybl | Lab 3 `spike_pypowsybl.py` (solver-comparison spike) + Lab 2 `pypowsybl_cross_check.py` (real N-1 second-opinion cross-check, via shared `labs/_shared/gridfit.py` helpers) | **MPL-2.0** | license-verified from installed metadata (`pypowsybl==1.16.1`); a genuine second MPL-2.0 component alongside DPsim, not spike-only anymore — see the note below |
+| pypowsybl | Lab 3 `spike_pypowsybl.py` (solver-comparison spike) + Lab 2 `pypowsybl_cross_check.py` (real N-1 second-opinion cross-check, via shared `labs/_shared/gridfit.py` helpers) | **MPL-2.0** | license-verified from installed metadata (`pypowsybl==1.16.1`); a genuine second MPL-2.0 component alongside DPsim, not spike-only anymore — full comparison write-up and conclusions: [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](POWERFLOW_ENGINE_SHOOTOUT.md) |
 
 ### The distinction that keeps the policy honest
 

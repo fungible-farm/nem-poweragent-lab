@@ -70,6 +70,9 @@ Two more things worth knowing before you read the output:
 
 ## pypowsybl N-1 cross-check (a real second opinion, not another stand-in)
 
+> Full write-up, conclusions, and implications:
+> [`docs/POWERFLOW_ENGINE_SHOOTOUT.md`](../../docs/POWERFLOW_ENGINE_SHOOTOUT.md).
+
 `pypowsybl_cross_check.py` re-solves the exact same 21 contingencies as an independent, real
 second opinion: [PowSyBl](https://github.com/powsybl) (RTE's power-system framework, via its real
 `pypowsybl` Python bindings, OpenLoadFlow solver) against `workflow.py`'s own pandapower screen.
