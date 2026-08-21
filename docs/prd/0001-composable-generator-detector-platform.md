@@ -1,6 +1,10 @@
 # 0001 — Composable generator/detector simulation platform
 
-- **Status:** proposed
+- **Status:** implemented — all five generator kinds, all five detector kinds, the scenario DAG
+  schedule format, and the scoring harness exist in `labs/_shared/scenario_engine/`. All acceptance
+  criteria below are checked with real evidence; `labs/_shared/test_scenario_engine.py`'s 8 tests
+  pass, including byte-exact regression checks confirming Lab 5's existing single-fault schedule is
+  unchanged.
 - **Depends on:** none (foundation for 0002, 0003, and any future scenario)
 - **Touches:** `labs/05-spartan-chaosnet-transient-stream/` (chaos_schedule.yaml, run_dpsim.py,
   phase_model.py), `rust/phase-model/`, new `labs/_shared/scenario_engine/`
