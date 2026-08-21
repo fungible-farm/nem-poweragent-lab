@@ -393,6 +393,20 @@ podman run --rm lab6:local
 Full chain, timed: `./scripts/demo_lab6.sh` runs in well under a second on this host — comfortably
 inside a 2-minute walkthrough budget.
 
+## Diagrams (`fixtures/expected_*.svg`, the committed reference renders)
+
+Track A — digital thread (isometric boxes, `Agent`→`DataSource` attachment edges):
+
+![Track A digital-thread diagram: Agent/MCPServer/DataSource isometric boxes with attachment edges](fixtures/expected_digital_thread.svg)
+
+Track B — grid topology (real bus/branch single-line rendering, Cassowary-solved layout):
+
+![Track B grid-topology diagram: buses as bars, generators as G-circles, styled transmission/transformer branches](fixtures/expected_grid_topology.svg)
+
+Track C — pipeline phases (a real directed sequence, arrowheads showing phase order):
+
+![Track C pipeline-phases diagram: PRD-0005's Phase 0 to 1 to 1.5 to 2 sequence with directional arrows](fixtures/expected_pipeline_phases.svg)
+
 ## Files
 
 - `schema/digital_thread.linkml.yaml`, `schema/grid_topology.linkml.yaml`,

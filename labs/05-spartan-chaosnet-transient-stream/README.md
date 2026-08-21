@@ -29,7 +29,7 @@ This lab does not implement SPARTAN's anomaly-detection logic (a later phase, ou
 its "chaos-net" topologies are procedurally generated stress scenarios, not a model of any real
 substation.
 
-## Why an AEMO modeller should care
+## Why this matters
 
 Every other lab in this repo works at the dispatch-interval timescale (minutes). This one is the
 waveform timescale — the level real protection relays and PMUs operate at — applying the same
@@ -307,6 +307,8 @@ kube/villasnode-tap-pod.yaml`) still needs a real podman/Linux host (or WSL2).
    — *Backup if unavailable*: the committed `sample_topology.json` fixture (a real seed-42 run) plus
    the pre-rendered `sample_topology_plot.png`.
 
+   ![Chaos-net topology graph, tap substations labelled larger](sample_topology_plot.png)
+
 2. **`run_dpsim.py --schedule chaos_schedule.yaml`** — Output:
    `EMT solve running at 200us timestep`, then `[T+00:00] fault scheduled at substation SUB-3 in
    8s...` counting down (real wall-clock seconds — see Design note 3), then `FAULT INJECTED: SUB-3
@@ -328,6 +330,8 @@ kube/villasnode-tap-pod.yaml`) still needs a real podman/Linux host (or WSL2).
    — *Backup if the live pod isn't reachable*: the committed `sample_stream_summary.json` plus the
    pre-rendered plot; `verify_stream.py` falls back to these automatically and prints the exact
    `podman kube play` command needed instead of fabricating a result.
+
+   ![Fault transient voltage sag/recovery, captured live over the VILLASnode UDP stream](sample_transient_plot.png)
 
 5. **(hardware-validated extension only)**: point the VILLASnode tap at a real Radxa Dragon Q8B
    endpoint and confirm SPARTAN's recorder ingests the stream unmodified — needs the physical board,
@@ -370,23 +374,38 @@ recorded state, many generated views.
   bins.
 - `view_telemetry_rates.py` → `sample_telemetry_rates.png` — the same fault at three telemetry
   rates (raw 5 kHz / C37.118 100 Hz synchrophasor + V0/V1/V2 / SCADA 4 s), stacked on one time axis.
+
+  ![Same fault at three telemetry rates, stacked on one time axis](sample_telemetry_rates.png)
+
 - `animate_telemetry_rates.py` → `animate_telemetry_rates.mp4` (gitignored) — the same three feeds,
   narrated and time-aligned.
 - `animate_transient.py` → `animate_transient.mp4` (gitignored) — a growing-reveal animation of the
   raw fault waveform.
 - `view_3d_audio.py` → `sample_transient_3d.png`, `dpsim_transient_3ch.wav` — a 3D phase-space
   trajectory plot plus a pitch-shifted 3-channel sonification of the same event.
+
+  ![3D phase-space trajectory of the fault transient](sample_transient_3d.png)
+
 - `view_phasor_3d.py` → `sample_phasor_3d.png` — the classic hand-drawn phasor diagram (Va/Vb/Vc as
   2D vectors from a common origin) rendered as a 3D isometric plot, stacking 5 snapshots through the
   fault (pre-fault, onset, mid-fault, post-clear, recovery) so one static image shows how the
   diagram deforms. Each snapshot is labeled with its real measured time; a dashed reference circle
   (the real pre-fault |Va|), red during the fault window, makes the collapse/recovery visible.
+
+  ![Phasor diagram stacked across 5 snapshots through the fault](sample_phasor_3d.png)
+
 - `view_spectrogram.py` → `sample_spectrogram.png` — a time-frequency (STFT) view of the phase-A
   voltage; the fault's switching edges show up as broadband smears distinct from the steady 50 Hz
   fundamental.
+
+  ![STFT spectrogram of the phase-A voltage through the fault](sample_spectrogram.png)
+
 - `view_rx_trajectory.py` → `sample_rx_trajectory.png` — the R-X apparent-impedance trajectory
   Z(t)=V1(t)/I1(t) on the fault-adjacent line, against a real mho relay characteristic (80% Zone-1
   reach) — the distance-relay engineer's view: "where, electrically, is this fault."
+
+  ![R-X apparent-impedance trajectory against a mho relay characteristic](sample_rx_trajectory.png)
+
 - `animate_sag_propagation.py` → `animate_sag_propagation.mp4` (gitignored) — every bus's own
   |V1(t)|, animated onto the topology layout, colored/sized by deviation from its own pre-fault
   point — the network-wide sag-propagation view.

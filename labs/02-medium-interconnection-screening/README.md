@@ -56,6 +56,8 @@ Both rows are marked FAIL for this reason specifically, distinct from the bus-11
 condition. `sample_contingency_chart.png` plots this directly: 19 of 21 bars sit flat at the
 pre-existing ~97.8% / 0.899 pu point, while the 151/152 bars visibly cross the 100% line.
 
+![Two-panel chart: worst line-loading % vs the 100% thermal limit, and worst bus-voltage pu vs the 0.90-1.10 pu band, per contingency](sample_contingency_chart.png)
+
 ## pypowsybl N-1 cross-check (a real second opinion, not another stand-in)
 
 > Full write-up, conclusions, and implications:
@@ -119,8 +121,10 @@ edges rather than collapsed into one: 143/150 (175↔249), 145/146 (175↔275), 
 (a blue scale, deliberately *not* a red-family colormap — 181/182 load up to 43.6%/36.7%, near
 the top of this neighbourhood's range, and a red colormap there would look identical to the one
 genuine finding below). Lines 151/152 are the sole exception: hard-coded bright red, since they
-are the only *contingency-induced* breach this lab's screen actually found (see Sandbox notes
+are the only *contingency-induced* breach this lab's screen actually found (see Design notes
 above) — every other parallel pair here is a normal double-circuit, not a violation.
+
+![Network diagram: bus 175 highlighted orange, lines 151/152 highlighted red as the real N-1 breach, other parallel line pairs drawn as curved double edges](sample_network_diagram.svg)
 
 ```
 uv run labs/02-medium-interconnection-screening/render_network_diagram.py

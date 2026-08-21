@@ -1,9 +1,9 @@
 # nem-poweragent-lab
 
-**PowerAgent Tutorial — AEMO Labs.** Five hands-on labs that use AI agents to do the kind of thing
-a power-grid engineer does by hand: load a model of the grid, run a simulation, check whether
-anything is overloaded, write a report. Every number in every lab comes from a real calculation
-against real (or realistically synthetic) grid data — nothing is faked to look plausible.
+**PowerAgent Tutorial.** Six hands-on labs that use AI agents to do the kind of thing a power-grid
+engineer does by hand: load a model of the grid, run a simulation, check whether anything is
+overloaded, write a report. Every number in every lab comes from a real calculation against real
+(or realistically synthetic) grid data — nothing is faked to look plausible.
 
 ## Concepts, in plain terms
 

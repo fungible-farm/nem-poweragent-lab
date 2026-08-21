@@ -108,6 +108,8 @@ data live, no offline fallback — which the default container network already p
 3. **`reconcile.py`** — `Modelled interconnector-equivalent flow (bus 985): +234.2 MW`, `Actual
    combined flow: +187.7 MW`, `Delta: +46.5 MW ... -> FAIL`, then the memo explaining the gap (see
    above), then `[chart] wrote sample_reconciliation_chart.png`.
+
+   ![Reconciliation chart: modelled vs actual interconnector-equivalent flow](sample_reconciliation_chart.png)
 4. **`reconcile.py --step check`** — The result as JSON, then `MATCH: modelled=234.168
    actual=187.7 vs expected_reconciliation.json`. This checks that the computation *reproduces the
    fixture*, not that reconciliation passed — the fixture's own `"passed": false` is the correct,

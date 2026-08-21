@@ -18,20 +18,17 @@ possible version of that.
    by a real `pandapower.runpp()` call, never guessed.
 4. Compare the fitted parameter and residual against a known-good answer (`expected_results.json`).
 
-The point of the lab is the split between the two roles: something *proposes* a trial value
-(here, bisection search — the spec's original design uses a small local LLM instead, see below),
-and pandapower's real physics *evaluates* it. The physics is never in the proposer.
+The point of the lab is the split between the two roles: something *proposes* a trial value (here,
+bisection search), and pandapower's real physics *evaluates* it. The physics is never in the
+proposer.
 
-## Design note: no LLM in this build
+## Design note: a deterministic proposer, not a model
 
-The original spec (`docs/VISION.md` §7) has a local LLM choosing each trial value over MCP instead
-of a plain bisection search. This build uses bisection because it's the simplest way to show the
-propose/evaluate split without needing a model server running — the search loop and the real
-pandapower physics underneath it are unaffected either way. See `labs/_shared/gridfit.py` for the
-swap point if you want to wire an LLM (or anything else) back in.
-
-(Bus 2008 stands in for `docs/VISION.md`'s illustrative "bus 14" — `snemSA.m`'s real bus numbers
-are non-sequential IDs like 986, 1633, 1634, so there's no bus literally called 14.)
+This build uses bisection search as the proposer — the simplest way to show the propose/evaluate
+split without needing a model server running. A local LLM choosing each trial value is a possible
+future direction, not something this build does; the search loop and the real pandapower physics
+underneath it are unaffected either way. See `labs/_shared/gridfit.py` for the swap point if you
+want to wire a different proposer in.
 
 ## Command
 
@@ -67,6 +64,8 @@ This reproduces the `--step check` output below. Override the step with, e.g.,
    (PASS, tol 0.002)`, then `[chart] wrote sample_network_chart.png` — a network diagram with every
    bus colored by its solved voltage and bus 2008 highlighted, so the calibration target is visible
    in the wider network, not just a log line.
+
+   ![Network diagram with every bus colored by solved voltage, bus 2008 highlighted](sample_network_chart.png)
 3. **`--step check`** — Prints the fit result as JSON, then `MATCH: fitted_scale=0.925
    residual_pu=-0.000791 vs expected_results.json`. If you don't want to run the fit live, reading
    `expected_results.json` directly shows the same thing this step prints on success.

@@ -1,14 +1,15 @@
 # `podman kube play` manifests
 
-> Status: `villasnode-tap-pod.yaml` (Lab 5) is **written and actually podman-executed** in this
-> build environment — `podman` (5.4.2) is present here, and this is the one manifest in the repo
-> that specifically needed it; see its own header comment for the full real session (pod up,
-> real UDP stream captured, pod torn down cleanly) and Lab 5's own `README.md` "Sandbox notes" for
-> the one node-type substitution that came out of running it for real.
-> `llamacpp-phi-pod.yaml` and `powermcp-pandapower-pod.yaml` (the LLM-server and MCP-tool-server
-> boxes `docs/VISION.md` §4/§10 name) are also now **written and actually podman-executed**, each
-> with one real, disclosed limitation of its own — see their own entries below and each manifest's
-> own header.
+> Status: `villasnode-tap-pod.yaml` (Lab 5) is **written and actually podman-executed** — `podman`
+> (5.4.2) is present, and this is the one manifest in the repo that specifically needed it; see its
+> own header comment for the full real session (pod up, real UDP stream captured, pod torn down
+> cleanly) and Lab 5's own `README.md` "Design notes" for the one node-type substitution that came
+> out of running it for real.
+> `llamacpp-phi-pod.yaml` and `powermcp-pandapower-pod.yaml` are also now **written and actually
+> podman-executed**, each with one real, disclosed limitation of its own — see their own entries
+> below and each manifest's own header. `llamacpp-phi-pod.yaml` is a local-LLM inference pod built
+> and tested as part of this repo's kube infrastructure; no lab currently calls it (Labs 1 and 3 use
+> deterministic search policies instead of a live model — see their own READMEs).
 > `benchmark-runner-job.yaml` (Lab 3) is now **written and podman-executed**, with one real,
 > documented limitation: `podman kube play` 5.4.2 does not implement Kubernetes Job's
 > `completions`/`parallelism`/`completionMode`/`backoffLimit` fields (`man podman-kube-play`'s own
@@ -46,13 +47,13 @@
     -d '{"model":"phi-4-mini","messages":[{"role":"user","content":"In one short sentence, what is a power flow study in electrical engineering?"}],"max_tokens":80}'
   # -> "A power flow study is an analysis used to determine the voltage, current, and flow of
   #     electricity in an electrical power system under a given set of conditions." (real model
-  #     output, CPU-only, ~10.5 tokens/sec on this sandbox's hardware)
+  #     output, CPU-only, ~10.5 tokens/sec on this build's hardware)
   podman kube play --down kube/llamacpp-phi-pod.yaml
   ```
-  Published on host port 8091, not the image's default 8080 — this sandbox is a shared multi-tenant
-  host with several unrelated containers already bound to 8080 (confirmed by a first attempt
-  failing with "address already in use"); pick whatever's free on your own machine. Model file
-  swappable for the Lab 3 bake-off (Gemma-4, Llama-3.2-3B) via `podman kube play --replace`.
+  Published on host port 8091, not the image's default 8080 — this host runs several unrelated
+  containers already bound to 8080 (confirmed by a first attempt failing with "address already in
+  use"); pick whatever's free on your own machine. This pod is a real, tested local-LLM capability,
+  not currently wired into any lab's own pipeline.
 - `powermcp-pandapower-pod.yaml` — **implemented and real-podman-verified.** Built from
   `Containerfile.powermcp` (repo root — no pre-built upstream PowerMCP image exists) into
   `powermcp-pandapower:local`. **Named limitation:** PowerMCP's shipped `powermcp run pandapower`
@@ -94,13 +95,13 @@
   'run_contingency_analysis', 'get_network_info', 'load_network_from_any', 'load_network_from_json',
   'export_network_to_format']`, then a real `pandapower.runpp()` solve of the real CSIRO `snemSA.m`
   case (503 buses) via `load_network_from_any` → `run_power_flow`, returning real per-bus `vm_pu`
-  voltages — `status: success`. Published on host port 8001 (same "shared sandbox host" reasoning
-  as the llamacpp pod above).
+  voltages — `status: success`. Published on host port 8001 (same "shared host" reasoning as the
+  llamacpp pod above).
 - `villasnode-tap-pod.yaml` — **implemented and real-podman-verified.** VILLASnode
   (`registry.git.rwth-aachen.de/acs/public/villas/node:latest`), one pod tapping Lab 5's chaos-net
   fault substation (`sub-3-tap`), real DPsim transient data in, real UDP/JSON samples out (~4998 Hz
   achieved against a 5000 Hz target, confirmed by a live capture). IEC 61850 Sampled Values is
-  compiled into the image but does not actually start in this sandbox (`Failed to create SV
+  compiled into the image but does not actually start in this build (`Failed to create SV
   publisher`, reproduced even under `--privileged`) — see the manifest's own header and
   `labs/05-spartan-chaosnet-transient-stream/villas/chaos-tap.conf`'s header for the full finding
   and the commented-out config block for whoever has a suitable NIC to point it at.
