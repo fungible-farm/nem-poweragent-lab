@@ -97,6 +97,7 @@ check-lab1:
 check-lab2:
     uv run labs/02-medium-interconnection-screening/workflow.py --step check
     uv run labs/02-medium-interconnection-screening/pypowsybl_cross_check.py --step check
+    uv run labs/02-medium-interconnection-screening/render_network_diagram.py
 
 check-lab3:
     uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step check

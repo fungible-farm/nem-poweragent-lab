@@ -115,6 +115,29 @@ uv run labs/02-medium-interconnection-screening/pypowsybl_cross_check.py --step 
 uv run labs/02-medium-interconnection-screening/pypowsybl_cross_check.py --step check
 ```
 
+## Network diagram (`sample_network_diagram.svg`)
+
+`render_network_diagram.py` draws the same 14-bus/21-line N-1 neighbourhood `workflow.py`'s own
+screen already computes — the diagram is a rendering of an already-verified result, not a new
+source of truth (same convention as `sample_contingency_chart.png` above). Deliberately scoped to
+this local neighbourhood, not the full `snem1803.m` (1803 buses, no geographic coordinates —
+would render as an unreadable hairball); layout is `networkx.kamada_kawai_layout` (deterministic,
+no RNG), rendered to a real vector SVG via matplotlib's `Agg` backend.
+
+Candidate bus 175 is marked distinctly (orange, larger). Every real parallel-line pair in this
+neighbourhood — not just the well-known 151/152 pair — is drawn as two genuinely separate curved
+edges rather than collapsed into one: 143/150 (175↔249), 145/146 (175↔275), 147/148 (175↔328),
+181/182 (185↔254), and 151/152 (175↔608). Edge color/width encodes base-case `loading_percent`
+(a blue scale, deliberately *not* a red-family colormap — 181/182 load up to 43.6%/36.7%, near
+the top of this neighbourhood's range, and a red colormap there would look identical to the one
+genuine finding below). Lines 151/152 are the sole exception: hard-coded bright red, since they
+are the only *contingency-induced* breach this lab's screen actually found (see Sandbox notes
+above) — every other parallel pair here is a normal double-circuit, not a violation.
+
+```
+uv run labs/02-medium-interconnection-screening/render_network_diagram.py
+```
+
 ## Command
 
 ```
