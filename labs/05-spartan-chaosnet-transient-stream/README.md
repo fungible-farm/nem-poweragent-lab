@@ -190,6 +190,37 @@ different answer — not attempted here.
 `delay_compensation.py --step run` (or `--step check`) regenerates `delay_compensation.json`
 (gitignored) with the full comparison and conclusion above.
 
+## Open renewable generation (PRD-0005 Phase 3)
+
+`run_dpsim.py --renewable` adds a real Vestas V52-850kW wind turbine (rotor diameter 52 m, cut-in
+4 m/s, rated 16 m/s, cut-out 25 m/s, rated output 850 kW, 690 V generator terminal — real
+manufacturer-published operational envelope, from Vestas's own General Specification datasheet) at
+a chosen bus (`--renewable-target`, default `SUB-1`, distinct from the default schedule's own fault
+target `SUB-3`), driving DPsim's `AvVoltageSourceInverterDQ` via its real `P_ref` attribute from a
+deterministic wind-dropout profile (steady at rated wind speed, ramps down to a near-cut-in lull,
+holds, ramps back up — timed to start at the same moment the schedule's own fault triggers).
+`turbine_power_w()` uses the datasheet's real cut-in/rated/cut-out/rated-power points with the
+standard cubic wind-turbine power-curve interpolation between cut-in and rated speed (the
+manufacturer's own power-curve chart is a scanned figure, not a numeric table — see
+`renewable_source.py`'s module docstring for the full citation and why a standard cited formula was
+used instead of reading approximate points off a marketing chart).
+
+**A real DPsim finding, not assumed**: `AvVoltageSourceInverterDQ` needs a genuine two-stage
+power-flow pre-init (`dpsimpy.SystemTopology.init_with_powerflow()`, solving a real SP-domain mirror
+of the topology first) — `sim.do_steady_state_init(True)`, which every other component in this lab
+uses, produces `nan` voltages immediately for this component. `--renewable` therefore switches to
+the power-flow init path instead; `--renewable`-off runs are completely unaffected (zero behavior
+change to the existing baseline/stabilizer/delay-compensation paths).
+
+**A second real finding**: `--renewable` cannot currently be combined with `--stabilizer` —
+splicing both into one system and calling `init_with_powerflow` raises a real, reproducible
+`RuntimeError` at `sim.start()` in this sandbox. `run_dpsim.py` raises a clear `ValueError` if both
+are requested together rather than silently running a possibly-broken combined solve; fixing the
+underlying incompatibility is a real, named open item for a future phase.
+
+`run_dpsim.py --renewable --step run` writes `renewable_generation.json` (gitignored) with the real
+wind-speed and power-reference series logged every EMT step.
+
 ## Design notes
 
 Most of this lab is real infrastructure, actually run: `podman` (5.4.2), the real VILLASnode OCI
@@ -268,6 +299,8 @@ uv run labs/05-spartan-chaosnet-transient-stream/grid_forming.py --step check
 
 uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step run
 uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check
+
+uv run labs/05-spartan-chaosnet-transient-stream/run_dpsim.py --renewable
 
 uv run python -m pytest labs/05-spartan-chaosnet-transient-stream/ -v
 ```
@@ -358,6 +391,11 @@ kube/villasnode-tap-pod.yaml`) still needs a real podman/Linux host (or WSL2).
   delay figure (`grid_forming.propagation_delay_s()`) and the three-way comparison driver
   (`run_three_way_comparison()`/`--step run`/`--step check`). Writes `delay_compensation.json`
   (gitignored).
+- `renewable_source.py` — PRD-0005 Phase 3's open renewable generation (see above): the real cited
+  Vestas V52-850kW power curve, wind-dropout profile, DPsim circuit-splicing helper
+  (`add_renewable_source_to_system()`), and the SP-domain power-flow pre-init
+  `AvVoltageSourceInverterDQ` requires (`to_sp_powerflow_system()`/`initialize_with_powerflow()`).
+  Driven from `run_dpsim.py --renewable`, which writes `renewable_generation.json` (gitignored).
 - `villas/chaos-tap.conf` — the committed, real VILLASnode config (see Design notes 4–6).
 - `sample_topology.json`, `expected_topology.json`, `sample_topology_plot.png`,
   `expected_dpsim_run.json`, `sample_stream_summary.json`, `sample_transient_plot.png` — committed

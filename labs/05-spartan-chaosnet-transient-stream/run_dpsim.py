@@ -89,6 +89,8 @@ EXPECTED_FILE = LAB_DIR / "expected_dpsim_run.json"
 VILLAS_DATA_DIR = LAB_DIR / "villas"
 VILLAS_STREAM_CSV = VILLAS_DATA_DIR / "chaos_stream.csv"
 TRANSIENT_LOG_JSON = LAB_DIR / "dpsim_transient_log.json"
+# PRD-0005 Phase 3: written only when --renewable is active (see run_step()).
+RENEWABLE_LOG_JSON = LAB_DIR / "renewable_generation.json"
 
 # "EMT solve running at 200us timestep" -- docs/LAB5_SPARTAN_CHAOSNET.md
 # step 2 worked example, verbatim. Well inside the Definition of Done's
@@ -183,6 +185,8 @@ class DpsimRunSummary(TypedDict):
     stabilizer_active: bool
     delay_compensation_active: bool  # PRD-0005 Phase 2
     propagation_delay_s: float  # PRD-0005 Phase 2 (0.0 when stabilizer inactive)
+    renewable_active: bool  # PRD-0005 Phase 3
+    renewable_target: str | None  # PRD-0005 Phase 3 (None when renewable inactive)
 
 
 def _rms(values: list[float]) -> float:
@@ -266,6 +270,8 @@ def run_step(
     verbose: bool = True,
     stabilizer: bool = False,
     delay_compensation: bool = False,
+    renewable: bool = False,
+    renewable_target: str = "SUB-1",
     output_log_path: Path = TRANSIENT_LOG_JSON,
     write_villas_csv: bool = True,
 ) -> DpsimRunSummary:
@@ -321,6 +327,18 @@ def run_step(
             and `GridFormingStabilizer.delay_compensation_enabled`). Has no
             effect when `stabilizer` is False. Default False reproduces
             Phase 1's exact stabilizer behavior.
+        renewable: if True, activate the PRD-0005 Phase 3 wind-turbine
+            generation source at `renewable_target`'s bus (see
+            `renewable_source.py`), driven by a real deterministic
+            wind-dropout profile each EMT step. Cannot currently be
+            combined with `stabilizer=True` -- raises ValueError if both
+            are requested (see `renewable_source.py`'s module docstring
+            for the confirmed, real DPsim incompatibility). Default False
+            reproduces today's exact baseline physics/output.
+        renewable_target: tap name for the renewable source's point of
+            connection (default "SUB-1", distinct from the default
+            schedule's own fault target "SUB-3"). Unused when `renewable`
+            is False.
         output_log_path: where to write the per-timestep transient log
             (default TRANSIENT_LOG_JSON, today's exact baseline path).
             `grid_forming.run_comparison()` passes a distinct path for the
@@ -334,10 +352,22 @@ def run_step(
 
     Raises:
         ValueError: if the schedule has zero time-triggered events (at
-            least one is required to anchor this summary's own fields).
+            least one is required to anchor this summary's own fields), or
+            if both `stabilizer` and `renewable` are True (see `renewable`
+            docstring above -- a real, confirmed DPsim incompatibility, not
+            an arbitrary restriction).
     """
     import dpsimpy  # local import: keeps generate_topology.py runnable
     # without dpsim installed (chaosnet.to_pandapower doesn't need it).
+
+    if stabilizer and renewable:
+        raise ValueError(
+            "--stabilizer and --renewable cannot currently be combined: "
+            "splicing both into one SystemTopology and calling "
+            "init_with_powerflow raises a real, reproducible "
+            "RuntimeError at sim.start() in this sandbox (see "
+            "renewable_source.py's module docstring)"
+        )
 
     schedule_path = _resolve_schedule_path(schedule_path)
     events = load_schedule(schedule_path)
@@ -409,6 +439,24 @@ def run_step(
                 f"(propagation delay={delay_s * 1e6:.3f}us)"
             )
 
+    # PRD-0005 Phase 3: splice the wind-turbine renewable source into `dsys`
+    # at renewable_target's bus before building the Simulation, same
+    # rebuild-the-SystemTopology requirement as the stabilizer above.
+    renewable_handles = None
+    if renewable:
+        import renewable_source
+
+        renewable_handles = renewable_source.add_renewable_source_to_system(
+            dsys, topology, renewable_target
+        )
+        if verbose:
+            print(
+                f"[renewable] Vestas V52-850kW active at {renewable_target}'s bus "
+                f"({renewable_handles['vn_kv']:.1f} kV): rated="
+                f"{renewable_source.RATED_POWER_W / 1e3:.0f} kW, real wind-dropout "
+                "profile driving P_ref each EMT step"
+            )
+
     if verbose:
         print(f"EMT solve running at {TIME_STEP_S * 1e6:.0f}us timestep")
 
@@ -435,12 +483,22 @@ def run_step(
                 "real-time sleep, not the fault itself)"
             )
 
+    if renewable:
+        # PRD-0005 Phase 3: AvVoltageSourceInverterDQ requires the real
+        # two-stage power-flow init, not do_steady_state_init -- see
+        # renewable_source.py's module docstring for the confirmed finding.
+        # Applied to dsys["system"] *before* sim.set_system() below, matching
+        # the exact order confirmed working in this sandbox (untested, and
+        # not assumed safe, the other way around).
+        renewable_source.initialize_with_powerflow(dsys, topology)
+
     sim = dpsimpy.Simulation(f"lab5_seed{seed}", dpsimpy.LogLevel.warn)
     sim.set_system(dsys["system"])
     sim.set_domain(dpsimpy.Domain.EMT)
     sim.set_time_step(TIME_STEP_S)
     sim.set_final_time(final_time_s)
-    sim.do_steady_state_init(True)
+    if not renewable:
+        sim.do_steady_state_init(True)
     # Loop sim.add_event() over every time-triggered schedule entry instead
     # of assuming exactly one (PRD-0001 Goal 1) -- each against its own
     # fault switch from chaosnet's plural fault_switches dict.
@@ -540,6 +598,11 @@ def run_step(
     }
     scenario_events: list = []
 
+    # PRD-0005 Phase 3: real wind-speed/power-output series, accumulated
+    # only when renewable is active.
+    wind_speed_series: list[float] = []
+    renewable_power_series: list[float] = []
+
     injected_printed = False
     cleared_printed = False
 
@@ -571,6 +634,18 @@ def run_step(
             ia_s, ib_s, ic_s = (a.get() for a in stab_current_phase_attrs)
             v_ref = stabilizer_ctrl.step(t, va, vb, vc, ia_s, ib_s, ic_s)
             stab_handles["source"].attr("V_ref").set(v_ref)
+
+        # PRD-0005 Phase 3: drive the wind turbine's real-time power
+        # reference from the wind-dropout profile, timed to start at the
+        # same moment the schedule's own fault triggers (trigger_s) -- a
+        # real, honestly-scheduled compound disturbance (wind dropout +
+        # electrical fault together), not an assumed-independent event.
+        if renewable:
+            wind_mps = renewable_source.wind_speed_profile_mps(t, dropout_start_s=trigger_s)
+            power_w = renewable_source.turbine_power_w(wind_mps)
+            renewable_handles["source"].attr("P_ref").set(power_w)
+            wind_speed_series.append(wind_mps)
+            renewable_power_series.append(power_w)
 
         if pending_generators:
             for tgt, attrs in cond_phase_attrs.items():
@@ -629,6 +704,8 @@ def run_step(
         "stabilizer_active": stabilizer,
         "delay_compensation_active": stabilizer and delay_compensation,
         "propagation_delay_s": delay_s,
+        "renewable_active": renewable,
+        "renewable_target": renewable_target if renewable else None,
     }
 
     if verbose:
@@ -685,14 +762,40 @@ def run_step(
         print(stream_msg)
 
     # Only overwrite the committed fixture for the exact baseline case this
-    # fixture describes: default schedule/seed *and* stabilizer off -- a
-    # stabilized comparison run must never clobber expected_dpsim_run.json.
+    # fixture describes: default schedule/seed, stabilizer off, renewable
+    # off -- a stabilized or renewable-active comparison run must never
+    # clobber expected_dpsim_run.json.
     if (
         schedule_path.resolve() == DEFAULT_SCHEDULE_FILE.resolve()
         and seed == DEFAULT_SEED
         and not stabilizer
+        and not renewable
     ):
         EXPECTED_FILE.write_text(json.dumps(summary, indent=2))
+
+    # PRD-0005 Phase 3: real wind-speed/power-output series, written only
+    # when renewable is active -- never touches any other committed fixture.
+    if renewable:
+        RENEWABLE_LOG_JSON.write_text(
+            json.dumps(
+                {
+                    "target": renewable_target,
+                    "vn_kv": renewable_handles["vn_kv"],
+                    "rated_power_w": renewable_source.RATED_POWER_W,
+                    "times": times,
+                    "wind_speed_mps": wind_speed_series,
+                    "p_ref_w": renewable_power_series,
+                },
+                indent=2,
+            )
+        )
+        if verbose:
+            print(
+                f"[renewable] wrote {RENEWABLE_LOG_JSON.name} "
+                f"({len(wind_speed_series)} samples: rated "
+                f"{max(renewable_power_series) / 1e3:.0f} kW -> lull "
+                f"{min(renewable_power_series) / 1e3:.1f} kW -> recovered)"
+            )
 
     return summary
 
@@ -763,12 +866,26 @@ def main() -> None:
             "propagation_delay_s()); has no effect without --stabilizer"
         ),
     )
+    parser.add_argument(
+        "--renewable", action="store_true",
+        help=(
+            "activate the PRD-0005 Phase 3 wind-turbine generation source "
+            "(see renewable_source.py); cannot be combined with "
+            "--stabilizer (raises ValueError -- see renewable_source.py's "
+            "module docstring)"
+        ),
+    )
+    parser.add_argument(
+        "--renewable-target", type=str, default="SUB-1",
+        help="tap name for --renewable's point of connection (default SUB-1)",
+    )
     args = parser.parse_args()
 
     if args.step == "run":
         run_step(
             args.schedule, seed=args.seed, stabilizer=args.stabilizer,
             delay_compensation=args.delay_compensation,
+            renewable=args.renewable, renewable_target=args.renewable_target,
         )
     elif args.step == "check":
         ok = check_step()

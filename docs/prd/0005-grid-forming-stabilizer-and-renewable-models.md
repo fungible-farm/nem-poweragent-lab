@@ -1,7 +1,8 @@
 # 0005 — Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed)
 
-- **Status:** in progress — Phasing below now includes Phase 1.5 (EMT→OPF headroom translation);
-  implementation proceeding phase-by-phase, each phase its own stacked branch/PR
+- **Status:** in progress — Phases 0/1/1.5/2/3 done; Phasing below now includes Phase 1.5
+  (EMT→OPF headroom translation); implementation proceeding phase-by-phase, each phase its own
+  stacked branch/PR
 - **Depends on:** none directly; builds on Lab 5's existing `chaosnet`/`run_dpsim.py`/`phase_model.py`
   machinery and reuses the R-X/sag-propagation work from `docs/backlog/0006`
 - **Touches:** `labs/05-spartan-chaosnet-transient-stream/chaosnet.py` (new generator/controller
@@ -260,11 +261,21 @@ rather than a bare fault on a passive network.
 - **Phase 2 — cable-length delay compensation.** Add the deadtime-compensation term to Phase 1's
   controller, on the same fault, and report whether it measurably helps versus Phase 1's baseline —
   a real comparison, not an assumed improvement.
-- **Phase 3 — wind/solar generation, power-profile stepping stone.** Add a generation source to
-  `chaosnet` using a real published power curve (or a simple, cited aerodynamic model) driving
-  `AvVoltageSourceInverterDQ`, independent of the Modelica question — this alone makes the topology
-  more realistic and gives the Phase 1 stabilizer something more interesting to react to (a renewable
-  ramp/dropout, not just a bolted fault).
+- **Phase 3 — wind/solar generation, power-profile stepping stone. Done** (`renewable_source.py`,
+  `run_dpsim.py --renewable`). A real Vestas V52-850kW wind turbine (cut-in/rated/cut-out/rated-power
+  cited from the manufacturer's own General Specification datasheet, fetched directly this session)
+  drives `AvVoltageSourceInverterDQ` at a chosen bus via its real `P_ref` attribute, from a
+  deterministic wind-dropout profile timed to the schedule's own fault trigger. Two real findings
+  from this phase: (1) `AvVoltageSourceInverterDQ` requires a two-stage SP-domain power-flow
+  pre-init (`init_with_powerflow`), not `do_steady_state_init(True)` alone — confirmed directly,
+  not assumed, via a standalone smoke test mirroring DPsim's own official example notebook; (2)
+  `--renewable` cannot currently be combined with Phase 1's `--stabilizer` — splicing both and
+  calling `init_with_powerflow` raises a real, reproducible `RuntimeError` at `sim.start()`, so
+  `run_step()` raises a clear `ValueError` instead of allowing a silently-broken combined run. See
+  `renewable_source.py`'s own module docstring for both findings in full. This alone makes the
+  topology more realistic; the Goal-1 tie-in ("gives the Phase 1 stabilizer something more
+  interesting to react to") is not yet realized given finding (2) above — a real open item for a
+  future phase, not attempted here.
 - **Phase 4 — IEC 61400-27 Modelica/FMU coupling (gated on Phase 0's findings).** Only attempted if
   Phase 0 finds a real, usable public source and a working Modelica MCP/FMU export path. One-way
   coupling only, per the Non-goals above.

@@ -304,6 +304,102 @@ def test_lab5_delay_compensation_reports_real_finding():
     assert result["conclusion"]  # a real, non-empty honest finding was written
 
 
+def test_renewable_source_turbine_power_boundaries():
+    """PRD-0005 Phase 3: turbine_power_w() at its real cited Vestas V52-850kW
+    anchor points (cut-in/rated/cut-out) -- pure Python, no dpsim needed."""
+    import renewable_source as rs
+
+    assert rs.turbine_power_w(0.0) == 0.0
+    assert rs.turbine_power_w(rs.CUT_IN_WIND_SPEED_MPS - 0.1) == 0.0
+    assert rs.turbine_power_w(rs.CUT_IN_WIND_SPEED_MPS) == 0.0  # cubic frac=0 at cut-in
+    assert rs.turbine_power_w(rs.RATED_WIND_SPEED_MPS) == rs.RATED_POWER_W
+    assert rs.turbine_power_w(rs.RATED_WIND_SPEED_MPS + 1.0) == rs.RATED_POWER_W
+    assert rs.turbine_power_w(rs.CUT_OUT_WIND_SPEED_MPS - 0.1) == rs.RATED_POWER_W
+    assert rs.turbine_power_w(rs.CUT_OUT_WIND_SPEED_MPS) == 0.0
+    assert rs.turbine_power_w(rs.CUT_OUT_WIND_SPEED_MPS + 5.0) == 0.0
+    # Strictly increasing (cubic) between cut-in and rated -- a real
+    # monotonicity property of the cited formula, not asserted at every point.
+    mid = (rs.CUT_IN_WIND_SPEED_MPS + rs.RATED_WIND_SPEED_MPS) / 2.0
+    assert 0.0 < rs.turbine_power_w(mid) < rs.RATED_POWER_W
+
+
+def test_renewable_source_wind_profile_dropout_shape():
+    """PRD-0005 Phase 3: wind_speed_profile_mps() reproduces a real steady
+    -> ramp-down -> hold -> ramp-up -> steady shape, pure Python."""
+    import renewable_source as rs
+
+    start = 0.2
+    rated = rs.RATED_WIND_SPEED_MPS
+    lull = rs.DROPOUT_LULL_WIND_SPEED_MPS
+    ramp = rs.DROPOUT_RAMP_S
+    hold = rs.DROPOUT_HOLD_S
+
+    assert rs.wind_speed_profile_mps(0.0, start) == rated
+    assert rs.wind_speed_profile_mps(start, start) == rated
+    assert rs.wind_speed_profile_mps(start + ramp, start) == pytest.approx(lull)
+    assert rs.wind_speed_profile_mps(start + ramp + hold, start) == pytest.approx(lull)
+    assert rs.wind_speed_profile_mps(start + 2 * ramp + hold, start) == pytest.approx(rated)
+    assert rs.wind_speed_profile_mps(start + 2 * ramp + hold + 10.0, start) == rated
+    # Monotonic during the ramp-down half.
+    mid_down = start + ramp / 2.0
+    assert lull < rs.wind_speed_profile_mps(mid_down, start) < rated
+
+
+def test_lab5_renewable_run_converges_with_real_wind_dropout():
+    """PRD-0005 Phase 3: a real, full-length DPsim solve with --renewable
+    active (Vestas V52-850kW at SUB-1, real wind-dropout profile timed to
+    the fault's own trigger) stays finite throughout, and the real logged
+    power series spans from RATED_POWER_W down to the real lull-wind-speed
+    power and back -- never a hardcoded expected number, always freshly
+    computed from the actual run (same discipline as the stabilizer tests
+    above)."""
+    import run_dpsim
+
+    renewable_log = LAB_DIR / "renewable_generation.json"
+    if renewable_log.exists():
+        renewable_log.unlink()
+
+    summary = run_dpsim.run_step(
+        run_dpsim.DEFAULT_SCHEDULE_FILE,
+        countdown_seconds=0,
+        verbose=False,
+        renewable=True,
+        output_log_path=LAB_DIR / "dpsim_transient_log_renewable_check.json",
+        write_villas_csv=False,
+    )
+    assert summary["converged"] is True
+    assert summary["renewable_active"] is True
+    assert summary["renewable_target"] == "SUB-1"
+
+    assert renewable_log.exists()
+    log = json.loads(renewable_log.read_text())
+    p_ref = log["p_ref_w"]
+    assert p_ref  # non-empty
+    assert max(p_ref) == pytest.approx(log["rated_power_w"])
+
+    import renewable_source as rs
+
+    expected_lull_power = rs.turbine_power_w(rs.DROPOUT_LULL_WIND_SPEED_MPS)
+    assert min(p_ref) == pytest.approx(expected_lull_power, rel=0.05)
+
+
+def test_lab5_renewable_and_stabilizer_together_rejected():
+    """PRD-0005 Phase 3: combining --stabilizer and --renewable raises a
+    clear ValueError (a real, confirmed DPsim incompatibility, not an
+    arbitrary restriction -- see renewable_source.py's module docstring),
+    rather than silently attempting a possibly-broken combined run."""
+    import run_dpsim
+
+    with pytest.raises(ValueError, match="cannot currently be combined"):
+        run_dpsim.run_step(
+            run_dpsim.DEFAULT_SCHEDULE_FILE,
+            countdown_seconds=0,
+            verbose=False,
+            stabilizer=True,
+            renewable=True,
+        )
+
+
 def _synthetic_wave(va_scale: float, vb_scale: float, vc_scale: float) -> ThreePhaseWaveform:
     """A 0.1 s, 5 kHz synthetic 3-phase 50 Hz cosine set with independently
     scaled per-phase peak amplitudes -- va_scale=vb_scale=vc_scale=1.0 is a

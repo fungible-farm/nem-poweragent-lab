@@ -15,5 +15,7 @@
   "converged": true,
   "stabilizer_active": false,
   "delay_compensation_active": false,
-  "propagation_delay_s": 0.0
+  "propagation_delay_s": 0.0,
+  "renewable_active": false,
+  "renewable_target": null
 }
