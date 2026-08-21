@@ -18,6 +18,19 @@ def test_lab3_scorecard_matches_fixture():
     assert "MATCH" in result.stdout
 
 
+def test_pypowsybl_spike_matches_fixture():
+    """spike_pypowsybl.py is a standalone solver-comparison spike, not part of the bake-off
+    matrix (see its own module docstring) -- this only checks its own --step check gate, the
+    same discipline every other self-checking step in this repo follows."""
+    result = subprocess.run(
+        [sys.executable, str(LAB_DIR / "spike_pypowsybl.py"), "--step", "check"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "MATCH" in result.stdout
+
+
 def test_lab3_report_renders_scorecard_chart():
     """SCORECARD_CHART_FILE is regenerated, gitignored output (see
     orchestrator.py's SCORECARD_CHART_FILE comment) -- check_step() never
