@@ -287,7 +287,14 @@ this repo's own scope to execute directly, flagged for the user.
   evaluations as perdurant events) — so that the mission state machine is simultaneously the
   *executable* game logic and a **self-documenting artifact usable to satisfy requirement
   documents or manage regulatory filings**. The user states this CLIF/FOL/endurant-perdurant
-  layer is squarely **`ledgrrr`'s actual domain**, not a coincidental overlap. Not actioned this
+  layer is squarely **`ledgrrr`'s actual domain**, not a coincidental overlap. **Grounded as a
+  real ledgrrr issue**: `PromptExecution/ledgrrr#182` (filed 2026-08-22), which cross-references
+  `ledgrrr`'s own pre-existing, already-backlogged #114 (CLIF AST/interpreter) and #117
+  (RDF/triple-store knowledge graph) — confirmed via direct inspection of the `ledgrrr` repo that
+  its own vendored `ufo-types` crate (`~/.dotfiles/vendor/ledgrrr/crates/ufo-types`) already has
+  real `UfoCategory::{Endurant,Perdurant}`/`EndurantStereotype`/`PerdurantStereotype` types and the
+  same `Satisfies<C>`/`SatisfiesResult` API cim-gridy already consumes externally — and that CLIF
+  itself does not exist anywhere in `ledgrrr` yet (per #114's own code audit). Not actioned this
   session — Lab 9 stands as committed (an honest minimal slice, not wrong, just not this). A
   future phase (candidate: a new Phase 2.5 between the current Phase 2/3 and Phase 5's rename)
   should evaluate `ledgrrr`'s real CLIF/FOL capabilities directly (not just the TOML→Rhai→Mermaid
