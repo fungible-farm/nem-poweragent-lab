@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
@@ -115,6 +115,19 @@ check-lab5:
 
 check-lab6:
     ./scripts/demo_lab6.sh
+
+# Rust FFT/COMTRADE detector: run the committed fixtures through the real
+# Rust binary in --check mode (recovers the Python-computed reference
+# finding by reading the COMTRADE file back, not by re-running pandapower).
+check-lab7:
+    cargo run --manifest-path rust/Cargo.toml -p fft-detector --release -- \
+        labs/07-rust-comtrade-fft-detector/fixtures/local_mode.cfg \
+        labs/07-rust-comtrade-fft-detector/fixtures/local_mode.dat \
+        --check labs/07-rust-comtrade-fft-detector/fixtures/local_mode.expected.json
+    cargo run --manifest-path rust/Cargo.toml -p fft-detector --release -- \
+        labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.cfg \
+        labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.dat \
+        --check labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.expected.json
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -151,6 +164,13 @@ lab6 step="check" track="digital-thread":
 # Lab 6 full demo: all three tracks, chained end to end (see scripts/demo_lab6.sh).
 lab6-demo:
     ./scripts/demo_lab6.sh
+
+# Lab 7: regenerate the committed COMTRADE fixtures + expected-finding JSON
+# from a real precursor-scenario pandapower solve (~40s wall-clock). Only
+# needs re-running if the precursor scenario's own physics change --
+# `just check-lab7` (fast, no pandapower) is what CI/regression actually runs.
+lab7-fixture:
+    uv run python labs/07-rust-comtrade-fft-detector/generate_fixture.py
 
 # --- demo: render the animations (PowerPoint-friendly MP4s) -----------------
 render: render-lab1 render-lab2 render-lab5
@@ -222,8 +242,11 @@ villasnode-down:
 lab5-villasnode: villasnode-up villasnode-verify villasnode-down
 
 # --- Rust / WASM (the oxidized phase_model, PSCADOSSE) -----------------------
-# Native tests (includes real_log_matches_python: the Rust port must match
-# the Python numbers exactly on the real DPsim log).
+# Native tests across all 3 workspace members (phase-model, demo-app,
+# fft-detector) -- includes real_log_matches_python (phase-model) and
+# local_mode_matches_python_reference/inter_area_mode_matches_python_reference
+# (fft-detector): the Rust ports must match the Python numbers exactly on
+# real fixtures, not just pass synthetic unit tests.
 rust-test:
     cargo test --manifest-path rust/Cargo.toml
 
