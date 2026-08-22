@@ -1,0 +1,8 @@
+[package]
+name = "sysml_parser_spike"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sysml-v2-parser = "0.54.0"
+syster-base = "0.5.1-alpha"

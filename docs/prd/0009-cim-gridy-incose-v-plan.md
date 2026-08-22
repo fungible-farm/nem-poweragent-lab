@@ -1,6 +1,7 @@
 # 0009 — cim-gridy: INCOSE-V prioritized plan, Rust/Bevy-first
 
-- **Status:** proposed
+- **Status:** Phase 0 (a-e) complete, real evidence for every spike (Lab 8,
+  `labs/08-cim-gridy-phase0-spikes/`); Phase 1 not started
 - **Depends on:** 0006 (Lab 6 SysML v2 digital-thread MVP), 0007 (Lab 6 Phase 4a CIM class-URI
   traceability), 0008 (cim-gridy Phase 0 prerequisites)
 - **Touches:** this PRD file + `docs/prd/README.md`'s index row only — no code, no installs, no
@@ -140,20 +141,59 @@ datums (confirmed via `b00t datum search`, all empty):**
 4. **Detailed design** — the crate table above, per-component ↔ **Unit/component test**: does each
    piece work in isolation first (Phase 0 spikes below)?
 
-## Phasing (bottom of the V — implementation, still all spikes, nothing committed)
+## Phasing (bottom of the V — implementation)
 
-- **Phase 0a:** Grid2Op spike against existing CSIRO case data (unchanged from PRD-0008).
-- **Phase 0b:** SysML v2 native-Rust parser spike — try `sysml-v2-parser` and/or `syster-base`
-  against a real `GfSE/SysML-v2-Models` fixture and Lab 6's own existing `.sysml` output,
-  timeboxed, real verdict either way. Supersedes PRD-0006/0008's JVM-first framing.
-- **Phase 0c:** `sensmetry/sysand` native Rust CLI spike — does the pure-Rust package-manager CLI
-  work standalone, bypassing the Maven/JNI layer entirely?
-- **Phase 0d:** `ufo-types` + `scryer-prolog` integration-shape spike (build/link smoke test
-  only).
-- **Phase 0e:** OperatorFabric real-tool spike, weighed explicitly against a Bevy-native card UI
-  built directly in Bevy's own UI system (OperatorFabric's card/feed *concept* as inspiration, not
-  an assumed dependency, once everything else in the stack is Rust-native).
-- **Phase 1:** one minimal end-to-end mission proving the full architecture chain above.
+**Phase 0 (a-e) complete as of 2026-08-22** — all five spikes run for real (parallel sub-agents,
+per this PRD's own "use sub-agents heavily" mandate), each with an honest, evidence-based verdict.
+Full detail: `labs/08-cim-gridy-phase0-spikes/README.md` (synthesis) and each spike's own
+subdirectory README.
+
+- **Phase 0a (done):** Grid2Op spike against existing CSIRO case data (`data/snemSA.m`). **Real
+  success, with real friction**: three independent bugs found and fixed by reading source, not
+  docs — grid2op 1.12.5's published PyPI wheel is missing `typing_variables.py` (worked around with
+  `--no-binary-package`), a pandapower 3.5.4 `to_json`/`from_json` round-trip bug for nets that
+  already passed through `from_json_string` once (this repo's own `gridfit.load_case` does exactly
+  that), and `PandaPowerBackend`'s dense-0..N-1-bus-index assumption (`snemSA.m`'s real IDs are
+  non-sequential). One real episode ran end-to-end post-fix (503 buses, 698 lines, 186 loads, 57
+  gens; `env.reset()`/`env.step(do_nothing)` both succeeded on the real converged power flow).
+  Verdict: viable, but budget real engineering time — "wraps cleanly" is false as shipped.
+  See `labs/08-cim-gridy-phase0-spikes/0a-grid2op/README.md`.
+- **Phase 0b (done):** SysML v2 native-Rust parser spike. **Both `sysml-v2-parser` (63.9% of 36
+  real `GfSE/SysML-v2-Models` fixtures) and `syster-base` (69.4%) parse cleanly, no crashes, real
+  diagnostics on failures** (this repo's own Lab 6 `.sysml` output: 3/3 on both). Supersedes
+  PRD-0006/0008's JVM-first framing entirely. **Recommendation: `sysml-v2-parser` as primary** —
+  lighter dependency footprint (17 vs. 82+ packages), explicit strict/lenient API matching this
+  repo's syntax-gate use case; `syster-base` not disqualified, better long-term bet if LSP/editor
+  tooling is ever wanted. See `labs/08-cim-gridy-phase0-spikes/0b-sysml-v2-parser/README.md`.
+- **Phase 0c (done):** `sensmetry/sysand` native Rust CLI spike. **Yes — works fully standalone,
+  zero JVM/Maven/JNI anywhere** (`ldd` confirms only glibc/libgcc/libm linked). Real `init` →
+  `include` → `build` pipeline produced a genuine spec-shaped KPAR (ZIP) archive from a real
+  `.sysml` file (Lab 6's `grid_topology.sysml`); `include` does real lightweight syntax checking
+  (rejects garbage input) but is not a semantic parser — pairs with Phase 0b's parser choice for
+  that. Clears the exact `UnsatisfiedLinkError` dead end that blocked Lab 6's original toolchain.
+  See `labs/08-cim-gridy-phase0-spikes/0c-sysand-cli/README.md`.
+- **Phase 0d (done):** `ufo-types` + `scryer-prolog` integration-shape spike (build/link smoke test
+  only, as scoped). **Both crates build, link, and run together with no dependency conflicts**
+  (real `UfoStereotype`/`Satisfies<C>` example and a real Prolog transitive-closure query both
+  produced correct output). Real caveat found: `scryer-prolog` panics on an internal UB-check
+  inside its own `Heap::clear`/`dealloc`, **debug-profile builds only** — release builds
+  unaffected, zero `ufo_types` involvement in the panic. Recommendation: proceed with this pairing
+  for Phase 3, release builds (or `debug-assertions = false`) until upstream resolves it.
+  See `labs/08-cim-gridy-phase0-spikes/0d-ufo-types-scryer-prolog/README.md`.
+- **Phase 0e (done):** OperatorFabric real-tool spike, weighed against a Bevy-native card UI.
+  **Real deployment footprint confirmed heavy**: light dev-mode is still 11 containers / ~1.9GB;
+  a real bring-up attempt hit a precisely-diagnosed host policy blocker (short-name image
+  resolution enforcement), fixed and confirmed, but a full `Running`+healthy stack would plausibly
+  take 20-30+ minutes on this shared host. **Recommendation: build the card feed natively in
+  Bevy** — `bevy_ui`'s flexbox layout, first-party scroll (`ScrollPosition`/`Overflow::scroll()`),
+  and card styling (`BorderRadius`/`BackgroundColor`/`BoxShadow`) are all confirmed real and
+  current via Bevy's own example suite; zero new dependency, since Bevy 0.19 is already this
+  project's chosen engine. OperatorFabric's `Card` data model (severity/process/timestamp) kept as
+  a design reference, not adopted as a runtime dependency.
+  See `labs/08-cim-gridy-phase0-spikes/0e-operatorfabric-vs-bevy/README.md`.
+- **Phase 1 (not started, depends on 0a-0e — all now satisfied):** one minimal end-to-end mission
+  proving the full architecture chain above, now with real, evidence-grounded tool choices instead
+  of proposed ones.
 - **Phase 2:** connect Lab 6/PRD-0007's schema layer to Phase 1's dynamic state.
 - **Phase 3:** the strategic-objective optimizer, built on `ufo-types`' DARE types +
   `scryer-prolog`.
@@ -180,14 +220,22 @@ this repo's own scope to execute directly, flagged for the user.
       NASA SE Handbook) rather than paraphrased from general knowledge.
 - [x] Bevy's external-simulation integration pattern grounded in a real precedent (`bevy_rapier`),
       not hypothesized.
-- [ ] Reviewed and approved by the user before any Phase 0 spike work begins.
+- [x] Reviewed and approved by the user before any Phase 0 spike work begins (approved 2026-08-22 --
+      "phase zero is completely approved"). Spikes 0a-0e proceed in the order listed below.
 
 ## Open questions
 
-- OperatorFabric vs. Bevy-native cards (Phase 0e).
-- `sysml-v2-parser` vs. `syster-base` as the primary parser, once both are spiked (Phase 0b).
-- Whether `sensmetry/sysand`'s Rust CLI alone is sufficient or the Maven-wrapped workflow is still
-  needed for anything (Phase 0c).
+- ~~OperatorFabric vs. Bevy-native cards (Phase 0e).~~ **Resolved 2026-08-22**: build in Bevy — see
+  Phasing above.
+- ~~`sysml-v2-parser` vs. `syster-base` as the primary parser, once both are spiked (Phase 0b).~~
+  **Resolved 2026-08-22**: `sysml-v2-parser` primary — see Phasing above.
+- ~~Whether `sensmetry/sysand`'s Rust CLI alone is sufficient or the Maven-wrapped workflow is
+  still needed for anything (Phase 0c).~~ **Resolved 2026-08-22**: native CLI alone is sufficient,
+  Maven-wrapped path not needed for anything — see Phasing above.
+- **New from Phase 0a**: does grid2op ship a fixed wheel (packaging the missing
+  `typing_variables.py`) before Phase 1 pins a version? Not yet re-checked.
+- **New from Phase 0d**: is `scryer-prolog`'s debug-profile `Heap::clear` panic already a known
+  upstream issue, or worth filing? Not yet checked against their issue tracker.
 - Everything PRD-0008 already left open — CIM16-vs-CIM100, Semantic Energy Framework as a possible
   ontology anchor, Dynawo vs. DPsim for dynamics-timescale missions — still open, not revisited
   this session.
