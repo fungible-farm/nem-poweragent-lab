@@ -1,0 +1,77 @@
+[package]
+name = "mission-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "cim-gridy PRD-0009 Phases 1-3: minimal end-to-end grid-operator mission (Bevy + Grid2Op + SysML v2 + ufo-types/scryer-prolog)"
+
+[dependencies]
+# Bevy 0.19 (PRD-0009's chosen engine, blessed.rs pick). default-features =
+# false keeps the headless path -- the only path `just check-lab9` exercises --
+# free of wgpu/winit/audio and the Linux system libs they need. The interactive
+# `bevy_ui` card feed (Lab 8 0e's verdict) lives behind the optional
+# `interactive` feature below; see labs/09-.../README.md "Design notes".
+bevy = { version = "0.19", default-features = false, features = ["std", "bevy_log", "async_executor"] }
+
+# ufo-types is NOT on crates.io (Lab 8 0d confirmed: `cargo add ufo-types
+# --dry-run` -> "could not be found in registry index"). Pinned to the exact
+# rev 0d resolved and validated against, per PRD-0009 Phase 0d's own
+# recommendation ("pin a commit or tag once one exists; 443482c was current").
+ufo-types = { git = "https://github.com/promptexecution/ufo-types", rev = "443482ce04966c2d0ff41af56941d06c2687eeb7" }
+
+# Reduced (pure-Rust) feature set proven by Lab 8 0d -- the published 0.10.0
+# has no `all-pure` meta-feature, and the default `tls`/`http`/`crypto-full`/
+# `ffi` set risks a system-openssl link. `repl`+`hostname` are what
+# MachineBuilder's config surface actually needs.
+scryer-prolog = { version = "0.10", default-features = false, features = ["repl", "hostname"] }
+
+# PRD-0009 Phase 0b's recommended primary SysML v2 parser.
+sysml-v2-parser = "0.54"
+
+# The mission FSM's guard expressions (the `rhai` crate directly -- NOT the
+# `ledgrrr` codebase; see README "Design notes").
+#
+# The `sync` feature is REQUIRED here, not stylistic: by default `rhai::Engine`
+# holds `Rc<Locked<Dynamic>>` and a non-Sync string interner, so it is neither
+# `Send` nor `Sync` -- and a Bevy `Resource` must be both. Real error, found by
+# compiling, not assumed. `sync` swaps rhai's internal `Rc`/`RefCell` for
+# `Arc`/`RwLock`.
+rhai = { version = "1.25", features = ["sync"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+# Phase 2's cross-check reads Lab 6's real LinkML instance YAML. serde_yaml
+# itself is archived/deprecated upstream; serde_norway is its maintained fork.
+# Test-only: nothing in the shipped binary parses YAML.
+serde_norway = "0.9"
+
+[features]
+default = []
+# Real window + bevy_ui card feed. Not built by `just check-lab9` (no other lab
+# in this repo needs a display); `just lab9-live` documents how to build it.
+#
+# Deliberately an explicit component list rather than Bevy's own `ui`
+# meta-feature. Real upstream packaging bug, found by trying it:
+#
+#   error: failed to select a version for the requirement `bevy_animation = "^0.19.1"`
+#   candidate versions found which didn't match: 0.19.0, 0.19.0-rc.3, ...
+#   required by package `bevy_internal v0.19.1`
+#
+# `bevy` 0.19.1 was published without a matching `bevy_animation` 0.19.1, so
+# every feature path that reaches `bevy_animation` (`ui` -> `default_app` ->
+# `scene` -> ...) is unresolvable on crates.io today. The component list below
+# stays clear of it and does build.
+interactive = [
+    "bevy/bevy_ui",
+    "bevy/bevy_ui_render",
+    "bevy/bevy_core_pipeline",
+    "bevy/bevy_winit",
+    "bevy/bevy_window",
+    "bevy/bevy_text",
+    "bevy/default_font",
+    "bevy/x11",
+]

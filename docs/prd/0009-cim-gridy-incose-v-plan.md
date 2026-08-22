@@ -1,7 +1,9 @@
 # 0009 — cim-gridy: INCOSE-V prioritized plan, Rust/Bevy-first
 
-- **Status:** Phase 0 (a-e) complete, real evidence for every spike (Lab 8,
-  `labs/08-cim-gridy-phase0-spikes/`); Phase 1 not started
+- **Status:** Phases 0-3 complete with real, runnable evidence — Phase 0 (a-e) as five spikes
+  (Lab 8, `labs/08-cim-gridy-phase0-spikes/`), Phases 1-3 as one working vertical slice
+  (Lab 9, `labs/09-cim-gridy-phase1-3-vertical-slice/` + `rust/mission-engine/`, gated by
+  `just check-lab9`). Phases 4-6 not started.
 - **Depends on:** 0006 (Lab 6 SysML v2 digital-thread MVP), 0007 (Lab 6 Phase 4a CIM class-URI
   traceability), 0008 (cim-gridy Phase 0 prerequisites)
 - **Touches:** this PRD file + `docs/prd/README.md`'s index row only — no code, no installs, no
@@ -191,12 +193,42 @@ subdirectory README.
   project's chosen engine. OperatorFabric's `Card` data model (severity/process/timestamp) kept as
   a design reference, not adopted as a runtime dependency.
   See `labs/08-cim-gridy-phase0-spikes/0e-operatorfabric-vs-bevy/README.md`.
-- **Phase 1 (not started, depends on 0a-0e — all now satisfied):** one minimal end-to-end mission
-  proving the full architecture chain above, now with real, evidence-grounded tool choices instead
-  of proposed ones.
-- **Phase 2:** connect Lab 6/PRD-0007's schema layer to Phase 1's dynamic state.
-- **Phase 3:** the strategic-objective optimizer, built on `ufo-types`' DARE types +
-  `scryer-prolog`.
+- **Phase 1 (done):** one minimal end-to-end mission, built as Lab 9
+  (`labs/09-cim-gridy-phase1-3-vertical-slice/`, `rust/mission-engine/`). The full chain runs in
+  one Bevy `App`: a real Grid2Op episode on `data/snemSA.m` (carrying all three of 0a's fixes,
+  plus 0a's own deferred "persist `bus_lookup`" recommendation) → a `bevy_rapier`-pattern
+  `Plugin`/`Resource`/`System` bridge (committed JSONL fixture or the real subprocess) →
+  `sysml-v2-parser` on Lab 6's real model → `ufo-types`' `Satisfies<C>` **actually calling into a
+  real `scryer-prolog` `Machine`** (the integration 0d explicitly deferred) → a TOML/Rhai mission
+  FSM rendering to a committed Mermaid fixture. Real evidence: `just check-lab9` runs 17 tests
+  green (`cargo test -p mission-engine --release`), asserting exact per-step reference values over
+  a real 5-step episode (base → real N-1 trip of `line_4125_4128` → real reclose) and the exact
+  `Briefing→Monitoring→ContingencyDetected→MitigationSelected→Resolved` path. `just lab9-live`
+  also ran for real this session against the live grid2op subprocess.
+  **Two honest scope-downs, both documented in Lab 9's README rather than papered over:** the
+  mission's rho limit is 0.030, not 1.0 (a sweep of all 19 cluster N-1 outages measured a maximum
+  achievable rho of 0.0376 — `snemSA.m`'s branch ratings are effectively unconstrained, the same
+  synthetic-case artifact Lab 6 already flags), and the live bridge's action vocabulary is
+  `do_nothing` only. **Three real bugs found and fixed**, in the same spirit as 0a's three:
+  `rhai::Engine` is neither `Send` nor `Sync` without its `sync` feature (a Bevy `Resource` must be
+  both); the live bridge's first run printed nothing because the non-blocking Bevy drain raced the
+  subprocess's ~60 s startup; and Bevy's own `ui` meta-feature is unresolvable on crates.io today
+  (`bevy` 0.19.1 was published without a matching `bevy_animation` 0.19.1), so the optional
+  interactive `bevy_ui` card feed lists its Bevy components explicitly instead.
+- **Phase 2 (done):** Lab 6/PRD-0007's schema layer connected to Phase 1's dynamic state —
+  `rust/mission-engine/src/cim_trace.rs` walks the real SysML v2 AST for `cimClassUri` values,
+  attaches them as a Bevy `Component`, and joins Lab 6's static bus identity to the live grid2op
+  substation id through the now-persisted `bus_lookup.json`. `tests/cim_traceability.rs` asserts
+  all 39 extracted `(name, cimClassUri)` pairs match `grid_instances.yaml` exactly, and that every
+  cluster bus resolves through the real 503-entry lookup.
+- **Phase 3 (done):** the strategic-objective optimizer, on `ufo-types`' real DARE types +
+  `scryer-prolog` — `rust/mission-engine/src/optimizer.rs` ranks three candidate remedial actions
+  for the fixed `n1_line_4125_4128` contingency, each scored by the same real Prolog-backed
+  `Satisfies<GridSecurityObjective>`, from post-action loadings measured in three separate real
+  grid2op what-if runs. `tests/optimizer_ranking.rs` asserts the exact ranking
+  (`reclose_line_4125_4128` satisfied at confidence 1.0; `do_nothing` and `open_line_4117_4131`
+  both violated at 1 − 2/19 = 0.894737, separated only by their real measured rho_max) and that
+  the resulting `DaredProposal` validates and clears `OodaStateMachine`'s `Decide → Act` gate.
 - **Phase 4:** geographic positioning (real gap, `georust` not yet evaluated) + standardized
   iconography.
 - **Phase 5:** the rename + narrative rewrite.
@@ -232,8 +264,12 @@ this repo's own scope to execute directly, flagged for the user.
 - ~~Whether `sensmetry/sysand`'s Rust CLI alone is sufficient or the Maven-wrapped workflow is
   still needed for anything (Phase 0c).~~ **Resolved 2026-08-22**: native CLI alone is sufficient,
   Maven-wrapped path not needed for anything — see Phasing above.
-- **New from Phase 0a**: does grid2op ship a fixed wheel (packaging the missing
-  `typing_variables.py`) before Phase 1 pins a version? Not yet re-checked.
+- ~~**New from Phase 0a**: does grid2op ship a fixed wheel (packaging the missing
+  `typing_variables.py`) before Phase 1 pins a version?~~ **Re-checked during Phase 1 (Lab 9)**:
+  still broken. PyPI's current grid2op is 1.12.5, the same release 0a diagnosed, and
+  `--no-binary-package grid2op` is still required — it is now a documented, permanent requirement
+  in Lab 9's `grid2op_bridge.py`, `generate_fixture.py`, and the `just lab9-live`/`lab9-fixture`
+  recipes rather than a spike workaround.
 - **New from Phase 0d**: is `scryer-prolog`'s debug-profile `Heap::clear` panic already a known
   upstream issue, or worth filing? Not yet checked against their issue tracker.
 - Everything PRD-0008 already left open — CIM16-vs-CIM100, Semantic Energy Framework as a possible
