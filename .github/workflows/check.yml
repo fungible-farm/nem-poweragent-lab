@@ -41,7 +41,7 @@ jobs:
       - name: Fetch CSIRO case data
         run: just fetch
 
-      - name: Per-lab check gates (labs 1-8)
+      - name: Per-lab check gates (labs 1-9)
         run: just check
 
       - name: Rust workspace tests (phase-model, demo-app, fft-detector)

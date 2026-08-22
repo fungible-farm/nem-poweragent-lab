@@ -1,0 +1,61 @@
+# Lab 9 Phase 1 -- the mission state machine, as data.
+#
+# PRD-0009 cites `ledgrrr`'s "TOML -> Rhai FSM -> Mermaid -> Rust enum" pipeline
+# as a ready-made pattern for the mission/calendar-step loop. This file is that
+# pattern implemented DIRECTLY against the `rhai` crate: `ledgrrr` itself is a
+# large, unrelated local FinOps-ledger product (~/.dotfiles/vendor/ledgrrr) and
+# is neither vendored nor depended on here -- only its shape is borrowed.
+#
+# Every `guard` below is a real Rhai boolean expression, evaluated by
+# `rust/mission-engine/src/mission_fsm.rs` against a `rhai::Scope` populated
+# from the current grid2op observation each tick. Variables in scope:
+#
+#   step             (int)   the observation's own step number
+#   rho_max          (float) highest branch loading in Lab 6's cluster
+#   rho_limit        (float) GridSecurityObjective's limit (0.030 -- see README)
+#   overloaded_count (int)   branches the scryer-prolog query proved overloaded
+#   total_lines      (int)   branches in the cluster (19)
+#
+# `states` is cross-checked against the `MissionPhase` Rust enum by a unit test
+# (`mission_fsm::tests::toml_states_match_the_rust_enum`) -- code and data must
+# not drift.
+
+states = [
+    "Briefing",
+    "Monitoring",
+    "ContingencyDetected",
+    "MitigationSelected",
+    "Resolved",
+]
+
+initial = "Briefing"
+
+[[transitions]]
+from = "Briefing"
+to = "Monitoring"
+guard = "true"
+label = "brief accepted"
+
+[[transitions]]
+from = "Monitoring"
+to = "ContingencyDetected"
+guard = "rho_max > rho_limit"
+label = "branch over limit"
+
+[[transitions]]
+from = "ContingencyDetected"
+to = "MitigationSelected"
+guard = "overloaded_count > 0"
+label = "candidate ranked"
+
+[[transitions]]
+from = "MitigationSelected"
+to = "Resolved"
+guard = "rho_max <= rho_limit"
+label = "cluster secure again"
+
+[[transitions]]
+from = "MitigationSelected"
+to = "ContingencyDetected"
+guard = "overloaded_count > total_lines / 2"
+label = "mitigation made it worse"

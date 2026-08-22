@@ -53,6 +53,8 @@ its own tutorial `README.md` plus a `Containerfile` to run it with zero local se
 | [`05-spartan-chaosnet-transient-stream`](labs/05-spartan-chaosnet-transient-stream/) | millisecond-scale fault physics + a real corrective controller | real 200µs-timestep physics solve (DPsim), real streaming pipeline |
 | [`06-sysml-digital-thread`](labs/06-sysml-digital-thread/) | evaluating SysML v2/MBSE for AI-workflow and grid-topology modelling | real repo inventory (Track A) + a real bus/generator/line cluster from CSIRO `snemSA.m` (Track B) |
 | [`07-rust-comtrade-fft-detector`](labs/07-rust-comtrade-fft-detector/) | an independent Rust FFT detector reading back a real relay/DFR file format | real `realfft`/`rustfft` FFT, real COMTRADE (IEEE C37.111) file round trip |
+| [`08-cim-gridy-phase0-spikes`](labs/08-cim-gridy-phase0-spikes/) | five real-tool spikes answering cim-gridy's Phase-0 technology questions | real Grid2Op episode on CSIRO `snemSA.m`, real SysML v2 parsers, real `ufo-types`/`scryer-prolog` build |
+| [`09-cim-gridy-phase1-3-vertical-slice`](labs/09-cim-gridy-phase1-3-vertical-slice/) | one minimal grid-operator mission end to end: Grid2Op → Bevy → SysML v2 → ontology/constraint → mission FSM → DARE optimizer | real Grid2Op N-1 trip/reclose on CSIRO `snemSA.m`, real `scryer-prolog` proof search |
 
 Start with [`docs/VISION.md`](docs/VISION.md) for the full architecture and the reasoning behind
 each technology choice. [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) is the checklist

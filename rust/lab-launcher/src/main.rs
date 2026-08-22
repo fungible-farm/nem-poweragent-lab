@@ -78,6 +78,12 @@ const LABS: &[Lab] = &[
         description: "Grid2Op, SysML v2 parsers, sysand, ufo-types+scryer-prolog, OperatorFabric vs. Bevy.",
         recipe: "check-lab8",
     },
+    Lab {
+        number: "9",
+        title: "cim-gridy Phases 1-3 — one real vertical slice",
+        description: "Grid2Op -> Bevy -> SysML v2 -> scryer-prolog objective -> mission FSM -> DARE optimizer.",
+        recipe: "check-lab9",
+    },
 ];
 
 fn run_recipe(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, recipe: &str) -> io::Result<()> {

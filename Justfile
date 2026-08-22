@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
@@ -144,6 +144,55 @@ check-lab7:
 check-lab8:
     cargo run --manifest-path labs/08-cim-gridy-phase0-spikes/0b-sysml-v2-parser/Cargo.toml --release
     cargo run --manifest-path labs/08-cim-gridy-phase0-spikes/0d-ufo-types-scryer-prolog/Cargo.toml --release
+
+# Lab 9 (cim-gridy PRD-0009 Phases 1-3): the full mission chain -- grid2op
+# observation -> Bevy ECS -> SysML v2 type layer -> ufo-types/scryer-prolog
+# objective -> Rhai mission FSM -> Mermaid -> DARE optimizer -- asserted
+# against exact reference values.
+#
+# Deterministic and offline: the tests read the committed
+# labs/09-.../fixtures/episode_observations.jsonl and NEVER spawn the real
+# grid2op subprocess (that needs a local uv + grid2op install and a built
+# dataset_snemSA/) -- same exclusion reasoning Lab 8 gives spike 0a. Use
+# `just lab9-live` for the real bridge.
+#
+# --release is REQUIRED, not a preference: Lab 8 0d documented a real,
+# reproducible debug-profile-only panic inside scryer-prolog's own
+# Heap::clear (a rustc ub_checks NonNull assertion), unrelated to ufo-types.
+# A debug build here would be a false-negative CI failure, not a regression.
+#
+# -p mission-engine keeps this scoped: an unscoped
+# `cargo test --manifest-path rust/Cargo.toml` now also builds Bevy +
+# scryer-prolog + sysml-v2-parser + rhai, which check-lab7's own
+# -p fft-detector scoping already avoids.
+check-lab9:
+    cargo test --manifest-path rust/Cargo.toml -p mission-engine --release
+
+# Lab 9 against the REAL grid2op subprocess (needs `just lab9-dataset` first,
+# and takes ~1-2 min just to import grid2op and build the 503-bus env).
+lab9-live:
+    cargo run --manifest-path rust/Cargo.toml -p mission-engine --release -- --grid2op-live
+
+# Lab 9: build the grid2op dataset from data/snemSA.m (carries Lab 8 0a's
+# three real pandapower/grid2op fixes; writes the gitignored dataset_snemSA/
+# plus the committed fixtures/bus_lookup.json).
+lab9-dataset:
+    uv run labs/09-cim-gridy-phase1-3-vertical-slice/build_dataset.py
+
+# Lab 9: regenerate the committed episode + contingency-candidate fixtures
+# from real grid2op runs. Only needed if the case data or the scenario change
+# -- `just check-lab9` (fast, no grid2op) is what CI actually runs.
+lab9-fixture:
+    uv run --with grid2op --with pyyaml --no-binary-package grid2op python \
+        labs/09-cim-gridy-phase1-3-vertical-slice/generate_fixture.py
+
+# Lab 9: re-derive the README's N-1 outage sweep table for real (the numbers
+# that ground RHO_LIMIT = 0.030 in generate_fixture.py) -- a committed,
+# re-runnable script, not an ad hoc session transcript (AGENTS.md: "the proof
+# scripts are the proof"). Read-only diagnostic, writes no fixture.
+lab9-sweep:
+    uv run --with grid2op --no-binary-package grid2op python \
+        labs/09-cim-gridy-phase1-3-vertical-slice/sweep_outages.py
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -258,13 +307,20 @@ villasnode-down:
 lab5-villasnode: villasnode-up villasnode-verify villasnode-down
 
 # --- Rust / WASM (the oxidized phase_model, PSCADOSSE) -----------------------
-# Native tests across all 3 workspace members (phase-model, demo-app,
-# fft-detector) -- includes real_log_matches_python (phase-model) and
+# Native (debug-profile) tests across the workspace -- includes
+# real_log_matches_python (phase-model) and
 # local_mode_matches_python_reference/inter_area_mode_matches_python_reference
 # (fft-detector): the Rust ports must match the Python numbers exactly on
 # real fixtures, not just pass synthetic unit tests.
+#
+# mission-engine is EXCLUDED here and only here, and the reason is real, not
+# stylistic: its objective layer calls into scryer-prolog, which aborts
+# (SIGABRT, "unsafe precondition(s) violated: NonNull::new_unchecked") inside
+# its own Heap::clear under rustc's debug ub_checks. Lab 8 0d found this;
+# Lab 9 re-confirmed it reproduces here. Release builds are unaffected, so
+# `just check-lab9` is what actually tests this crate.
 rust-test:
-    cargo test --manifest-path rust/Cargo.toml
+    cargo test --manifest-path rust/Cargo.toml --workspace --exclude mission-engine
 
 # Build the simulation crate to WASM (the "sim compiled into wasm, shipped to
 # the browser" piece the Dioxus UI will load client-side).

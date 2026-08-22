@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> Briefing
+    Briefing
+    Monitoring
+    ContingencyDetected
+    MitigationSelected
+    Resolved
+    Briefing --> Monitoring: brief accepted [true]
+    Monitoring --> ContingencyDetected: branch over limit [rho_max > rho_limit]
+    ContingencyDetected --> MitigationSelected: candidate ranked [overloaded_count > 0]
+    MitigationSelected --> Resolved: cluster secure again [rho_max <= rho_limit]
+    MitigationSelected --> ContingencyDetected: mitigation made it worse [overloaded_count > total_lines / 2]
+    Resolved --> [*]
