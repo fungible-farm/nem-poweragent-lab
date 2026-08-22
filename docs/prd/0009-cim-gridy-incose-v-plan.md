@@ -335,12 +335,15 @@ this repo's own scope to execute directly, flagged for the user.
     (CLIF/FOL/regulatory layer, see above), `ufo-types`, `b00t`, `open-mbee`
     (github.com/Open-MBEE), and the SysML crates Lab 8 0b spiked (`sysml-v2-parser`/
     `syster-base`). Not yet built.
-  - **`b00t` should manage `open-mbee`** (github.com/Open-MBEE) — **unverified this session**: no
-    spike has looked at Open-MBEE's real architecture (it's historically a NASA JPL-originated
-    Java/MMS-based MBSE stack — Alfresco, a Model Management System, View Editor — materially
-    different from the native-Rust SysML v2 tooling Lab 8 0b/0c already chose; how it fits
-    alongside those choices, and what "b00t manages it" concretely means, both need a real spike
-    before any decision, same discipline as Phase 0's own five spikes).
+  - ~~**`b00t` should manage `open-mbee`** (github.com/Open-MBEE) — **unverified this session**:
+    no spike has looked at Open-MBEE's real architecture...~~ **Spiked and resolved 2026-08-22**
+    (see the MECE table's Open-MBEE row below): Open-MBEE has moved past the legacy Java/Alfresco/
+    MMS stack to "Flexo" — RDF/SPARQL (Apache Jena Fuseki), with its own published MCP servers
+    (`flexo-mms-layer1-mcp`, `flexo-mms-sysmlv2-mcp`). "`b00t` manages it" turned out to mean
+    exactly what it means for `ledgrrr`: register the upstream MCP server as a `b00t` MCP datum.
+    Done — `_b00t_/flexo-mms-{layer1,sysmlv2}-mcp.mcp.toml`. No `ufo-types`/SysML-parser-crate
+    involvement needed; this is a network-service integration, orthogonal to the SysML-codegen
+    question below.
   - **`ufo-types` should own the canonical SysML code representations, generators, and other
     codegen** — the user's suggestion is that it may make sense to relocate *all* SysML capability
     into `ufo-types` itself, rather than `mission-engine` depending on `sysml-v2-parser` directly
@@ -396,7 +399,7 @@ this table is planning input only.
 | CIM class-URI static annotation + live grid2op index join | `cim-gridy` | Game/simulation-specific glue, correctly scoped, no ambiguity | High |
 | Bevy↔Grid2Op bridge, card-feed UI, candidate-ranking policy | `cim-gridy` | Game-specific, no ambiguity | High |
 | `b00t` CLI (hive/task/agent orchestration, datum registry) | `b00t` itself | Not currently an MBSE/SysML tool; has a real but unbuilt PRD (`~/_b00t_/_b00t_/datums/PRD-ONTOLOGY-OODA-UFO-SYSML.tomllmd`, status=proposed) modeling a KerML/UFO layer on `ledgrrr`'s own KerML type format and `Endurant`/`Perdurant`/`Moment` vocabulary — a *third* potential future ontology surface if built, not yet real, not actioned here | High |
-| Open-MBEE / Flexo MMS (RDF/SPARQL graph-native MBSE, Apache Jena Fuseki, TriG config) | external upstream (`github.com/Open-MBEE`) | Confirmed real, actively developed, transitioning off legacy Java/Alfresco. Not a Cargo dependency — any integration is an RDF/SPARQL HTTP client, a different integration shape than everything else in this table. "`b00t` should manage it" remains **unverified/unbuilt** (no `b00t` datum exists) — still Open, as originally scoped above | High (Open-MBEE's own architecture), Open (`b00t` management claim) |
+| Open-MBEE / Flexo MMS (RDF/SPARQL graph-native MBSE, Apache Jena Fuseki, TriG config) | `b00t` (via MCP datum, not a Cargo dependency) | **Resolved 2026-08-22** (was Open). Open-MBEE publishes its own MCP servers — `flexo-mms-layer1-mcp` and `flexo-mms-sysmlv2-mcp` (FastMCP/Python, streamable-HTTP) — wrapping the Flexo MMS REST API. `b00t` doesn't need an adapter, only to register them, which was done: `_b00t_/flexo-mms-layer1-mcp.mcp.toml` + `_b00t_/flexo-mms-sysmlv2-mcp.mcp.toml` in `elasticdotventures/_b00t_` (`feat/assimilate-ssh-mcp` branch), same MCP-datum orchestration pattern already used for `ledgerr-mcp` (row above) — confirming the user's framing that `b00t` provides one uniform orchestration surface for executing logic in `ledgrrr` *and others*, Open-MBEE included. Registering these surfaced and fixed a real b00t bug along the way: the MCP registry's datum sync only ever read `[[b00t.mcp.stdio]]`, silently mis-registering any HTTP-transport server (these two, plus a pre-existing `ory-hydra` datum) with a bogus `command="npx"` and no URL — fixed by adding a `url` field to `McpServerConfig` and an httpstream extraction branch. Both Flexo servers still require a real running Flexo backend to actually call (referenced the genuine `open-mbee/flexo-mms-deployment` docker-compose stack — openldap → Jena Fuseki quad-store → minio → auth-service → store-service → layer1-service — rather than guessing); standing that up is a separate, deliberate infra decision, not done here | High |
 
 **What's still explicitly deferred past this pass** (per this Wave's own scope): reconciling the
 two `ufo-types` implementations; any new code touching `mission-engine` or `ledgrrr` source; the
