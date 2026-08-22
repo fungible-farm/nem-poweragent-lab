@@ -1,0 +1,48 @@
+name: check
+
+# Runs the same gate a contributor runs locally -- AGENTS.md "the proof
+# scripts are the proof, not a transcript". No separate CI-only script: this
+# workflow is a thin wrapper around `just fetch` / `just check` / `just
+# rust-test`, so a green run here means a clean checkout reproduces it too.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust
+            labs/08-cim-gridy-phase0-spikes/0b-sysml-v2-parser
+            labs/08-cim-gridy-phase0-spikes/0d-ufo-types-scryer-prolog
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Sync Python deps
+        run: just sync
+
+      - name: Fetch CSIRO case data
+        run: just fetch
+
+      - name: Per-lab check gates (labs 1-8)
+        run: just check
+
+      - name: Rust workspace tests (phase-model, demo-app, fft-detector)
+        run: just rust-test

@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
@@ -128,6 +128,22 @@ check-lab7:
         labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.cfg \
         labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.dat \
         --check labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.expected.json
+
+# Lab 8 (cim-gridy Phase 0 spikes): build+run smoke test for the two
+# standalone, deterministic, offline-after-fetch crates (0b sysml-v2-parser,
+# 0d ufo-types+scryer-prolog -- both intentionally outside the rust/
+# workspace, see labs/08-cim-gridy-phase0-spikes/README.md). --release is
+# required for 0d: the spike's own README documents a real debug-profile-only
+# scryer-prolog panic, so a debug build here would be a false-negative CI
+# failure, not a regression. 0a/0c/0e are excluded on purpose -- they need
+# CSIRO grid2op data + a patched pandapower round-trip, a network clone of
+# sysand to scratch, and a multi-container OperatorFabric stack respectively,
+# none of which fit a repeatable CI check (they're throwaway spikes, not
+# fixtures -- same distinction Labs 1-7 draw between committed fixtures and
+# one-off investigation scripts).
+check-lab8:
+    cargo run --manifest-path labs/08-cim-gridy-phase0-spikes/0b-sysml-v2-parser/Cargo.toml --release
+    cargo run --manifest-path labs/08-cim-gridy-phase0-spikes/0d-ufo-types-scryer-prolog/Cargo.toml --release
 
 # --- notebook playbook (docs/backlog/0005) ----------------------------------
 # Executes notebooks/lab_playbook.py (jupytext `percent` format -- plain
@@ -281,6 +297,13 @@ demo-stop:
 # terminal (no browser needed).
 demo-tui:
     ./scripts/demo.sh
+
+# Lab launcher (issue #18): a ratatui menu of all 8 labs -- number, name,
+# one-line description -- that dispatches to each lab's own `just` recipe on
+# Enter (lab1..lab6, check-lab7, check-lab8; see rust/lab-launcher). Separate
+# from demo-tui, which lists rendered visualizations, not labs.
+launch:
+    cargo run --manifest-path rust/Cargo.toml -p lab-launcher --release
 
 # chafa-render a named committed chart straight into the SSH terminal.
 # `just peek` lists the named charts; `just peek <name>` renders one.

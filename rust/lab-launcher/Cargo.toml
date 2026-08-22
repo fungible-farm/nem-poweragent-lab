@@ -1,0 +1,14 @@
+[package]
+name = "lab-launcher"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Terminal launcher menu for the nem-poweragent-lab labs -- lists each lab's number/name/one-line description and dispatches to its own run/check/demo command (issue #18)."
+
+[[bin]]
+name = "lab-launcher"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
