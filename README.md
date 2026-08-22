@@ -38,7 +38,7 @@ one place, so each lab doesn't have to re-explain it:
   a network connection, conceptually similar to a REST API but designed for AI agents. One of the
   three pillars this repo's [source paper](#citation) is built around.
 
-## The six labs
+## The seven labs
 
 Every lab uses real public data (CSIRO's Synthetic-NEM-2000-Bus grid model, real historical AEMO
 market data, or a real physics solver), checks its own result against a known-good answer, and has
@@ -52,6 +52,7 @@ its own tutorial `README.md` plus a `Containerfile` to run it with zero local se
 | [`04-aemo-digital-twin-reconciliation`](labs/04-aemo-digital-twin-reconciliation/) | comparing a model's prediction against what the real grid actually did | real live AEMO market-data pull, real `pandapower.runpp()` |
 | [`05-spartan-chaosnet-transient-stream`](labs/05-spartan-chaosnet-transient-stream/) | millisecond-scale fault physics + a real corrective controller | real 200µs-timestep physics solve (DPsim), real streaming pipeline |
 | [`06-sysml-digital-thread`](labs/06-sysml-digital-thread/) | evaluating SysML v2/MBSE for AI-workflow and grid-topology modelling | real repo inventory (Track A) + a real bus/generator/line cluster from CSIRO `snemSA.m` (Track B) |
+| [`07-rust-comtrade-fft-detector`](labs/07-rust-comtrade-fft-detector/) | an independent Rust FFT detector reading back a real relay/DFR file format | real `realfft`/`rustfft` FFT, real COMTRADE (IEEE C37.111) file round trip |
 
 Start with [`docs/VISION.md`](docs/VISION.md) for the full architecture and the reasoning behind
 each technology choice. [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) is the checklist

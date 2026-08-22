@@ -1,0 +1,24 @@
+[package]
+name = "fft-detector"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Rust FFT-based oscillation detector reading COMTRADE (IEEE C37.111) files -- a testbench proving virtual-signal generate/detect end-to-end before real relay/DFR hardware is in the loop."
+
+[[bin]]
+name = "fft-detector"
+path = "src/main.rs"
+
+[lib]
+name = "fft_detector"
+path = "src/lib.rs"
+
+[dependencies]
+phase-model = { path = "../phase-model" }
+realfft = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
+
+[features]
+python = ["pyo3"]

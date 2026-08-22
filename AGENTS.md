@@ -31,7 +31,7 @@ that holds for every session. Two governing rules:
 | CSIRO case fetch (`scripts/fetch_csiro_nem_data.py`) | any lab agent | `raw.githubusercontent.com` reachable (this is how Lab 4's real DUID data works) | fetch fails → env mismatch → inform user |
 | PyPI / `uv sync` / `uv run` | any lab agent | `pypi.org` reachable; `uv` installed | `uv sync` fails → env mismatch → inform user |
 | `github.com` / `gh` / `git` | any lab agent | session-dependent (documented baseline: blocked; observed reachable once, 2026-08-02) | `gh`/`git`/`curl` fails → env mismatch → inform user |
-| `crates.io` (`cargo install`) | any lab agent | blocked — 403 (observed 2026-08-02) | install fails → env mismatch → inform user |
+| `crates.io` (`cargo add`/`cargo build`) | any lab agent | session-dependent (documented baseline: blocked — 403, observed 2026-08-02; reachable again, `cargo add --dry-run` resolved cleanly, observed 2026-08-21 building `rust/fft-detector`) | fetch/build fails → env mismatch → inform user; do not assume blocked without a real test in this session |
 | codebase-memory skill | `codebase-memory` skill | `codebase-memory-mcp` on PATH, registered in repo `.mcp.json` | handshake / `list_projects` fails → env mismatch → inform user |
 | demo display (`just peek` / `just watch`) | demo/display workflow | `chafa` + `mpv` on PATH (install.sh step 7 / `just deploy`) | `command -v` empty → run `just deploy` or inform user |
 | animation render (`just render`) | demo workflow | system `ffmpeg` | ffmpeg missing → env mismatch → inform user |

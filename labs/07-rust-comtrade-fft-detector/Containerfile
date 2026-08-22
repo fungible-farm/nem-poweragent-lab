@@ -1,0 +1,42 @@
+# labs/07-rust-comtrade-fft-detector/Containerfile -- builds and runs the
+# Rust FFT/COMTRADE detector's self-check (reads the two committed COMTRADE
+# fixtures, recovers the Python-computed reference oscillation-mode finding
+# for each). No local Rust toolchain install needed.
+#
+# Unlike every other lab's Containerfile, this one needs a Rust toolchain
+# on top of the shared Python base -- `nem-poweragent-base:local` (see
+# Containerfile.base's own header) has none. Installing rustup here rather
+# than a separate `FROM rust:slim` multi-stage build keeps this consistent
+# with the shared-base-layer pattern every other lab's Containerfile
+# follows (podman/docker layer cache reuses nem-poweragent-base:local
+# unchanged); the tradeoff is a larger final image than a true multi-stage
+# build would produce, judged acceptable for a testbench lab image.
+#
+# Build (from the repo root -- builds the shared base layer once, reused by
+# every other lab's own Containerfile; see Containerfile.base's own header):
+#   podman build -t nem-poweragent-base:local -f Containerfile.base .
+#   podman build -t lab7:local -f labs/07-rust-comtrade-fft-detector/Containerfile .
+#
+# Run (the same real check-lab7 chain `just check-lab7` runs natively):
+#   podman run --rm lab7:local
+FROM nem-poweragent-base:local
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+
+RUN cargo build --manifest-path rust/Cargo.toml -p fft-detector --release
+
+ENTRYPOINT ["sh", "-c"]
+CMD ["rust/target/release/fft-detector \
+        labs/07-rust-comtrade-fft-detector/fixtures/local_mode.cfg \
+        labs/07-rust-comtrade-fft-detector/fixtures/local_mode.dat \
+        --check labs/07-rust-comtrade-fft-detector/fixtures/local_mode.expected.json && \
+     rust/target/release/fft-detector \
+        labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.cfg \
+        labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.dat \
+        --check labs/07-rust-comtrade-fft-detector/fixtures/inter_area_mode.expected.json"]
