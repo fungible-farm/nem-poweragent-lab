@@ -287,9 +287,52 @@ this repo's own scope to execute directly, flagged for the user.
   evaluations as perdurant events) — so that the mission state machine is simultaneously the
   *executable* game logic and a **self-documenting artifact usable to satisfy requirement
   documents or manage regulatory filings**. The user states this CLIF/FOL/endurant-perdurant
-  layer is squarely **`ledgrrr`'s actual domain**, not a coincidental overlap. Not actioned this
+  layer is squarely **`ledgrrr`'s actual domain**, not a coincidental overlap. **Grounded as a
+  real ledgrrr issue**: `PromptExecution/ledgrrr#182` (filed 2026-08-22), which cross-references
+  `ledgrrr`'s own pre-existing, already-backlogged #114 (CLIF AST/interpreter) and #117
+  (RDF/triple-store knowledge graph) — confirmed via direct inspection of the `ledgrrr` repo that
+  its own vendored `ufo-types` crate (`~/.dotfiles/vendor/ledgrrr/crates/ufo-types`) already has
+  real `UfoCategory::{Endurant,Perdurant}`/`EndurantStereotype`/`PerdurantStereotype` types and the
+  same `Satisfies<C>`/`SatisfiesResult` API cim-gridy already consumes externally — and that CLIF
+  itself does not exist anywhere in `ledgrrr` yet (per #114's own code audit). Not actioned this
   session — Lab 9 stands as committed (an honest minimal slice, not wrong, just not this). A
   future phase (candidate: a new Phase 2.5 between the current Phase 2/3 and Phase 5's rename)
   should evaluate `ledgrrr`'s real CLIF/FOL capabilities directly (not just the TOML→Rhai→Mermaid
   surface pattern Lab 9 extracted) before deciding whether `mission_fsm.rs` graduates to a real
   `ledgrrr` dependency or a `.sysml`-native state representation.
+- **New from the user, 2026-08-22, second wave — tool ownership boundaries, project identity, and
+  proof conventions.** Not verified or actioned this session; recorded for scoping before any of
+  it is built:
+  - **A Venn/boundary diagram is wanted** as a visual construct explaining what each project *is*
+    and *is not* — candidate boundaries to show: cim-gridy (this repo's mission-engine), `ledgrrr`
+    (CLIF/FOL/regulatory layer, see above), `ufo-types`, `b00t`, `open-mbee`
+    (github.com/Open-MBEE), and the SysML crates Lab 8 0b spiked (`sysml-v2-parser`/
+    `syster-base`). Not yet built.
+  - **`b00t` should manage `open-mbee`** (github.com/Open-MBEE) — **unverified this session**: no
+    spike has looked at Open-MBEE's real architecture (it's historically a NASA JPL-originated
+    Java/MMS-based MBSE stack — Alfresco, a Model Management System, View Editor — materially
+    different from the native-Rust SysML v2 tooling Lab 8 0b/0c already chose; how it fits
+    alongside those choices, and what "b00t manages it" concretely means, both need a real spike
+    before any decision, same discipline as Phase 0's own five spikes).
+  - **`ufo-types` should own the canonical SysML code representations, generators, and other
+    codegen** — the user's suggestion is that it may make sense to relocate *all* SysML capability
+    into `ufo-types` itself, rather than `mission-engine` depending on `sysml-v2-parser` directly
+    as Lab 9 does today. This would be a real architectural move on an external repo
+    (`promptexecution/ufo-types`, already a pinned git dependency since Lab 8 0d/Lab 9) — not
+    something to action without a dedicated look at `ufo-types`' current structure and what
+    "owning SysML" would actually require there.
+  - **Every lab's README should carry a recorded proof artifact** (asciinema cast or `.mp4`,
+    narrated or Manim-animated) as the reference/data/proof for that lab's experiment — a stronger
+    claim than this repo's current "the proof scripts are the proof, not a transcript" convention
+    (AGENTS.md), which relies on re-runnable scripts and committed text/JSON fixtures, not
+    recorded video. Cross-cutting all labs (1-9), not cim-gridy-specific; whether this becomes a
+    new AGENTS.md convention or a per-PRD requirement is undecided. Tooling availability
+    (`asciinema`, Manim) not yet checked in this sandbox.
+  - **A procedurally-generated, visually-stable, explorable knowledge-graph visualization** of
+    mutable mission state + entity relationships is wanted — "visually stable" here should be read
+    against this repo's existing precedent (Lab 6's `render_diagram.py` already produces
+    deterministic isometric SVGs specifically so diffs are meaningful); "explorable" implies
+    something beyond a static SVG/Mermaid render, closer to an interactive graph view. No spike
+    yet on what renders this (a Bevy `bevy_egui`/custom view inside `mission-engine`? a separate
+    web artifact reading `mission-engine`'s state? `ledgrrr`'s own `OntologyGraph` JSON output,
+    cited above, as the data source?).
