@@ -1,0 +1,206 @@
+Found 39 .sysml files under "/home/brianh/promptexecution/aemo/nem-poweragent-lab/labs/08-cim-gridy-phase0-spikes/0b-sysml-v2-parser/fixtures"
+
+=== digital_thread.sysml (2757 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/DroneModelLogical.sysml (17983 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid occurrence body element (found 'then snapshot stopCharging;') Replace `then` with a valid occurrence body member or remove it. at line 28, column 21
+        parse_for_editor(): 8 diagnostic(s), first: Some(ParseError { message: "unexpected keyword `then` in occurrence body", offset: Some(763), line: Some(28), column: Some(21), length: Some(44), severity: Some(Error), code: Some("unexpected_keyword_in_scope"), expected: Some("valid occurrence body element"), found: Some("then snapshot stopCharging;"), suggestion: Some("Replace `then` with a valid occurrence body member or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 4 error(s). First up to 3:
+        SyntaxError { message: "expected ';', found 'snapshot'", range: 768..776 }
+        SyntaxError { message: "expected ';', found 'timeslice'", range: 830..839 }
+        SyntaxError { message: "expected ';', found '='", range: 3381..3382 }
+
+=== gfse-models/SE_Models/Drone_BaseArchitecture.sysml (1463 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid requirement body element (found 'assert constraint {') Replace `assert` with a valid requirement body member or remove it. at line 41, column 9
+        parse_for_editor(): 1 diagnostic(s), first: Some(ParseError { message: "unexpected keyword `assert` in requirement body", offset: Some(1157), line: Some(41), column: Some(9), length: Some(71), severity: Some(Error), code: Some("unexpected_keyword_in_scope"), expected: Some("valid requirement body element"), found: Some("assert constraint {"), suggestion: Some("Replace `assert` with a valid requirement body member or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/EIT_System_Use_Cases.sysml (1465 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid package body element (found 'usecase ApplyElectrodeBelt;') `usecase` is not a SysML keyword; check for a typo or unsupported construct, or remove it. at line 10, column 5
+        parse_for_editor(): 1 diagnostic(s), first: Some(ParseError { message: "unrecognized declaration `usecase` in package body", offset: Some(170), line: Some(10), column: Some(5), length: Some(1293), severity: Some(Error), code: Some("unrecognized_declaration_in_scope"), expected: Some("valid package body element"), found: Some("usecase ApplyElectrodeBelt;"), suggestion: Some("`usecase` is not a SysML keyword; check for a typo or unsupported construct, or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 25 error(s). First up to 3:
+        SyntaxError { message: "expected ';', found identifier", range: 178..196 }
+        SyntaxError { message: "expected ';', found identifier", range: 210..225 }
+        SyntaxError { message: "expected ';', found identifier", range: 239..259 }
+
+=== gfse-models/SE_Models/Fischertechnik.sysml (7671 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/ForestFireDetectionSystemModel.sysml (1261 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid package body element (found 'ffds {') `ffds` is not a SysML keyword; check for a typo or unsupported construct, or remove it. at line 10, column 17
+        parse_for_editor(): 5 diagnostic(s), first: Some(ParseError { message: "unrecognized declaration `ffds` in package body", offset: Some(282), line: Some(10), column: Some(17), length: Some(163), severity: Some(Error), code: Some("unrecognized_declaration_in_scope"), expected: Some("valid package body element"), found: Some("ffds {"), suggestion: Some("`ffds` is not a SysML keyword; check for a typo or unsupported construct, or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 6 error(s). First up to 3:
+        SyntaxError { message: "unexpected '<' in namespace body", range: 504..505 }
+        SyntaxError { message: "unexpected '<' in namespace body", range: 712..713 }
+        SyntaxError { message: "unexpected '<' in namespace body", range: 928..929 }
+
+=== gfse-models/SE_Models/ForestFireObservationDrone.sysml (2133 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/HVACSystemRequirements.sysml (5793 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : FAIL -- parse_sysml() 6 error(s). First up to 3:
+        SyntaxError { message: "expected '}', found '&&'", range: 1918..1920 }
+        SyntaxError { message: "unexpected '&&' in namespace body", range: 1918..1920 }
+        SyntaxError { message: "expected '}', found '&&'", range: 3110..3112 }
+
+=== gfse-models/SE_Models/InternetModel_v1.sysml (1175 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid attribute body element (found 'in item inData: Data;') Replace `in` with a valid attribute body member or remove it. at line 20, column 9
+        parse_for_editor(): 2 diagnostic(s), first: Some(ParseError { message: "unexpected keyword `in` in attribute body", offset: Some(723), line: Some(20), column: Some(9), length: Some(30), severity: Some(Error), code: Some("unexpected_keyword_in_scope"), expected: Some("valid attribute body element"), found: Some("in item inData: Data;"), suggestion: Some("Replace `in` with a valid attribute body member or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 2 error(s). First up to 3:
+        SyntaxError { message: "expected '}', found error", range: 543..1175 }
+        SyntaxError { message: "expected '}', found error", range: 543..1175 }
+
+=== gfse-models/SE_Models/MPLEExample_DirectCleanApproach_Vehicle.sysml (656 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid part definition body element (found 'variation roof : Roof {') Fix this part definition body member and re-run parsing. at line 7, column 9
+        parse_for_editor(): 1 diagnostic(s), first: Some(ParseError { message: "unexpected token in part definition body", offset: Some(121), line: Some(7), column: Some(9), length: Some(196), severity: Some(Error), code: Some("recovered_part_def_body_element"), expected: Some("valid part definition body element"), found: Some("variation roof : Roof {"), suggestion: Some("Fix this part definition body member and re-run parsing."), category: Some(ParseError), is_cascade: None })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/Metamodel.sysml (1409 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/StopWatchStates.sysml (1193 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected ';' or '{' after declaration header (found 'action def VehicleStartSignal;') Use `action def Run;` or `action def Run { ... }`. at line 7, column 11
+        parse_for_editor(): 2 diagnostic(s), first: Some(ParseError { message: "expected ';' or '{' after action definition header", offset: Some(114), line: Some(7), column: Some(11), length: Some(41), severity: Some(Error), code: Some("missing_body_or_semicolon"), expected: Some("';' or '{' after declaration header"), found: Some("action def VehicleStartSignal;"), suggestion: Some("Use `action def Run;` or `action def Run { ... }`."), category: Some(ParseError), is_cascade: Some(false) })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/SE_Models/VehicleModel.sysml (26951 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid package body element (found 'alias ISQ::TorqueValue as Torque;') Fix this package body member and re-run parsing. at line 201, column 13
+        parse_for_editor(): 7 diagnostic(s), first: Some(ParseError { message: "unexpected token in package body", offset: Some(7771), line: Some(201), column: Some(13), length: Some(86), severity: Some(Error), code: Some("recovered_package_body_element"), expected: Some("valid package body element"), found: Some("alias ISQ::TorqueValue as Torque;"), suggestion: Some("Fix this package body member and re-run parsing."), category: Some(ParseError), is_cascade: Some(false) })
+  syster-base     : FAIL -- parse_sysml() 55 error(s). First up to 3:
+        SyntaxError { message: "expected 'for', found '::'", range: 7780..7782 }
+        SyntaxError { message: "expected ';' to end alias declaration or '{' to start body, found 'as' ('as')", range: 7794..7796 }
+        SyntaxError { message: "unexpected 'as' in namespace body", range: 7794..7796 }
+
+=== gfse-models/SE_Models/lawnmowerPackage.sysml (3401 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/AnalysisProblemSpace.sysml (8069 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/BusinessCaseOpsCon.sysml (2899 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/Concerns.sysml (6862 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/Domain.sysml (15833 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid part usage body element (found 'exhibit MiningFrigate::miningFrigatesStates {') Fix this part usage body member and re-run parsing. at line 131, column 10
+        parse_for_editor(): 1 diagnostic(s), first: Some(ParseError { message: "unexpected token in part usage body", offset: Some(6505), line: Some(131), column: Some(10), length: Some(144), severity: Some(Error), code: Some("recovered_part_usage_body_element"), expected: Some("valid part usage body element"), found: Some("exhibit MiningFrigate::miningFrigatesStates {"), suggestion: Some("Fix this part usage body member and re-run parsing."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 22 error(s). First up to 3:
+        SyntaxError { message: "expected ';', found '{'", range: 6549..6550 }
+        SyntaxError { message: "unexpected '{' in namespace body", range: 6549..6550 }
+        SyntaxError { message: "expected ';', found 'message'", range: 7769..7776 }
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningCorporationRequirementsDecl.sysml (3097 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningCorporationRequirementsDef.sysml (5827 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningFrigate.sysml (8194 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : FAIL -- parse_sysml() 30 error(s). First up to 3:
+        SyntaxError { message: "expected ';' to end declaration or '{' to start body, found ':' (':')", range: 2888..2889 }
+        SyntaxError { message: "expected ';' to end declaration or '{' to start body, found ':' (':')", range: 3153..3154 }
+        SyntaxError { message: "expected ';' to end declaration or '{' to start body, found ':' (':')", range: 3398..3399 }
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningFrigateRequirements.sysml (2650 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningFrigateRequirementsDef.sysml (4865 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/MiningFrigateVerificationCases.sysml (8298 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/DomainModel/cause-effect.sysml (1645 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/ActionsHull.sysml (5392 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected action body member such as `perform`, `bind`, `in`, or `out` (found 'decide;') Use an explicit action-body form, for example `perform decide;`, `bind ... = ...;`, or an `in`/`out` parameter declaration. at line 125, column 9
+        parse_for_editor(): 3 diagnostic(s), first: Some(ParseError { message: "bare identifier `decide` is not a valid action body member", offset: Some(4383), line: Some(125), column: Some(9), length: Some(17), severity: Some(Error), code: Some("invalid_bare_identifier_in_action_body"), expected: Some("action body member such as `perform`, `bind`, `in`, or `out`"), found: Some("decide;"), suggestion: Some("Use an explicit action-body form, for example `perform decide;`, `bind ... = ...;`, or an `in`/`out` parameter declaration."), category: Some(ParseError), is_cascade: None })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/COTS.sysml (2569 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid part definition body element (found 'redefines mass : Real = 500.0; // Mass in kg') Replace `redefines` with a valid part definition body member or remove it. at line 14, column 9
+        parse_for_editor(): 6 diagnostic(s), first: Some(ParseError { message: "unexpected keyword `redefines` in part definition body", offset: Some(476), line: Some(14), column: Some(9), length: Some(90), severity: Some(Error), code: Some("unexpected_keyword_in_scope"), expected: Some("valid part definition body element"), found: Some("redefines mass : Real = 500.0; // Mass in kg"), suggestion: Some("Replace `redefines` with a valid part definition body member or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/MiningFrigate.sysml (3780 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/UseCasesHull.sysml (7772 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : FAIL -- parse_sysml() 7 error(s). First up to 3:
+        SyntaxError { message: "expected ';', found 'include'", range: 278..285 }
+        SyntaxError { message: "expected ';', found 'include'", range: 417..424 }
+        SyntaxError { message: "expected ';', found 'include'", range: 792..799 }
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/rollupAnalysis.sysml (1204 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/LogicalArchitecture/standardPortsAndInterfaces.sysml (1649 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/UseCases/OperationalUseCaseActions.sysml (5195 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_EveOnlineMiningFrigate/UseCases/UseCasesFrigate.sysml (10927 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : FAIL -- parse_sysml() 7 error(s). First up to 3:
+        SyntaxError { message: "expected ';', found 'include'", range: 358..365 }
+        SyntaxError { message: "expected ';', found 'include'", range: 500..507 }
+        SyntaxError { message: "expected ';', found 'include'", range: 808..815 }
+
+=== gfse-models/example_contribution/CalculationExample.sysml (621 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_contribution/example_nested/Boeing.sysml (2092 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid part definition body element (found ':>> id = "heim_4";') Fix this part definition body member and re-run parsing. at line 21, column 9
+        parse_for_editor(): 2 diagnostic(s), first: Some(ParseError { message: "unexpected token in part definition body", offset: Some(526), line: Some(21), column: Some(9), length: Some(135), severity: Some(Error), code: Some("recovered_part_def_body_element"), expected: Some("valid part definition body element"), found: Some(":>> id = \"heim_4\";"), suggestion: Some("Fix this part definition body member and re-run parsing."), category: Some(ParseError), is_cascade: Some(false) })
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== gfse-models/example_family/family.sysml (9535 bytes) ===
+  sysml-v2-parser : FAIL -- parse() FAILED: expected valid connection definition body element (found 'snapshot birth;') Replace `snapshot` with a valid connection definition body member or remove it. at line 103, column 3
+        parse_for_editor(): 17 diagnostic(s), first: Some(ParseError { message: "unexpected keyword `snapshot` in connection definition body", offset: Some(3465), line: Some(103), column: Some(3), length: Some(18), severity: Some(Error), code: Some("unexpected_keyword_in_scope"), expected: Some("valid connection definition body element"), found: Some("snapshot birth;"), suggestion: Some("Replace `snapshot` with a valid connection definition body member or remove it."), category: Some(ParseError), is_cascade: None })
+  syster-base     : FAIL -- parse_sysml() 12 error(s). First up to 3:
+        SyntaxError { message: "expected ';' to end declaration or '{' to start body, found 'done' ('done')", range: 3594..3598 }
+        SyntaxError { message: "expected ';' to end declaration or '{' to start body, found 'start' ('start')", range: 4240..4245 }
+        SyntaxError { message: "expected '}', found '='", range: 5851..5852 }
+
+=== gfse-models/example_sos/system-of-systems.sysml (1713 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== grid_topology.sysml (13345 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== pipeline_phases.sysml (2212 bytes) ===
+  sysml-v2-parser : PASS -- parse() OK (strict)
+  syster-base     : PASS -- parse_sysml() OK, 0 errors
+
+=== SUMMARY ===
+sysml-v2-parser : 26 pass / 39 total (13 fail)
+syster-base     : 28 pass / 39 total (11 fail)

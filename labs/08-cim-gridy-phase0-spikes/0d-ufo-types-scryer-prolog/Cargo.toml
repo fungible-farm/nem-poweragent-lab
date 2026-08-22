@@ -1,0 +1,20 @@
+[package]
+name = "spike-0d-ufo-types-scryer-prolog"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "PRD-0009 Phase 0d build/link smoke test: ufo-types + scryer-prolog coexistence"
+
+[dependencies]
+# ufo-types (MIT, promptexecution/ufo-types) is NOT published on crates.io
+# (confirmed via `cargo add ufo-types --dry-run` -> "could not be found in
+# registry index"), so it is pulled as a git dependency.
+ufo-types = { git = "https://github.com/promptexecution/ufo-types" }
+
+# scryer-prolog IS published on crates.io (confirmed via
+# `cargo add scryer-prolog --dry-run` -> v0.10.0 resolved). Default features
+# pull in native-tls/openssl + reqwest/warp (http, tls) which risk a
+# system-openssl link failure in a sandboxed/offline build environment and
+# are irrelevant to this smoke test, so they are disabled here in favor of
+# the pure-Rust feature set.
+scryer-prolog = { version = "0.10", default-features = false, features = ["repl", "hostname"] }

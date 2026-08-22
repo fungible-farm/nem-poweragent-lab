@@ -1,6 +1,7 @@
 # 0008 — cim-gridy Phase 0: mission/calendar-step engine prerequisites
 
-- **Status:** proposed
+- **Status:** superseded in practice by PRD-0009's Rust/Bevy-first/INCOSE-V phasing; its Phase 0
+  spikes (Lab 8) directly answer this PRD's own prerequisites 1-3 (see below)
 - **Depends on:** 0006 (Lab 6 SysML v2 digital-thread MVP), 0007 (Lab 6 Phase 4a CIM class-URI
   traceability) — both become the static grid-model type layer this PRD's dynamic mission layer
   sits on top of, not something rebuilt here
@@ -101,20 +102,26 @@ Lab 6 / PRD-0007's SysML + LinkML + CIM pipeline
     -- describes --> the static grid-model types every layer above operates on
 ```
 
-## Prerequisites identified — none satisfied yet
+## Prerequisites identified — status as of 2026-08-22 (Lab 8 spikes, via PRD-0009)
 
 1. **Real-tool evaluation: does Grid2Op wrap this repo's own case data cleanly** via its
-   pandapower or in-progress PowSyBl backend? What's the minimal action-space/chronics
-   configuration for a first episode? Not yet attempted.
+   pandapower or in-progress PowSyBl backend? **Answered**: yes, with real friction — three
+   independent bugs found and fixed (grid2op's own broken PyPI wheel, a pandapower round-trip bug,
+   a dense-bus-index assumption); one real episode ran end-to-end post-fix. See
+   `labs/08-cim-gridy-phase0-spikes/0a-grid2op/README.md`.
 2. **Real-tool evaluation: does OperatorFabric run as a real service in this environment**
-   (Java/Spring/Angular/Docker)? This repo has precedent both ways — VILLASnode, llamacpp, and
-   powermcp pods all succeeded (`kube/README.md`); the SysML v2 Pilot Implementation container
-   attempt hit a genuine, precisely root-caused dead end (PRD-0006 Design notes §1). Must be
-   attempted with the same honesty, not assumed to work or assumed to fail.
-3. **Undecided: how `ufo-types` enters this repo's toolchain** — a direct Cargo dependency in a new
-   Rust crate (matching the existing oxidation-roadmap precedent, `rust/phase-model`, per
-   `docs/PSCADOSSE.md`), PyO3 bindings consumed from Python, or a lighter Python-only
-   re-implementation of just the stereotype/constraint concepts actually needed. Not decided here.
+   (Java/Spring/Angular/Docker)? **Answered**: it can (a real host policy blocker was hit and
+   fixed), but its footprint (11 containers, ~1.9GB, 20-30+ min bring-up) is disproportionate for
+   this project's actual need — recommendation is a Bevy-native card UI instead, using
+   OperatorFabric's `Card` data model as a design reference only. See
+   `labs/08-cim-gridy-phase0-spikes/0e-operatorfabric-vs-bevy/README.md`.
+3. **Undecided: how `ufo-types` enters this repo's toolchain** — **partially answered**: a direct
+   Cargo dependency (git, unpublished) builds/links/runs cleanly alongside `scryer-prolog` (the
+   chosen constraint-solving engine, correcting the earlier stale chalk/datafrog assumption); a
+   real debug-build-only panic in `scryer-prolog` was found (release builds unaffected). The
+   PyO3-vs-Python-reimplementation question is now moot given the project's Rust/Bevy-first pivot
+   (PRD-0009) — direct Cargo dependency is the path. See
+   `labs/08-cim-gridy-phase0-spikes/0d-ufo-types-scryer-prolog/README.md`.
 4. **No geocoded data source identified** for "geographic positions" — real dataset vs. documented
    synthetic stand-in, not yet chosen.
 5. **The rename itself is mechanical but hard to reverse** — it touches the GitHub remote and every
@@ -181,7 +188,9 @@ Lab 6 / PRD-0007's SysML + LinkML + CIM pipeline
       README, not assumed from a search snippet.
 - [x] The geographic-data gap confirmed against this repo's own existing code comment, not
       assumed.
-- [ ] Reviewed and approved by the user before any Phase 0 spike work begins.
+- [x] Reviewed and approved by the user before any Phase 0 spike work begins (approved 2026-08-22;
+      superseded in practice by PRD-0009's Rust/Bevy-first/INCOSE-V phasing, which is what Phase 0
+      spike work now follows).
 
 ## Open questions
 
