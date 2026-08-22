@@ -275,3 +275,21 @@ this repo's own scope to execute directly, flagged for the user.
 - Everything PRD-0008 already left open — CIM16-vs-CIM100, Semantic Energy Framework as a possible
   ontology anchor, Dynawo vs. DPsim for dynamics-timescale missions — still open, not revisited
   this session.
+- **New from the user, 2026-08-22, reframes `ledgrrr`'s role for Phase 2+ of the mission-state
+  layer**: Lab 9's `mission_fsm.rs` is a deliberately minimal proof — a TOML-defined state table
+  plus `rhai` guard expressions, explicitly *not* depending on `ledgrrr` (framed in Lab 9's README
+  as "a large, unrelated local FinOps-ledger product"). The user's stated direction is that this
+  framing undersells `ledgrrr`'s actual fit: cim-gridy and `ledgrrr` should stay **separate
+  projects, divided by concern**, but the mission's score-keeping state machine belongs either
+  directly in `.sysml` or in **CLIF** (Common Logic Interchange Format, ISO/IEC 24707) — ontologically
+  linking FOL-canonical **endurant**/**perdurant** representations (the same UFO distinction
+  `ufo_types::UfoStereotype` already partially encodes: rigid Kinds as endurants, `Satisfies<C>`
+  evaluations as perdurant events) — so that the mission state machine is simultaneously the
+  *executable* game logic and a **self-documenting artifact usable to satisfy requirement
+  documents or manage regulatory filings**. The user states this CLIF/FOL/endurant-perdurant
+  layer is squarely **`ledgrrr`'s actual domain**, not a coincidental overlap. Not actioned this
+  session — Lab 9 stands as committed (an honest minimal slice, not wrong, just not this). A
+  future phase (candidate: a new Phase 2.5 between the current Phase 2/3 and Phase 5's rename)
+  should evaluate `ledgrrr`'s real CLIF/FOL capabilities directly (not just the TOML→Rhai→Mermaid
+  surface pattern Lab 9 extracted) before deciding whether `mission_fsm.rs` graduates to a real
+  `ledgrrr` dependency or a `.sysml`-native state representation.
