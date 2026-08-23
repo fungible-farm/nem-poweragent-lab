@@ -330,11 +330,12 @@ this repo's own scope to execute directly, flagged for the user.
 - **New from the user, 2026-08-22, second wave — tool ownership boundaries, project identity, and
   proof conventions.** Not verified or actioned this session; recorded for scoping before any of
   it is built:
-  - **A Venn/boundary diagram is wanted** as a visual construct explaining what each project *is*
+  - ~~**A Venn/boundary diagram is wanted** as a visual construct explaining what each project *is*
     and *is not* — candidate boundaries to show: cim-gridy (this repo's mission-engine), `ledgrrr`
     (CLIF/FOL/regulatory layer, see above), `ufo-types`, `b00t`, `open-mbee`
     (github.com/Open-MBEE), and the SysML crates Lab 8 0b spiked (`sysml-v2-parser`/
-    `syster-base`). Not yet built.
+    `syster-base`). Not yet built.~~ **Built 2026-08-23** — see "Project ownership boundary
+    diagram" below.
   - ~~**`b00t` should manage `open-mbee`** (github.com/Open-MBEE) — **unverified this session**:
     no spike has looked at Open-MBEE's real architecture...~~ **Spiked and resolved 2026-08-22**
     (see the MECE table's Open-MBEE row below): Open-MBEE has moved past the legacy Java/Alfresco/
@@ -406,3 +407,26 @@ two `ufo-types` implementations; any new code touching `mission-engine` or `ledg
 user's originally-requested local A2A/ACP messaging endpoint (Google ADK / Entra-Azure agent
 registry / Istio-sidecar DSL work) — sequenced to start only after this MECE map, per the user's
 own answer to that effect, and not started yet.
+
+## Project ownership boundary diagram
+
+Answers the second-wave "A Venn/boundary diagram is wanted" open question above: a visual
+construct showing what each of cim-gridy, `ledgrrr`, the two independently-diverged `ufo-types`
+implementations, `b00t`, Open-MBEE/Flexo MMS, and the SysML parser crates *is* and *is not*, and
+how they relate — grounded entirely in the MECE capability-ownership table's own ownership calls,
+nothing invented for the picture.
+
+Generated deterministically by `docs/prd/0009-boundary-diagram.py` (pure Python stdlib, no
+`svgwrite`/`graphviz` dependency added — this repo has none in `pyproject.toml`), following the
+same "generator script + committed SVG output, byte-identical on re-run" discipline
+`labs/06-sysml-digital-thread/render_diagram.py` already established for this repo's other
+diagrams (`python3 docs/prd/0009-boundary-diagram.py --step run` regenerates
+`docs/prd/0009-boundary-diagram.svg`; `--step check` verifies the committed file still matches).
+Solid circle borders/arrows mark resolved, High-confidence MECE-table boundaries; dashed borders/
+arrows mark what's still genuinely Open (the CLIF/ISO-24707 parser's ownership, and — drawn as an
+explicit hatched Venn lens, not papered over — the unreconciled overlap between the two
+`ufo-types` implementations). The absence of any edge between cim-gridy and `b00t` is itself part
+of the claim: `b00t` integrates via MCP-datum registration only, never a Cargo dependency of
+anything in this repo.
+
+![PRD-0009 project ownership boundary diagram](0009-boundary-diagram.svg)

@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1250" width="1600" height="1250">
+<rect x="0" y="0" width="1600" height="1250" fill="#0f172a"/>
+<title>PRD-0009 project-ownership boundary diagram</title>
+<defs>
+<pattern id="open-hatch" width="10" height="10" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+<rect width="10" height="10" fill="#f59e0b" fill-opacity="0.18"/>
+<line x1="0" y1="0" x2="0" y2="10" stroke="#f59e0b" stroke-width="3"/>
+</pattern>
+</defs>
+<text x="800.0" y="36" font-family="monospace" font-size="20.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">PRD-0009: project ownership boundaries</text>
+<text x="800.0" y="58" font-family="monospace" font-size="12.0" fill="#94a3b8" text-anchor="middle">cim-gridy / ledgrrr / ufo-types (x2) / b00t / Open-MBEE / SysML crates -- grounded in the MECE capability-ownership table, Wave 1, 2026-08-22</text>
+<text x="800.0" y="76" font-family="monospace" font-size="11.0" fill="#94a3b8" text-anchor="middle">Note: mission_fsm.rs (rhai FSM, currently cim-gridy's own) is a Phase 2.5 candidate migration to ledgrrr's future CLIF layer once built -- not drawn as an edge here, to avoid crossing every circle in between.</text>
+<g data-circle-id="cim-gridy">
+<circle cx="340.0" cy="330.0" r="200.0" fill="#1d4ed8" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="340.0" y="190.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">cim-gridy</text>
+<text x="340.0" y="212.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">Bevy/Rust mission-engine (Labs 8-9)</text>
+<text x="340.0" y="226.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">rhai mission FSM, Grid2Op bridge</text>
+</g>
+<g data-circle-id="ufo-standalone">
+<circle cx="840.0" cy="330.0" r="100.0" fill="#059669" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="840.0" y="196.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">ufo-types (standalone)</text>
+<text x="840.0" y="218.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">promptexecution/ufo-types</text>
+<text x="840.0" y="232.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">UfoStereotype (1 enum) + dare.rs</text>
+<text x="840.0" y="246.0" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">pinned git dep, Phase 3 optimizer</text>
+</g>
+<g data-circle-id="ufo-vendored">
+<circle cx="1000.0" cy="330.0" r="80.0" fill="#a78bfa" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="1000.0" y="430.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">ufo-types (vendored)</text>
+<text x="1000.0" y="452.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">ledgrrr's crates/ufo-types</text>
+<text x="1000.0" y="466.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">4-enum split, no dare.rs</text>
+</g>
+<g data-circle-id="ledgrrr">
+<circle cx="1150.0" cy="330.0" r="200.0" fill="#7c3aed" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="1150.0" y="190.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">ledgrrr</text>
+<text x="1150.0" y="212.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">CLIF/FOL/regulatory ontology layer</text>
+<text x="1150.0" y="226.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">arc-kit-au::EvidenceGraph, ledgerr-mcp,</text>
+<text x="1150.0" y="240.0" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">holon-viz, Z3 (vendored, separate repo)</text>
+</g>
+<g data-circle-id="clif-fol">
+<circle cx="1460.0" cy="200.0" r="75.0" fill="#374151" fill-opacity="0.3" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="8,6"/>
+<text x="1460.0" y="105.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">CLIF / ISO-24707 parser</text>
+<text x="1460.0" y="127.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">Open -- confirmed absent</text>
+<text x="1460.0" y="141.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">everywhere (fresh grep)</text>
+</g>
+<g data-circle-id="sysml-v2-parser">
+<circle cx="560.0" cy="680.0" r="65.0" fill="#2563eb" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="560.0" y="595.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">sysml-v2-parser</text>
+<text x="560.0" y="617.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">external upstream,</text>
+<text x="560.0" y="631.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">consumed directly</text>
+</g>
+<g data-circle-id="syster-base">
+<circle cx="130.0" cy="900.0" r="58.0" fill="#475569" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="130.0" y="828.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">syster-base</text>
+<text x="130.0" y="850.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">kept in reserve</text>
+<text x="130.0" y="864.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">(Lab 8 0b spike)</text>
+</g>
+<g data-circle-id="b00t">
+<circle cx="800.0" cy="800.0" r="100.0" fill="#d97706" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="800.0" y="732.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">b00t</text>
+<text x="800.0" y="754.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">hive CLI / orchestration /</text>
+<text x="800.0" y="768.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">datum registry -- NOT a</text>
+<text x="800.0" y="782.0" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">Cargo dep of anything here</text>
+</g>
+<g data-circle-id="open-mbee">
+<circle cx="1160.0" cy="800.0" r="90.0" fill="#0891b2" fill-opacity="0.55" stroke="#e2e8f0" stroke-width="2.5"/>
+<text x="1160.0" y="695.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="middle">Open-MBEE / Flexo MMS</text>
+<text x="1160.0" y="717.5" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">flexo-mms-layer1-mcp,</text>
+<text x="1160.0" y="731.2" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">flexo-mms-sysmlv2-mcp</text>
+<text x="1160.0" y="745.0" font-family="monospace" font-size="11.0" font-weight="normal" fill="#94a3b8" text-anchor="middle">(RDF/SPARQL, Jena Fuseki)</text>
+</g>
+<clipPath id="ufo-overlap-clip"><circle cx="840.0" cy="330.0" r="100.0"/></clipPath>
+<circle cx="1000.0" cy="330.0" r="80.0" fill="url(#open-hatch)" clip-path="url(#ufo-overlap-clip)" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8,6"/>
+<text x="920.0" y="500.0" font-family="monospace" font-size="11.0" font-weight="bold" fill="#f59e0b" text-anchor="middle">Open: reconciling the two ufo-types</text>
+<text x="920.0" y="513.8" font-family="monospace" font-size="11.0" font-weight="bold" fill="#f59e0b" text-anchor="middle">implementations (no sync since PR #145)</text>
+<line x1="540.0" y1="330.0" x2="740.0" y2="330.0" stroke="#e2e8f0" stroke-width="2"/>
+<polygon points="740.0,330.0 728.0,334.0 728.0,326.0" fill="#e2e8f0"/>
+<text x="640.0" y="316.0" font-family="monospace" font-size="10.5" font-weight="normal" fill="#e2e8f0" text-anchor="middle">Cargo git dep (dare.rs, Phase 3 optimizer)</text>
+<line x1="446.4" y1="499.3" x2="525.4" y2="625.0" stroke="#e2e8f0" stroke-width="2"/>
+<polygon points="525.4,625.0 515.6,616.9 522.4,612.7" fill="#e2e8f0"/>
+<text x="474.1" y="569.6" font-family="monospace" font-size="10.5" font-weight="normal" fill="#e2e8f0" text-anchor="middle">consumed directly</text>
+<line x1="270.9" y1="517.7" x2="150.1" y2="845.6" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+<polygon points="150.1,845.6 150.4,832.9 158.0,835.7" fill="#94a3b8"/>
+<text x="235.7" y="653.7" font-family="monospace" font-size="10.5" font-weight="normal" fill="#94a3b8" text-anchor="middle">evaluated, not adopted</text>
+<line x1="859.7" y1="719.8" x2="1030.5" y2="490.4" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5,5"/>
+<polygon points="1030.5,490.4 1026.6,502.4 1020.2,497.6" fill="#38bdf8"/>
+<text x="933.9" y="596.7" font-family="monospace" font-size="10.5" font-weight="normal" fill="#38bdf8" text-anchor="middle">MCP-datum: ledgerr-mcp (registered, not Cargo)</text>
+<line x1="900.0" y1="800.0" x2="1070.0" y2="800.0" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5,5"/>
+<polygon points="1070.0,800.0 1058.0,804.0 1058.0,796.0" fill="#38bdf8"/>
+<text x="985.0" y="786.0" font-family="monospace" font-size="10.5" font-weight="normal" fill="#38bdf8" text-anchor="middle">MCP-datum: flexo-mms-*-mcp.mcp.toml</text>
+<line x1="1334.4" y1="252.7" x2="1390.8" y2="229.0" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,5"/>
+<polygon points="1390.8,229.0 1381.3,237.3 1378.2,230.0" fill="#f59e0b"/>
+<text x="1365.2" y="254.9" font-family="monospace" font-size="10.5" font-weight="normal" fill="#f59e0b" text-anchor="middle">recommended future owner (ledgrrr#182, #114)</text>
+<g data-legend="true">
+<rect x="28.0" y="1038.0" width="620" height="183.0" fill="#0f172a" fill-opacity="0.9" stroke="#94a3b8" stroke-width="1"/>
+<text x="40.0" y="1056.0" font-family="monospace" font-size="15.0" font-weight="bold" fill="#e2e8f0" text-anchor="start">Legend</text>
+<text x="40.0" y="1072.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">solid border</text>
+<text x="230.0" y="1072.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">resolved/owned boundary, High confidence (MECE table)</text>
+<text x="40.0" y="1089.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">dashed border</text>
+<text x="230.0" y="1089.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">still Open -- no owner decided / not reconciled</text>
+<text x="40.0" y="1106.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">solid arrow</text>
+<text x="230.0" y="1106.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">real code dependency (Cargo/git)</text>
+<text x="40.0" y="1123.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">dashed blue arrow</text>
+<text x="230.0" y="1123.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">MCP-datum integration -- registered, not a Cargo dependency</text>
+<text x="40.0" y="1140.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">dashed amber arrow</text>
+<text x="230.0" y="1140.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">Open / undecided relationship, not yet real</text>
+<text x="40.0" y="1157.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">dashed grey arrow</text>
+<text x="230.0" y="1157.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">evaluated and NOT adopted</text>
+<text x="40.0" y="1174.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">grey fill</text>
+<text x="230.0" y="1174.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">evaluated, not adopted</text>
+<text x="40.0" y="1191.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">hatched lens</text>
+<text x="230.0" y="1191.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">genuine unresolved overlap (diverged, no sync since PR #145)</text>
+<text x="40.0" y="1208.0" font-family="monospace" font-size="11.5" fill="#e2e8f0" text-anchor="start">no arrow at all</text>
+<text x="230.0" y="1208.0" font-family="monospace" font-size="11.5" fill="#94a3b8" text-anchor="start">a claim too -- e.g. cim-gridy / b00t: no direct integration exists</text>
+</g>
+</svg>
