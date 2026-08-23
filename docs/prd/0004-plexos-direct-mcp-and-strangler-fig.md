@@ -149,16 +149,24 @@ contributes is the XML files the organization already has sitting on disk from p
 
 ## Goals
 
-1. **Adopt, don't rebuild.** Wire `plexosdb-mcp` into this repo's pod pattern as-is — pin the PyPI
-   version, do not fork it. Same discipline this repo already holds itself to for
-   pandapower/PowerMCP.
+1. **Adopt, don't rebuild.** Wire `plexosdb-mcp` into this repo's pod pattern as-is — pin an exact
+   version, do not fork it. **Correction (Phase 0, see `docs/prd/0004-phase0-findings.md`):**
+   `plexosdb-mcp` is not published to PyPI, so "pin the PyPI version" isn't available as written —
+   pin a git subdirectory + commit/tag instead (`plexosdb-mcp @
+   git+https://github.com/NatLabRockies/plexosdb#subdirectory=src/plexosdb-mcp`). Same discipline
+   this repo already holds itself to for pandapower/PowerMCP, adapted to this dependency's real
+   distribution shape.
 2. **Read-only by default.** Any workflow that only inspects or compares models runs the server
    with `--read-only`; write sessions (`add_object`, `update_object`, `delete_object`, `save_xml`,
    ...) require an explicit opt-in — matches this repo's existing no-destructive-default posture
    and `plexosdb-mcp`'s own built-in `_ensure_writable()` gate.
-3. **Resolve the transport question before building a pod.** `plexosdb-mcp` is stdio-native with
-   its own installable CLI (`uvx plexosdb-mcp`). Determine whether Microsoft Agent Framework's MCP
-   client can launch it directly as a stdio subprocess — if so, no HTTP-wrapper pod
+3. **Resolve the transport question before building a pod.** `plexosdb-mcp` is stdio-native.
+   **Correction (Phase 0):** the PRD originally assumed a standalone `uvx plexosdb-mcp` CLI — that
+   command fails (`plexosdb-mcp` isn't on PyPI); the confirmed-working invocation is `uv run
+   plexosdb-mcp` from a project that has installed it via the git-subdirectory pin above, which does
+   behave as a standard stdio MCP server (verified with a real `initialize` JSON-RPC handshake in
+   Phase 0). Determine whether Microsoft Agent Framework's MCP client can launch that `uv run`
+   invocation directly as a stdio subprocess — if so, no HTTP-wrapper pod
    (`powermcp_serve_http.py`'s whole reason for existing) is needed for this server at all.
 4. **Stand up R2X + Sienna as the strangler-fig engine**, not just a translator: wrap `r2x-cli`
    (a single Rust binary — easiest thing in this ecosystem map to containerize) running a
