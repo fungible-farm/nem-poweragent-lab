@@ -344,6 +344,59 @@ this repo's own scope to execute directly, flagged for the user.
     Done — `_b00t_/flexo-mms-{layer1,sysmlv2}-mcp.mcp.toml`. No `ufo-types`/SysML-parser-crate
     involvement needed; this is a network-service integration, orthogonal to the SysML-codegen
     question below.
+  - ~~**The user's originally-requested local A2A/ACP messaging endpoint (Google ADK /
+    Entra-Azure agent registry / Istio-sidecar DSL work)** — sequenced to start only after this
+    MECE map, per the user's own answer to that effect, and not started yet.~~ **Resolved
+    2026-08-23** (reframed by the repo owner directly, not re-derived): the actual purpose of this
+    ask is "for `b00t agent` to be able to coordinate," not new messaging infrastructure. **`b00t`
+    already ships exactly this surface, verified live this session, not assumed:**
+    - `b00t agent --help` lists 16 real subcommands: `discover`, `workers`, `message`, `delegate`,
+      `dispatch` (one-shot discover→delegate→wait→report), `complete`, `progress`, `start`,
+      `start-all`, `capability`, `notify`, `wait`, `invoke`, `ralph`, plus `help`.
+    - `b00t whoami --role=executive --capabilities`'s own **"Hive A2A Collaboration"** section
+      documents the intended pattern verbatim: `mcp__b00t-mcp__b00t_agent_capability` (announce
+      role+skills), `_discover` (find peers), `_message`/`_notify` (send/receive), `_wait` (block
+      for a reply), `_vote_create`/`_vote_submit` (consensus) — and its **"Delegation Contract"**
+      section gives the executive-role fan-out form: `b00t agent delegate
+      --agents=quality,implementation,testing --invoke=parallel --datum=<pr>`.
+    - **Recommendation: this existing surface *is* the answer to the deferred A2A/ACP item.** No
+      new messaging endpoint, agent registry, or service-mesh DSL needs building for cim-gridy's
+      purposes. **Google ADK / Entra-Azure agent registry / Istio-sidecar DSL work is explicitly
+      NOT proposed or designed here** — the repo owner's reframing supersedes that original framing
+      entirely; a future reader should not reopen that path on the strength of the original PRD
+      wording above.
+    - **One real blocker found, not assumed:** the `mcp__b00t-mcp__*` MCP tools (`b00t_agent_
+      capability`/`_discover`/`_message`/`_notify`/`_wait`/`_vote_create`/`_vote_submit`) are **not
+      actually reachable from a Claude Code session in this repo** — a `ToolSearch` for
+      `mcp__b00t-mcp__b00t_agent_*` by exact name returns zero matches, even though `b00t whoami
+      --capabilities` reports `b00t-mcp.mcp` as a configured MCP tool. (Already recorded via `b00t
+      lfmf mcp` earlier this session; cited here, not re-recorded.) The CLI is the only
+      coordination path that actually works today — confirmed live: `b00t agent discover` (no
+      Redis running) printed `⚠️ Redis unavailable ... using local _b00t_/*.agent.toml` and still
+      returned 19 real local agents (`ralph`, `alpha`, `beta`, `operator`, `executive`,
+      `sm3lly-acp`, etc.); `b00t agent capability "docs,prd-scoping,rust" "test capability announce
+      for PRD-0009 A2A doc"` ran cleanly and reported `No agents responded (Redis may be
+      unavailable; no local match)` rather than erroring — i.e. `discover`/`capability`/`workers`
+      degrade gracefully to a local, file-backed roster with no Redis, while live `message`/
+      `delegate`/`vote` need a running Redis instance to actually round-trip. **Practical
+      consequence:** until the MCP registration gap is closed, agents in this repo coordinate via
+      `b00t agent` CLI calls (`bash`), not live MCP tool calls. **Closing that gap is a `b00t`
+      project concern, not a `nem-poweragent-lab` one** — this repo does not own `b00t`'s MCP
+      server registration and has no standing to fix it here; flagged for the user the same way the
+      "Housekeeping action" section above flags the `b00t learn rust` correction.
+    - **Concrete usage pattern for this repo's own multi-agent workflows, going forward:** before
+      an orchestrating agent spawns parallel sub-agents on non-overlapping cim-gridy work (the
+      pattern already used for Phase 0's five parallel spikes and this session's own PRD-0009
+      sub-agent passes), it should first run `b00t agent capability "<skills>" "<task
+      description>"` to announce intent and `b00t agent discover --role=<role>` to check for
+      already-active peers, matching the "Hive A2A Collaboration" pattern `b00t whoami` already
+      documents — this avoids duplicate or colliding work across concurrent git worktrees (the
+      exact multi-agent-worktree pattern this session itself is using) without requiring the MCP
+      surface to be reachable; the CLI form is sufficient for this today. `b00t agent dispatch
+      "<task>"` (discover → delegate → wait → report, one shot) is the closest existing CLI
+      primitive to a full round-trip once a live Redis-backed hive is available; until then,
+      `discover`/`capability`/`workers` alone (local-file fallback) are enough to *avoid collision*
+      even without live delegation.
   - **`ufo-types` should own the canonical SysML code representations, generators, and other
     codegen** — the user's suggestion is that it may make sense to relocate *all* SysML capability
     into `ufo-types` itself, rather than `mission-engine` depending on `sysml-v2-parser` directly
@@ -402,7 +455,10 @@ this table is planning input only.
 | Open-MBEE / Flexo MMS (RDF/SPARQL graph-native MBSE, Apache Jena Fuseki, TriG config) | `b00t` (via MCP datum, not a Cargo dependency) | **Resolved 2026-08-22** (was Open). Open-MBEE publishes its own MCP servers — `flexo-mms-layer1-mcp` and `flexo-mms-sysmlv2-mcp` (FastMCP/Python, streamable-HTTP) — wrapping the Flexo MMS REST API. `b00t` doesn't need an adapter, only to register them, which was done: `_b00t_/flexo-mms-layer1-mcp.mcp.toml` + `_b00t_/flexo-mms-sysmlv2-mcp.mcp.toml` in `elasticdotventures/_b00t_` (`feat/assimilate-ssh-mcp` branch), same MCP-datum orchestration pattern already used for `ledgerr-mcp` (row above) — confirming the user's framing that `b00t` provides one uniform orchestration surface for executing logic in `ledgrrr` *and others*, Open-MBEE included. Registering these surfaced and fixed a real b00t bug along the way: the MCP registry's datum sync only ever read `[[b00t.mcp.stdio]]`, silently mis-registering any HTTP-transport server (these two, plus a pre-existing `ory-hydra` datum) with a bogus `command="npx"` and no URL — fixed by adding a `url` field to `McpServerConfig` and an httpstream extraction branch. Both Flexo servers still require a real running Flexo backend to actually call (referenced the genuine `open-mbee/flexo-mms-deployment` docker-compose stack — openldap → Jena Fuseki quad-store → minio → auth-service → store-service → layer1-service — rather than guessing); standing that up is a separate, deliberate infra decision, not done here | High |
 
 **What's still explicitly deferred past this pass** (per this Wave's own scope): reconciling the
-two `ufo-types` implementations; any new code touching `mission-engine` or `ledgrrr` source; the
+two `ufo-types` implementations; any new code touching `mission-engine` or `ledgrrr` source; ~~the
 user's originally-requested local A2A/ACP messaging endpoint (Google ADK / Entra-Azure agent
 registry / Istio-sidecar DSL work) — sequenced to start only after this MECE map, per the user's
-own answer to that effect, and not started yet.
+own answer to that effect, and not started yet.~~ **Resolved 2026-08-23** — see the "second wave"
+bullet above: `b00t agent`'s existing CLI/MCP surface is the answer, no new messaging
+infrastructure needed; one real blocker found (MCP tools unreachable from Claude Code sessions
+here, CLI works); Google ADK/Entra-Azure/Istio-sidecar work explicitly not proposed.
