@@ -12,8 +12,8 @@ on other PRDs explicitly (don't assume reading order from the number alone).
 |---|-------|------------|--------|
 | [0001](0001-composable-generator-detector-platform.md) | Composable generator/detector simulation platform | — (foundation) | implemented |
 | [0002](0002-sa-2016-black-system-cascade-scenario.md) | SA 2016 Black System — physically-grounded cascade reproduction | 0001 | implemented |
-| [0003](0003-iberian-2025-blackout-scenario.md) | Iberian Peninsula 2025 blackout — new scenario | 0001 | implemented (fast-collapse + precursor oscillation phases; no precursor→collapse state handoff) |
-| [0004](0004-plexos-direct-mcp-and-strangler-fig.md) | PLEXOS direct-access MCP + open-source strangler fig (plexosdb, R2X, Sienna) | — (sibling to PowerMCP) | proposed |
+| [0003](0003-iberian-2025-blackout-scenario.md) | Iberian Peninsula 2025 blackout — new scenario | 0001 | implemented (fast-collapse + precursor oscillation phases + precursor→collapse state handoff, `--phase combined`) |
+| [0004](0004-plexos-direct-mcp-and-strangler-fig.md) | PLEXOS direct-access MCP + open-source strangler fig (plexosdb, R2X, Sienna) | — (sibling to PowerMCP) | Phase 0 complete (env verification — see `0004-phase0-findings.md`); Phases 1-7 not started |
 | [0005](0005-grid-forming-stabilizer-and-renewable-models.md) | Grid-forming transient stabilizer + open renewable-generation models (Lab 5, SPARTAN's corrective-action testbed) | — (builds on Lab 5 + 0006) | implemented (Phase 4 conditional, not attempted) |
 | [0006](0006-sysml-digital-thread-mvp.md) | SysML v2 digital-thread MVP: MBSE tooling evaluation (Lab 6) | — (reuses Labs 1/3/4/5 as seed data) | implemented |
 | [0007](0007-lab6-cim-class-uri-traceability.md) | Lab 6 Phase 4a: CIM class-URI traceability annotations for Track B | 0006 | implemented |
