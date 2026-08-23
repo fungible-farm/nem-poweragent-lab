@@ -19,16 +19,18 @@ and is maintained by the same national lab whose other tools this repo already b
   case files via `powerio`. It reads objects, memberships, properties, scenarios, categories, and
   reports, and separately ships a `PlexosSolution` reader for solution ZIP output that already sits
   on disk.
-- **[`plexosdb-mcp`](https://github.com/NatLabRockies/plexosdb/tree/main/src/plexosdb-mcp)** (own
-  PyPI package) is a *complete, already-built* MCP server over `plexosdb` — a `FastMCP`-based
-  server (the same `mcp`/`fastmcp` stack `kube/powermcp_serve_http.py` already wraps in this repo),
-  stdio transport by default, ~28 tools across session management, object/membership CRUD,
-  property authoring, scenario tagging, discovery/catalog queries, read-only SQL, and XML/CSV
-  export. It ships a `--read-only` safety flag and `health`/`doctor`/`capabilities` diagnostic
-  subcommands. This is "PowerAgent becomes a universal interface to PLEXOS" **already solved
-  upstream** — the work here is composition, the same discipline `docs/VISION.md` §3 already
-  applies to pandapower/powerio/PowerMCP ("Everything in this table already exists. This repo's
-  job is the glue.").
+- **[`plexosdb-mcp`](https://github.com/NatLabRockies/plexosdb/tree/main/src/plexosdb-mcp)**
+  (**correction, Phase 0**: source-only, *not* a published PyPI package — `pypi.org/pypi/plexosdb-mcp/json`
+  returns 404; see `0004-phase0-findings.md`. Installable directly from its GitHub subdirectory) is
+  a *complete, already-built* MCP server over `plexosdb` — a `FastMCP`-based server (the same
+  `mcp`/`fastmcp` stack `kube/powermcp_serve_http.py` already wraps in this repo), stdio transport
+  by default, ~28 tools across session management, object/membership CRUD, property authoring,
+  scenario tagging, discovery/catalog queries, read-only SQL, and XML/CSV export. It ships a
+  `--read-only` safety flag and `health`/`doctor`/`capabilities` diagnostic subcommands
+  (Phase 0-confirmed, all four run and return real JSON). This is "PowerAgent becomes a universal
+  interface to PLEXOS" **already solved upstream** — the work here is composition, the same
+  discipline `docs/VISION.md` §3 already applies to pandapower/powerio/PowerMCP ("Everything in
+  this table already exists. This repo's job is the glue.").
 
 Separately, the same organization publishes the **[R2X](https://github.com/NatLabRockies/R2X)**
 ecosystem — a real, versioned, CI-tested model-translation framework between **ReEDS** (capacity
@@ -251,9 +253,19 @@ call, simpler than the PowerMCP precedent.
 
 ## Strangler-fig phasing
 
-- **Phase 0 — env verification.** Confirm `plexosdb-mcp` installs and runs (`uvx plexosdb-mcp
-  health`, `doctor`, `capabilities`) in this sandbox — pure-Python/OSS, no license gate expected,
-  but verify per `AGENTS.md`'s "name the specific tool you tried" discipline rather than assuming.
+- **Phase 0 — env verification. Done.** See
+  [`0004-phase0-findings.md`](0004-phase0-findings.md) for the full evidence trail. Summary:
+  `plexosdb` (the library) installs cleanly via `uv add plexosdb` — pure-Python/OSS, no license
+  gate, confirmed. `plexosdb-mcp` is **not** published to PyPI (`pypi.org/pypi/plexosdb-mcp/json`
+  returns 404, and the PRD's literal `uvx plexosdb-mcp ...` command fails as written — a real
+  correction to this PRD's original "own PyPI package" claim above), but its real source in
+  `NatLabRockies/plexosdb`'s `src/plexosdb-mcp/` installs and runs cleanly from GitHub
+  (`uv add "plexosdb-mcp @ git+https://github.com/NatLabRockies/plexosdb#subdirectory=src/plexosdb-mcp"`
+  then `uv run plexosdb-mcp {health,version,doctor,capabilities}`), all four diagnostic subcommands
+  returning real JSON matching this PRD's tool-surface table. A real MCP `initialize` handshake
+  piped over stdio to `uv run plexosdb-mcp` (no subcommand) returned a spec-correct response on
+  stdout with all logging on stderr — confirming it behaves as a normal stdio MCP server (see Goal
+  3 / Open questions below for what this does and doesn't settle).
 - **Phase 1 — direct-access workflow, standalone value.** Wire `plexosdb-mcp` into an Agent
   Framework workflow (Lab 2's own shape) doing something useful on its own, independent of the
   strangler-fig ambition: load a PLEXOS study, list its generators/nodes, diff two versions of a
@@ -283,16 +295,23 @@ call, simpler than the PowerMCP precedent.
   that skips a pod entirely)
 - `kube/r2x-translate-pod.yaml`, `Containerfile.r2x-translate` (Rust `r2x-cli` binary + Julia
   runtime for the Sienna solve step)
-- `labs/07-plexos-direct-and-strangler-fig/` (proposed new lab, Phase 1 onward, renumbered from the
-  originally-proposed `labs/06-...` — PRD-0006 claimed Lab 6 first, for the SysML v2 digital-thread
-  MVP), following Labs 1–5's fetch→run→check/README-with-Sandbox-notes shape
+- `labs/10-plexos-direct-and-strangler-fig/` (proposed new lab, Phase 1 onward — renumbered twice
+  now: originally proposed as `labs/06-...`, then `labs/07-...` after PRD-0006 claimed Lab 6 for the
+  SysML v2 digital-thread MVP; now `labs/10-...` since Labs 07/08/09 were subsequently claimed by
+  `rust-comtrade-fft-detector` and the two cim-gridy labs, per Phase 0's findings doc), following
+  Labs 1–5's fetch→run→check/README-with-Sandbox-notes shape. Not created yet — Phase 0 is
+  verification only; see `0004-phase0-findings.md`.
 - `docs/VISION.md` §3: proposed new ecosystem rows for `plexosdb`, `plexosdb-mcp`, `R2X`
   (`r2x-cli`/`r2x-core`/`r2x-plexos`/`r2x-sienna`/`infrasys`), and Sienna
   (PowerSystems.jl/PowerSimulations.jl) — all open-source, all free to run locally
 
 ## Acceptance criteria for this PRD
 
-- [ ] `plexosdb-mcp` confirmed runnable in this sandbox (Phase 0), exact commands cited.
+- [x] `plexosdb-mcp` confirmed runnable in this sandbox (Phase 0), exact commands cited. See
+      `0004-phase0-findings.md` — runnable via `uv add "plexosdb-mcp @
+      git+https://github.com/NatLabRockies/plexosdb#subdirectory=src/plexosdb-mcp"` + `uv run
+      plexosdb-mcp {health,version,doctor,capabilities}`; the PRD's originally-cited bare `uvx
+      plexosdb-mcp ...` command does not work as written (package not on PyPI — corrected above).
 - [ ] A real (or CSIRO-adjacent placeholder) PLEXOS XML study has been loaded and inspected via
       `plexosdb-mcp` tools end-to-end from an Agent Framework workflow.
 - [ ] The stdio-vs-pod transport question (Goal 3) is answered with a cited finding, not assumed
