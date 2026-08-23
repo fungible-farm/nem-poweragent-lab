@@ -301,7 +301,10 @@ def add_renewable_source_to_system(
     return {"source": source, "node": bus_node, "vn_kv": vn_kv}
 
 
-def to_sp_powerflow_system(topology: "chaosnet.ChaosTopology") -> object:
+def to_sp_powerflow_system(
+    topology: "chaosnet.ChaosTopology",
+    extra_injections: dict[int, tuple[float, float]] | None = None,
+) -> object:
     """Build a real SP-domain (single-phase positive-sequence) power-flow
     mirror of `topology` -- ext grid + lines + loads only, node-named
     identically to `chaosnet.to_dpsim_emt_system()`'s own EMT nodes
@@ -313,6 +316,26 @@ def to_sp_powerflow_system(topology: "chaosnet.ChaosTopology") -> object:
 
     Args:
         topology: output of `chaosnet.build_chaos_topology()`.
+        extra_injections: optional local bus index -> `(p_mw, q_mvar)` extra
+            *injected* power (positive = fed into the network, the same
+            sign convention `chaosnet.to_pandapower()`'s own `pp.create_sgen`
+            uses -- NOT the negated "consumption" convention the `loads`
+            loop below applies) added as one additional `sp.ph1.Load` per
+            entry (added, not merged into an existing bus's own load
+            component, so a bus with both a real topology load and an
+            extra injection gets two separate SP-domain components at the
+            same node -- DPsim's own power-flow solver sums every
+            component's contribution at a node, so this is physically
+            equivalent to a single merged injection). Added for
+            docs/prd/0003-iberian-2025-blackout-scenario.md's
+            precursor->collapse handoff: the precursor phase's own real
+            final accumulated reactive-power injection at its RES/cascade
+            tap, carried into the collapse phase's own EMT initial
+            condition via this same two-stage `init_with_powerflow`
+            mechanism `initialize_with_powerflow()` below already uses for
+            the renewable-source case. None (default) reproduces this
+            function's prior exact behaviour -- no existing caller is
+            affected.
 
     Returns:
         A `dpsimpy.SystemTopology` (SP domain), unsolved -- caller must run
@@ -359,6 +382,26 @@ def to_sp_powerflow_system(topology: "chaosnet.ChaosTopology") -> object:
     pf_ext.modify_power_flow_bus_type(dpsimpy.PowerflowBusType.VD)
     pf_ext.connect([nodes[topology["ext_grid_bus"]]])
     components.append(pf_ext)
+
+    for bus_idx, (p_mw, q_mvar) in (extra_injections or {}).items():
+        bus = topology["buses"][bus_idx]
+        # Injection, not consumption -- the sign is the *opposite* of the
+        # `loads` loop above (which negates a real consumed p_mw/q_mvar into
+        # the network's own "injected power" reference): a positive
+        # `p_mw`/`q_mvar` here is fed directly into `active_power`/
+        # `reactive_power` unchanged, matching `pp.create_sgen()`'s own
+        # positive-means-injected convention (see docstring).
+        pf_injection = dpsimpy.sp.ph1.Load(
+            f"extra_injection_bus{bus_idx}_pf", dpsimpy.LogLevel.warn
+        )
+        pf_injection.set_parameters(
+            active_power=p_mw * 1e6,
+            reactive_power=q_mvar * 1e6,
+            nominal_voltage=bus["vn_kv"] * 1000.0,
+        )
+        pf_injection.modify_power_flow_bus_type(dpsimpy.PowerflowBusType.PQ)
+        pf_injection.connect([nodes[bus_idx]])
+        components.append(pf_injection)
 
     return dpsimpy.SystemTopology(
         topology["system_frequency_hz"], list(nodes.values()), components

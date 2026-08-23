@@ -211,9 +211,24 @@ class _QAccumulator:
 
 
 EXPECTED_FILE = SCENARIOS_DIR / "expected_iberian_2025_run.json"
+# Combined (precursor->collapse handoff) fixture -- separate from both
+# EXPECTED_FILE (collapse-only, no handoff) and PRECURSOR_EXPECTED_FILE
+# (precursor-only) below, since run_combined() scores the two phases'
+# generators/detectors TOGETHER as one continuous causal chain (docs/prd/0003
+# precursor->collapse handoff) -- a genuinely different run from either.
+COMBINED_EXPECTED_FILE = SCENARIOS_DIR / "expected_iberian_2025_combined_run.json"
 
 DEFAULT_SEED: int = chaosnet.DEFAULT_SEED
 TIME_STEP_S: float = run_dpsim.TIME_STEP_S
+
+# --- Precursor->collapse handoff PF-init sim parameters --------------------
+# Matches renewable_source.initialize_with_powerflow()'s own established
+# values for this exact two-stage-init pattern (a static SP-domain
+# power-flow solve, not a time-domain run -- these two ticks just give
+# dpsimpy.Simulation.run() somewhere to stop; the actual power-flow result
+# is read from the converged solution, not from any particular sample).
+HANDOFF_PF_INIT_TIME_STEP_S: float = 1.0
+HANDOFF_PF_INIT_FINAL_TIME_S: float = 2.0
 
 # --- Tap-role assignment (see module docstring "Tap-role mapping") --------
 REFERENCE_TAP: str = "SUB-1"   # fixed slack/reference phase
@@ -420,11 +435,22 @@ class IberianScenarioSummary(TypedDict):
 
 class PrecursorScenarioSummary(TypedDict):
     """Diffable summary of one precursor-phase run, mirroring
-    IberianScenarioSummary's own shape (separate fixture, separate score)."""
+    IberianScenarioSummary's own shape (separate fixture, separate score).
+
+    `final_res_q_mvar`/`final_res_vm_pu` are the real, observed final state
+    of this run's own `_QAccumulator`/pandapower solve at RES_TAP -- the
+    precursor->collapse handoff's own state variables (docs/prd/0003's
+    handoff design), captured from the actual run, not recomputed from the
+    PRECURSOR_FACTOR_* constants independently (so a change to those
+    constants can never silently drift out of sync with what the handoff
+    actually carries forward).
+    """
 
     seed: int
     events: list[GeneratorEvent]
     findings: list[Finding]
+    final_res_q_mvar: float
+    final_res_vm_pu: float
 
 
 def _build_precursor_generators(
@@ -660,7 +686,13 @@ def run_precursor(seed: int = DEFAULT_SEED, verbose: bool = True) -> PrecursorSc
         )
 
     summary: PrecursorScenarioSummary = {
-        "seed": seed, "events": result.events, "findings": findings
+        "seed": seed,
+        "events": result.events,
+        "findings": findings,
+        # Real, observed final state (not re-derived from the PRECURSOR_FACTOR_*
+        # constants) -- see PrecursorScenarioSummary's own docstring.
+        "final_res_q_mvar": accumulator._total_mvar,
+        "final_res_vm_pu": result.vm_pu[-1],
     }
 
     if seed == DEFAULT_SEED:
@@ -919,7 +951,9 @@ def _run_detectors(waves: dict[str, ThreePhaseWaveform], up_to_s: float) -> list
     return findings
 
 
-def run_step(seed: int = DEFAULT_SEED, verbose: bool = True) -> IberianScenarioSummary:
+def run_step(
+    seed: int = DEFAULT_SEED, verbose: bool = True, handoff_q_mvar: float | None = None
+) -> IberianScenarioSummary:
     """Run the real DPsim EMT solve for this scenario's fast-collapse
     phase: 5 PlantBehaviourGenerator nudges + 1 late OperatorActionGenerator
     driving a live CurrentSource at RES_TAP, 3 overvoltage
@@ -930,6 +964,17 @@ def run_step(seed: int = DEFAULT_SEED, verbose: bool = True) -> IberianScenarioS
         seed: chaos-net topology seed (chaosnet.build_chaos_topology).
         verbose: if True, print progress lines matching every other
             scenario_engine script's own convention.
+        handoff_q_mvar: if given, the precursor phase's own real final
+            accumulated RES_TAP reactive-power injection (Mvar) -- see
+            `run_precursor()`'s `final_res_q_mvar` -- carried into this
+            solve's own EMT initial condition via
+            `renewable_source.to_sp_powerflow_system()`'s
+            `extra_injections` + `run_scenario()`'s `init_powerflow_system`
+            (docs/prd/0003's precursor->collapse handoff). None (default,
+            every existing caller) reproduces this function's prior exact
+            behaviour: `run_scenario()` falls back to
+            `sim.do_steady_state_init(True)`, unaffected by any precursor
+            state.
 
     Returns:
         An IberianScenarioSummary of this run's events and findings.
@@ -961,6 +1006,33 @@ def run_step(seed: int = DEFAULT_SEED, verbose: bool = True) -> IberianScenarioS
     }
     generators = _build_generators(dsys, accumulator)
 
+    # Precursor->collapse handoff (docs/prd/0003): build a solved SP-domain
+    # power-flow mirror carrying the precursor phase's own real final
+    # RES_TAP reactive-power injection, for run_scenario() to apply via
+    # init_with_powerflow() instead of the default do_steady_state_init.
+    init_powerflow_system = None
+    if handoff_q_mvar is not None:
+        import renewable_source  # local import: matches this module's own dpsimpy-adjacent convention
+
+        sp_system = renewable_source.to_sp_powerflow_system(
+            topology, extra_injections={res_bus_idx: (0.0, handoff_q_mvar)}
+        )
+        sim_pf = dpsimpy.Simulation(f"iberian_handoff_pf_init_seed{seed}", dpsimpy.LogLevel.warn)
+        sim_pf.set_system(sp_system)
+        sim_pf.set_time_step(HANDOFF_PF_INIT_TIME_STEP_S)
+        sim_pf.set_final_time(HANDOFF_PF_INIT_FINAL_TIME_S)
+        sim_pf.set_domain(dpsimpy.Domain.SP)
+        sim_pf.set_solver(dpsimpy.Solver.NRP)
+        sim_pf.do_init_from_nodes_and_terminals(False)
+        sim_pf.run()
+        init_powerflow_system = sp_system
+        if verbose:
+            print(
+                f"[iberian_2025_blackout] handoff: seeding EMT init from precursor's "
+                f"real final RES_TAP Q={handoff_q_mvar:.4f} Mvar via init_with_powerflow "
+                "(docs/prd/0003 precursor->collapse handoff)"
+            )
+
     if verbose:
         print(
             f"[iberian_2025_blackout] seed={seed} solving {FINAL_TIME_S:.2f}s at "
@@ -972,7 +1044,8 @@ def run_step(seed: int = DEFAULT_SEED, verbose: bool = True) -> IberianScenarioS
 
     wall_start = time.time()
     result = run_scenario(
-        dsys, monitored_taps, TIME_STEP_S, FINAL_TIME_S, generators, verbose=verbose
+        dsys, monitored_taps, TIME_STEP_S, FINAL_TIME_S, generators, verbose=verbose,
+        init_powerflow_system=init_powerflow_system,
     )
     wall_elapsed = time.time() - wall_start
 
@@ -1003,7 +1076,14 @@ def run_step(seed: int = DEFAULT_SEED, verbose: bool = True) -> IberianScenarioS
         "seed": seed, "events": result["events"], "findings": findings
     }
 
-    if seed == DEFAULT_SEED:
+    # Only the baseline (no-handoff) default-seed run may (re)write the
+    # collapse-only fixture -- a handoff run's own generator-fire times
+    # legitimately differ (see run_combined()'s own, separate
+    # expected_iberian_2025_combined_run.json fixture) and must never
+    # clobber this one, same "don't clobber the baseline fixture from a
+    # non-default-config run" guard run_dpsim.py's own run_step() already
+    # applies to --stabilizer/--renewable.
+    if seed == DEFAULT_SEED and handoff_q_mvar is None:
         _write_fixture(summary)
 
     return summary
@@ -1077,18 +1157,211 @@ def check_step() -> bool:
     return report["all_passed"]
 
 
+class CombinedScenarioSummary(TypedDict):
+    """Diffable summary of one full precursor->collapse handoff run: both
+    phases' own events/findings concatenated (generator/detector ids are
+    unique across the two phases -- "precursor-*"/"oscillation-*"/
+    "cascade-precursor" vs. "plant-*"/"trip-*"/"island-*"/"rocof-*"/
+    "angle-*"/"classifier-*" -- so `score_run()` needs no phase-tagging to
+    tell them apart), plus the real handoff state variable actually
+    carried across (`handoff_q_mvar`) for the report/PR evidence.
+    """
+
+    seed: int
+    events: list[GeneratorEvent]
+    findings: list[Finding]
+    handoff_q_mvar: float
+
+
+def run_combined(seed: int = DEFAULT_SEED, verbose: bool = True) -> CombinedScenarioSummary:
+    """Run the precursor phase to completion, then feed its own real final
+    RES_TAP reactive-power state into the fast-collapse phase's own EMT
+    initial condition, then run the collapse phase -- one continuous,
+    scored causal chain (docs/prd/0003-iberian-2025-blackout-scenario.md's
+    precursor->collapse handoff).
+
+    **What is, and is not, carried forward, and why** (see this module's
+    own commit/PR notes for the real sandbox measurement backing this):
+    only `run_precursor()`'s own `final_res_q_mvar` (the real, observed
+    final accumulated RES_TAP reactive-power setpoint from the precursor's
+    5 `PlantBehaviourGenerator` trend factors) is carried forward, via
+    `renewable_source.to_sp_powerflow_system()`'s `extra_injections` +
+    `run_scenario()`'s `init_powerflow_system` (a real two-stage SP-domain
+    power-flow solve applied to the collapse phase's own EMT initial
+    condition via `dpsimpy.SystemTopology.init_with_powerflow()`).
+    `final_res_vm_pu` (also captured by `run_precursor()`) is deliberately
+    NOT used for the handoff: confirmed directly in this sandbox (a
+    standalone zero-Q-vs-full-Q `PandapowerQuasiStaticStepper` control
+    run) that the precursor's own committed "accelerating rise... ~130V to
+    ~444V" cascade-detector figure (PRD-0003's own "Detectors to validate
+    against" section) is NOT primarily driven by the 3.3 Mvar Q trend
+    (confirmed: that trend alone moves RES_TAP's own quasi-static vm_pu by
+    only ~5V peak-equivalent, matching an independent single-shot
+    pandapower sensitivity check exactly) -- it is dominated by
+    `SecondOrderOscillator`'s own step-response behaviour: `.excite(1.0)`
+    sets a PERMANENT non-zero target, so each oscillator's `.output`
+    settles toward (not away from) +1.0 per-unit (+400V at this file's own
+    `LOCAL_MODE_GAIN_V`/`INTER_AREA_MODE_GAIN_V`) once its oscillatory
+    transient decays -- a real, previously-undocumented platform finding
+    this session (`OscillationDetector`'s own "quiet check" correctly
+    finds no spectral/coherence content once the mode decays, but that is
+    a different claim than "the magnitude has returned to baseline": a
+    settled DC offset produces no oscillatory finding at all, yet persists
+    indefinitely). Carrying that settled-offset artifact into the collapse
+    phase's own EMT initial condition would misrepresent it as still-live
+    system voltage state, directly contradicting this PRD's own cited
+    ENTSO-E fact for the exact handoff moment (12:32:00 CEST = this
+    scenario's own t=PRECURSOR_DURATION_S/collapse-phase t=0 boundary,
+    already established by both phases' own existing time constants):
+    "At 12:32:00: Iberian 400 kV voltage was below 420 kV, no oscillation
+    with amplitude >20 mHz observable" (PRD-0003 "Precursor window"). Only
+    the real accumulated reactive-power trend -- the report's own named
+    mechanism ("operators' damping actions... increased voltage as a side
+    effect", root-cause factors 1/2/4/5/6) -- is genuinely still "live"
+    system state at that moment, so only it is handed off.
+
+    Args:
+        seed: chaos-net topology seed (chaosnet.build_chaos_topology),
+            shared by both phases (same underlying network).
+        verbose: if True, print progress lines matching every other
+            scenario_engine script's own convention.
+
+    Returns:
+        A CombinedScenarioSummary with both phases' events/findings
+        concatenated and the real handoff Q value used.
+    """
+    if verbose:
+        print(
+            "[iberian_2025_blackout] combined: running precursor phase "
+            f"(seed={seed}) to obtain its real final RES_TAP Q state..."
+        )
+    precursor_summary = run_precursor(seed=seed, verbose=verbose)
+    handoff_q_mvar = precursor_summary["final_res_q_mvar"]
+
+    if verbose:
+        print(
+            f"[iberian_2025_blackout] combined: precursor's real final RES_TAP Q = "
+            f"{handoff_q_mvar:.4f} Mvar (final vm_pu={precursor_summary['final_res_vm_pu']:.6f}, "
+            "NOT used for the handoff -- see run_combined()'s own docstring "
+            "'What is, and is not, carried forward'). Feeding Q into the collapse "
+            "phase's own EMT initial condition..."
+        )
+    collapse_summary = run_step(seed=seed, verbose=verbose, handoff_q_mvar=handoff_q_mvar)
+
+    summary: CombinedScenarioSummary = {
+        "seed": seed,
+        "events": [*precursor_summary["events"], *collapse_summary["events"]],
+        "findings": [*precursor_summary["findings"], *collapse_summary["findings"]],
+        "handoff_q_mvar": handoff_q_mvar,
+    }
+
+    if seed == DEFAULT_SEED:
+        _write_combined_fixture(summary)
+
+    return summary
+
+
+def _write_combined_fixture(summary: CombinedScenarioSummary) -> None:
+    """(Re)write expected_iberian_2025_combined_run.json from a real
+    combined run's own observed events/findings -- same "committed,
+    re-derived from reality, never fabricated" discipline as every other
+    `_write_*_fixture()` in this module. Scores every generator/detector
+    from BOTH phases (precursor's 7 generators + 3 detector targets, plus
+    the collapse phase's own 10 generators + 3 detector targets) in one
+    fixture, since `run_combined()` is one continuous causal chain.
+
+    Args:
+        summary: this run's own CombinedScenarioSummary.
+    """
+    earliest_by_id: dict[str, float] = {}
+    for e in summary["events"]:
+        gid = e["generator_id"]
+        if gid not in earliest_by_id or e["time_s"] < earliest_by_id[gid]:
+            earliest_by_id[gid] = e["time_s"]
+
+    def _earliest_finding(detector_id: str, kind: str) -> float | None:
+        matches = [
+            f["time_s"]
+            for f in summary["findings"]
+            if f["detector_id"] == detector_id and f["kind"] == kind
+        ]
+        return min(matches) if matches else None
+
+    fixture: dict = {
+        "generators": {
+            gid: {"time_s": t, "tolerance_s": FIXTURE_TIME_TOLERANCE_S}
+            for gid, t in earliest_by_id.items()
+        },
+        "detectors": {},
+        "handoff_q_mvar": summary["handoff_q_mvar"],
+    }
+
+    for detector_id, kind in (
+        ("oscillation-local-mode", "oscillation"),
+        ("oscillation-inter-area-mode", "oscillation"),
+        ("cascade-precursor", "voltage_cascade"),
+        ("rocof-res", "rocof"),
+        ("angle-res-vs-ref", "angle_separation"),
+        ("classifier-iberian2025", "composite"),
+    ):
+        t = _earliest_finding(detector_id, kind)
+        if t is not None:
+            fixture["detectors"][f"{detector_id}:{kind}"] = {
+                "time_s": t,
+                "tolerance_s": FIXTURE_TIME_TOLERANCE_S,
+                "min_confidence": FIXTURE_MIN_CONFIDENCE,
+            }
+
+    COMBINED_EXPECTED_FILE.write_text(json.dumps(fixture, indent=2))
+
+
+def check_combined() -> bool:
+    """Re-run run_combined() with the default seed and diff the result
+    against expected_iberian_2025_combined_run.json via scoring.score_run().
+
+    Returns:
+        True if every generator-realism and detector-performance entry in
+        the resulting ScoreReport passed; False otherwise.
+    """
+    if not COMBINED_EXPECTED_FILE.exists():
+        print(f"[FAIL] no fixture at {COMBINED_EXPECTED_FILE}", file=sys.stderr)
+        return False
+    fixture = json.loads(COMBINED_EXPECTED_FILE.read_text())
+
+    summary = run_combined(seed=DEFAULT_SEED, verbose=False)
+    COMBINED_EXPECTED_FILE.write_text(json.dumps(fixture, indent=2))
+
+    report = score_run(summary["events"], summary["findings"], fixture)
+    print_score_report(report)
+    if report["all_passed"]:
+        print(
+            f"[iberian_2025_blackout] combined: real handoff Q={summary['handoff_q_mvar']:.4f} "
+            "Mvar carried from precursor's own final state into the collapse phase's EMT "
+            "initial condition (docs/prd/0003 precursor->collapse handoff)"
+        )
+    return report["all_passed"]
+
+
 def main() -> None:
     """CLI entry point. --step run (default) executes the full scenario
     and prints its events/findings; --step check re-derives it and scores
-    against expected_iberian_2025_run.json, exiting non-zero on mismatch.
+    against the phase's own fixture, exiting non-zero on mismatch.
     --phase collapse (default, unchanged from before the precursor phase
-    existed) targets the fast-collapse phase; --phase precursor targets the
-    new quasi-static precursor phase (separate fixture, separate score --
-    see module docstring "Explicit non-goal": the two are not chained)."""
+    existed) targets the fast-collapse phase alone (no handoff, its own
+    do_steady_state_init); --phase precursor targets the quasi-static
+    precursor phase alone; --phase combined
+    (docs/prd/0003-iberian-2025-blackout-scenario.md's precursor->collapse
+    handoff) runs the precursor phase, extracts its own real final RES_TAP
+    reactive-power state, and feeds it into the collapse phase's own EMT
+    initial condition before running it -- one continuous, scored causal
+    chain (see run_combined()'s own docstring for exactly what is and is
+    not carried forward, and why)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--step", choices=["run", "check"], default="run")
-    parser.add_argument("--phase", choices=["collapse", "precursor"], default="collapse")
+    parser.add_argument(
+        "--phase", choices=["collapse", "precursor", "combined"], default="collapse"
+    )
     args = parser.parse_args()
 
     if args.phase == "collapse":
@@ -1102,6 +1375,12 @@ def main() -> None:
             run_precursor(seed=args.seed)
         elif args.step == "check":
             ok = check_precursor()
+            sys.exit(0 if ok else 1)
+    elif args.phase == "combined":
+        if args.step == "run":
+            run_combined(seed=args.seed)
+        elif args.step == "check":
+            ok = check_combined()
             sys.exit(0 if ok else 1)
 
 

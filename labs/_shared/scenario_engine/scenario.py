@@ -330,6 +330,7 @@ def run_scenario(
     final_time_s: float,
     generators: list,
     verbose: bool = False,
+    init_powerflow_system: object | None = None,
 ) -> ScenarioRunResult:
     """Drive one full DPsim EMT solve with a mix of time- and
     condition-triggered generators.
@@ -360,6 +361,18 @@ def run_scenario(
             each cadence tick.
         verbose: print progress lines (matches run_dpsim.py's own
             convention).
+        init_powerflow_system: if given, a solved SP-domain
+            `dpsimpy.SystemTopology` applied via `dsys["system"]
+            .init_with_powerflow(init_powerflow_system, dpsimpy.Domain.EMT)`
+            instead of the default `sim.do_steady_state_init(True)` --
+            the two-stage init `renewable_source.py`'s own module docstring
+            documents as the real DPsim mechanism for seeding an EMT solve
+            from an externally-computed power-flow state (docs/prd/0003's
+            precursor->collapse handoff: a real reactive-power injection
+            carried forward from another phase's own final state, applied
+            here as this solve's own EMT initial condition). None (default)
+            reproduces every existing caller's exact prior behaviour --
+            nothing about the default path changes.
 
     Returns:
         A `ScenarioRunResult` with the full per-tap transient waveform and
@@ -372,7 +385,14 @@ def run_scenario(
     sim.set_domain(dpsimpy.Domain.EMT)
     sim.set_time_step(time_step_s)
     sim.set_final_time(final_time_s)
-    sim.do_steady_state_init(True)
+    if init_powerflow_system is not None:
+        # Two-stage PF init (see docstring above) -- mutates dsys["system"]'s
+        # own internal node state in place, same DPsim API shape
+        # renewable_source.initialize_with_powerflow() already established;
+        # must NOT be combined with do_steady_state_init on the same run.
+        dsys["system"].init_with_powerflow(init_powerflow_system, dpsimpy.Domain.EMT)
+    else:
+        sim.do_steady_state_init(True)
 
     phase_attrs: dict[str, list] = {}
     for tap, bus in monitored_taps.items():
