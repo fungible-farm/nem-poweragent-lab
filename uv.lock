@@ -763,7 +763,7 @@ wheels = [
 
 [[package]]
 name = "dpsim"
-version = "1.2.1"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -771,11 +771,16 @@ dependencies = [
     { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d0/9d/c034b642d40f2682cdf7af57a4c2dbf1e9f5e279d71ed15ee38c38a47681/dpsim-1.2.1.tar.gz", hash = "sha256:7d1dca57811ae4720f1ad70cbdd09e1a10d2ee9af26264b0bf60ecbe9dbbb26a", size = 12474, upload-time = "2025-12-10T14:47:54.763Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/de/f15cae40d89232d6962e523e755fb8b938572238810c03e85243ae8e8704/dpsim-1.4.0.tar.gz", hash = "sha256:308c1a601b205fd1d9fae0cdc3a302081a267ad9d70d5d1f3af4d19757e888d7", size = 22485, upload-time = "2026-08-14T17:10:06.316Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/bb/7bd185cd7c85a7eab8077dbf2ce13ff4dcea11b582bba41863fb1724711f/dpsim-1.2.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:f22e8053e0d914abb081050a33e0f46ecb8b3ae1f2fa43a46fdbdf7256ed69b6", size = 56381775, upload-time = "2025-12-10T14:47:40.046Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/22/6a7dee76b9ee03fa7b77a50d69e686d8a2aa340228e5858a3b5a5cafc8df/dpsim-1.2.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:34e411797bef98ebe60fad57681168106de940e3a83ac23678e95e332c858d28", size = 56377967, upload-time = "2025-12-10T14:47:44.195Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/74/08d272e2d71abf89f45b50d9f3e96f82e89b1a76451cf9328d8a223ce5fd/dpsim-1.2.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:3313ba423d4c40ecc2e17df9753da5a0954d3534c1ec7d84e2977914c0d349c3", size = 56377903, upload-time = "2025-12-10T14:47:48.135Z" },
+    { url = "https://files.pythonhosted.org/packages/18/64/ac69a1d2d6635f40bc507ca773341969b3b8273585ba305de75fc64be4d6/dpsim-1.4.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:f51b1e9caccbc5e46edfc636d8c2ad11e52b2c712688a288fcc4431356f9d870", size = 57771980, upload-time = "2026-08-14T17:09:42.727Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/e1/e0b7b31c7b1045d0f390edd9ae8a419ad962e5da6db1f24f406000e98912/dpsim-1.4.0-cp311-cp311-win_amd64.whl", hash = "sha256:ed074ebb4cbbef664338a7d8c47a6694b086c4689dc6cfdd8b20efc772ebaf4f", size = 2738743, upload-time = "2026-08-14T17:09:46.331Z" },
+    { url = "https://files.pythonhosted.org/packages/98/5e/309c41085b306a59d1bf0f184c59b7c2cf4a1fa2d4483fe7b56d9b2c5e4a/dpsim-1.4.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:712b377e8f5162e6b592f45ad5716caf40c095707abd71b58670e912fa1578bf", size = 57782693, upload-time = "2026-08-14T17:09:49.585Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/19/af2aebe366417b4c4e4031a88b9c49bc4e287b0fbeedc7c43f0ffa298dc7/dpsim-1.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:57ac1ac1fe78a28412bc78c9ff58f1646a14dde99b01b607b7615baa93f68577", size = 2739544, upload-time = "2026-08-14T17:09:52.717Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/f3/dfd8253fd3a03fb708ed54ed70d2ab87c9b4ba09fae52922ff3109d630d7/dpsim-1.4.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:be2b32b1ce0503f266a9919218137a1b8b5e877bb172682ea2d67a45c8ee964a", size = 57782401, upload-time = "2026-08-14T17:09:55.856Z" },
+    { url = "https://files.pythonhosted.org/packages/04/dd/304585d4fa37e23fea9d2000294ffa16be76160b2b0ed376bf7228d05ba5/dpsim-1.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:dad287d2ac4dc373600917865ec8780d23ce1c171349059558fd53aaf0753ea8", size = 2739717, upload-time = "2026-08-14T17:09:58.857Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/09/970278c38b9f488e295c6bbbcc761b78a8a86465e9d5c71bfff75a9f0f91/dpsim-1.4.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:dc91d872096d0ac9dbb7f604f205692fc2b2b128b7672f4505bf156966a38664", size = 57782878, upload-time = "2026-08-14T17:10:01.793Z" },
+    { url = "https://files.pythonhosted.org/packages/28/bb/950e552608b0e8c6f530bf99efc56bd3ccc4daca3b740e1a81f06489cca9/dpsim-1.4.0-cp314-cp314-win_amd64.whl", hash = "sha256:dc5aa6e65dfc7d5adcf4eb24eae92b820435017c7f8a77f5b02533d9a3d260cb", size = 2813499, upload-time = "2026-08-14T17:10:04.759Z" },
 ]
 
 [[package]]
@@ -2699,6 +2704,34 @@ wheels = [
 ]
 
 [[package]]
+name = "pypowsybl"
+version = "1.16.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "networkx" },
+    { name = "pandas" },
+    { name = "prettytable" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/7d/abd2a16273f1b9b11ecd6fa69e2178607af17e5d83c2c6d01fc895f98922/pypowsybl-1.16.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:67fbb2e542e85605e5111b70d4c0b29dbc677f32ad67eef93e608b5d65355c1d", size = 77544345, upload-time = "2026-07-22T11:58:59.782Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/3f/96e55ad517625920d8f2c7a76922bd50d36def09e6ec28189d1ae0b32824/pypowsybl-1.16.1-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:b5fd0a3b418ab1cb8dde698de623f4e2ab704ea9da807b9d099a5f24ec6a1903", size = 78746078, upload-time = "2026-07-22T11:59:17.862Z" },
+    { url = "https://files.pythonhosted.org/packages/93/54/a3b12fcf160b06557bc24cf10d31ede95625594929748f6de37e93a05106/pypowsybl-1.16.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7f6d3904870cac73f58bfdc16a3b4e56028681b3692ef9db199dd1ec0b5f2798", size = 93378174, upload-time = "2026-07-22T11:59:38.712Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/e7/db8c5bad938f145a3243fadae9ffa032d9601a01b7e4642cb80f92b51367/pypowsybl-1.16.1-cp311-cp311-win_amd64.whl", hash = "sha256:9c280108aa34ac861442423d2a06dab991c5670eb36da36f59489eb37b3d49c6", size = 74318685, upload-time = "2026-07-22T11:59:57.482Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/29/f2367af6f6d83d84793bf08cbd1ba97fe8aa8fa139d75288ddf03c2693a6/pypowsybl-1.16.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:20e4d9da2757124d314af5f3ad7ebe32ed2bf92adfc29b164aca236d432aed81", size = 77548686, upload-time = "2026-07-22T11:59:03.127Z" },
+    { url = "https://files.pythonhosted.org/packages/08/d9/44f45681f22530d3a02edd52bdd06c572cad55c4296ed8d53f77a10cb27b/pypowsybl-1.16.1-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:a0776c6f8e5969511609ec250fbdb59cd6accbdd491e7785a78341c9384d4dcf", size = 78762660, upload-time = "2026-07-22T11:59:21.732Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/58/4ea15b7c24b1d95eedd4988675c029adbb913c6181ffd744f8055035e761/pypowsybl-1.16.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4402b096d93665fdad5d0744942778434f4ebbab1999fe4944b89bf8b79bf841", size = 93381796, upload-time = "2026-07-22T11:59:42.895Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/de/a50d9ba912e6646bad411f9b45fc7cd0fd48f1593f276e0c0604972bec2a/pypowsybl-1.16.1-cp312-cp312-win_amd64.whl", hash = "sha256:029bf599fbf80f68243aff7e591bd28e4f07ab9518538d18dbc6c3e4678df9a6", size = 74319239, upload-time = "2026-07-22T12:00:01.377Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/10/160f4aae72a10868d27a155dcaa1332f4ec4288d76c469840953a7d4b5a8/pypowsybl-1.16.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d806030457a026436d44d94c45257c267f735b1b300e1f9fb8cd86289981910f", size = 77548702, upload-time = "2026-07-22T11:59:06.775Z" },
+    { url = "https://files.pythonhosted.org/packages/71/60/c4d7d98ffc26351f463517a4b1244e6f1b9ba0b4760aaca7feb4ae1e214f/pypowsybl-1.16.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:02c5332328962def0b066a75626a069a0bf69be53ddcdbc782df89260c4310cf", size = 78762639, upload-time = "2026-07-22T11:59:25.526Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/f1/78e9a06affb24525626a5029bb4ffaf92f9cd16214ac9bd6f5e32e008a34/pypowsybl-1.16.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2852167794373da1b3a11519af370bbd6a3123eec272b2a607bbd5108ec45510", size = 93381573, upload-time = "2026-07-22T11:59:46.756Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/51/3a459389ddbc5449cbeecb85763b2a8fc03e769946d339f1902542eb9ba9/pypowsybl-1.16.1-cp313-cp313-win_amd64.whl", hash = "sha256:9b915cee0acc3c6211e1c077f5ea87e04bdcbd7af75446b519fb56a6dc342254", size = 74319215, upload-time = "2026-07-22T12:00:04.705Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/12/eb5ced473a46b1d8d32fffdcb32b71bc1bbfb6485a27a2d0549ae5ec6834/pypowsybl-1.16.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:e47848625915e8cd701c5a3fd0f6b4c7b1469577086bbf6443dc2152881de90d", size = 77551137, upload-time = "2026-07-22T11:59:10.196Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/ad/277ad2c5bb1cd5db3c86af90e9d26f40c1f6a6e191e56eedb01279b62955/pypowsybl-1.16.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:e6e3bde5ad455322bdcb9290f872cd954f33ca1edbff87464105bcc1b01eddd6", size = 78762317, upload-time = "2026-07-22T11:59:29.687Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/73/47286f758c8bebadce91c664277ed7bdfd968023cfba7db887d497b1a368/pypowsybl-1.16.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0fdaf7a91717e0e5c97893c649de83feb81ed5285fb2e3a60f79ca50595f96d3", size = 93383992, upload-time = "2026-07-22T11:59:50.493Z" },
+    { url = "https://files.pythonhosted.org/packages/68/9d/0c3d387df56e4f1ab4d35d4011037634754a0c6bf97260c2e6532b5c8f9d/pypowsybl-1.16.1-cp314-cp314-win_amd64.whl", hash = "sha256:92f77112baa966454cac087e3b17751a5b68b6ac7862ecc596d37ec9ab215eda", size = 76179138, upload-time = "2026-07-22T12:00:08.991Z" },
+]
+
+[[package]]
 name = "pyshex"
 version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2747,34 +2780,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/97/a2/f928f76bc9b80bc13a46ef632a435263b56711149eb1aab6a1f63368fa5b/pystow-0.9.0.tar.gz", hash = "sha256:347861b53cfbc6692000a9fc03f13e572ac2995b94d30de2722e9bdd2eda0717", size = 55085, upload-time = "2026-08-10T10:26:36.863Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ed/7e/e7ceaf949ecee97ba6003872b3d88bed1b22941742381030d9fc8ea4525e/pystow-0.9.0-py3-none-any.whl", hash = "sha256:5d33926cea3c03c60731df6ffbe9b9467b11d5b1d280f13201874b80fc5f4ba2", size = 62380, upload-time = "2026-08-10T10:26:35.475Z" },
-]
-
-[[package]]
-name = "pypowsybl"
-version = "1.16.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "networkx" },
-    { name = "pandas" },
-    { name = "prettytable" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/7d/abd2a16273f1b9b11ecd6fa69e2178607af17e5d83c2c6d01fc895f98922/pypowsybl-1.16.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:67fbb2e542e85605e5111b70d4c0b29dbc677f32ad67eef93e608b5d65355c1d", size = 77544345, upload-time = "2026-07-22T11:58:59.782Z" },
-    { url = "https://files.pythonhosted.org/packages/ee/3f/96e55ad517625920d8f2c7a76922bd50d36def09e6ec28189d1ae0b32824/pypowsybl-1.16.1-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:b5fd0a3b418ab1cb8dde698de623f4e2ab704ea9da807b9d099a5f24ec6a1903", size = 78746078, upload-time = "2026-07-22T11:59:17.862Z" },
-    { url = "https://files.pythonhosted.org/packages/93/54/a3b12fcf160b06557bc24cf10d31ede95625594929748f6de37e93a05106/pypowsybl-1.16.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7f6d3904870cac73f58bfdc16a3b4e56028681b3692ef9db199dd1ec0b5f2798", size = 93378174, upload-time = "2026-07-22T11:59:38.712Z" },
-    { url = "https://files.pythonhosted.org/packages/a6/e7/db8c5bad938f145a3243fadae9ffa032d9601a01b7e4642cb80f92b51367/pypowsybl-1.16.1-cp311-cp311-win_amd64.whl", hash = "sha256:9c280108aa34ac861442423d2a06dab991c5670eb36da36f59489eb37b3d49c6", size = 74318685, upload-time = "2026-07-22T11:59:57.482Z" },
-    { url = "https://files.pythonhosted.org/packages/3b/29/f2367af6f6d83d84793bf08cbd1ba97fe8aa8fa139d75288ddf03c2693a6/pypowsybl-1.16.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:20e4d9da2757124d314af5f3ad7ebe32ed2bf92adfc29b164aca236d432aed81", size = 77548686, upload-time = "2026-07-22T11:59:03.127Z" },
-    { url = "https://files.pythonhosted.org/packages/08/d9/44f45681f22530d3a02edd52bdd06c572cad55c4296ed8d53f77a10cb27b/pypowsybl-1.16.1-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:a0776c6f8e5969511609ec250fbdb59cd6accbdd491e7785a78341c9384d4dcf", size = 78762660, upload-time = "2026-07-22T11:59:21.732Z" },
-    { url = "https://files.pythonhosted.org/packages/1e/58/4ea15b7c24b1d95eedd4988675c029adbb913c6181ffd744f8055035e761/pypowsybl-1.16.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4402b096d93665fdad5d0744942778434f4ebbab1999fe4944b89bf8b79bf841", size = 93381796, upload-time = "2026-07-22T11:59:42.895Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/de/a50d9ba912e6646bad411f9b45fc7cd0fd48f1593f276e0c0604972bec2a/pypowsybl-1.16.1-cp312-cp312-win_amd64.whl", hash = "sha256:029bf599fbf80f68243aff7e591bd28e4f07ab9518538d18dbc6c3e4678df9a6", size = 74319239, upload-time = "2026-07-22T12:00:01.377Z" },
-    { url = "https://files.pythonhosted.org/packages/e9/10/160f4aae72a10868d27a155dcaa1332f4ec4288d76c469840953a7d4b5a8/pypowsybl-1.16.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d806030457a026436d44d94c45257c267f735b1b300e1f9fb8cd86289981910f", size = 77548702, upload-time = "2026-07-22T11:59:06.775Z" },
-    { url = "https://files.pythonhosted.org/packages/71/60/c4d7d98ffc26351f463517a4b1244e6f1b9ba0b4760aaca7feb4ae1e214f/pypowsybl-1.16.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:02c5332328962def0b066a75626a069a0bf69be53ddcdbc782df89260c4310cf", size = 78762639, upload-time = "2026-07-22T11:59:25.526Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/f1/78e9a06affb24525626a5029bb4ffaf92f9cd16214ac9bd6f5e32e008a34/pypowsybl-1.16.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2852167794373da1b3a11519af370bbd6a3123eec272b2a607bbd5108ec45510", size = 93381573, upload-time = "2026-07-22T11:59:46.756Z" },
-    { url = "https://files.pythonhosted.org/packages/e1/51/3a459389ddbc5449cbeecb85763b2a8fc03e769946d339f1902542eb9ba9/pypowsybl-1.16.1-cp313-cp313-win_amd64.whl", hash = "sha256:9b915cee0acc3c6211e1c077f5ea87e04bdcbd7af75446b519fb56a6dc342254", size = 74319215, upload-time = "2026-07-22T12:00:04.705Z" },
-    { url = "https://files.pythonhosted.org/packages/8c/12/eb5ced473a46b1d8d32fffdcb32b71bc1bbfb6485a27a2d0549ae5ec6834/pypowsybl-1.16.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:e47848625915e8cd701c5a3fd0f6b4c7b1469577086bbf6443dc2152881de90d", size = 77551137, upload-time = "2026-07-22T11:59:10.196Z" },
-    { url = "https://files.pythonhosted.org/packages/9a/ad/277ad2c5bb1cd5db3c86af90e9d26f40c1f6a6e191e56eedb01279b62955/pypowsybl-1.16.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:e6e3bde5ad455322bdcb9290f872cd954f33ca1edbff87464105bcc1b01eddd6", size = 78762317, upload-time = "2026-07-22T11:59:29.687Z" },
-    { url = "https://files.pythonhosted.org/packages/a3/73/47286f758c8bebadce91c664277ed7bdfd968023cfba7db887d497b1a368/pypowsybl-1.16.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0fdaf7a91717e0e5c97893c649de83feb81ed5285fb2e3a60f79ca50595f96d3", size = 93383992, upload-time = "2026-07-22T11:59:50.493Z" },
-    { url = "https://files.pythonhosted.org/packages/68/9d/0c3d387df56e4f1ab4d35d4011037634754a0c6bf97260c2e6532b5c8f9d/pypowsybl-1.16.1-cp314-cp314-win_amd64.whl", hash = "sha256:92f77112baa966454cac087e3b17751a5b68b6ac7862ecc596d37ec9ab215eda", size = 76179138, upload-time = "2026-07-22T12:00:08.991Z" },
 ]
 
 [[package]]
