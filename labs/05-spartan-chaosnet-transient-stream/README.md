@@ -9,6 +9,16 @@
 [Concepts for this lab](#concepts-for-this-lab) below, and the root
 [README's Concepts section](../../README.md#concepts-in-plain-terms) for power-flow basics.*
 
+## See it run
+
+![Lab 5 tour](tour.gif)
+
+A narrated replay of `just check-lab5` — real 200µs-timestep DPsim solves, real grid-forming
+stabilizer measurement (this one runs a few minutes; the two historical blackout scenarios run even
+longer and aren't in this GIF — see `just check-lab5-scenarios`). Higher-quality version:
+[tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 5` (live, unrecorded) or
+`just tour::tour-record 5` (re-record + re-render).
+
 ## What you'll do
 
 - Procedurally generate a new "chaos-net" grid topology each run: a real SimBench seed grid

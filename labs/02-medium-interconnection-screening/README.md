@@ -7,6 +7,14 @@ a human approval gate before anything is called final.
 
 *New to N-1 contingency screening or pu voltage? See the root [README's Concepts section](../../README.md#concepts-in-plain-terms).*
 
+## See it run
+
+![Lab 2 tour](tour.gif)
+
+A narrated replay of `just check-lab2` — real 21-line N-1 screen, real cross-check against a second
+solver, real output. Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself:
+`just tour::tour 2` (live, unrecorded) or `just tour::tour-record 2` (re-record + re-render).
+
 ## What you'll do
 
 1. Load `snem1803.m` (the mainland NEM grid model) and attach a hypothetical 250 MW generator at

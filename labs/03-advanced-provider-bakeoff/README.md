@@ -7,6 +7,14 @@ tasks, tolerances, and scorer run against every provider, so the comparison is a
 **Read this before trusting the "provider" column**: the three "providers" here are not language
 models — see Design notes below.
 
+## See it run
+
+![Lab 3 tour](tour.gif)
+
+A narrated replay of `just check-lab3` — the real bake-off plus the pypowsybl cross-check, real
+output. Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 3`
+(live, unrecorded) or `just tour::tour-record 3` (re-record + re-render).
+
 ## What you'll do
 
 1. Reuse `snem1803.m` and three parameter-fitting tasks in the shape of Lab 1's: `load-scale-fit`

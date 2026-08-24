@@ -7,6 +7,15 @@ spikes over research, plus "use sub-agents heavily." This lab is those five spik
 each with its own honest, evidence-based verdict. No narrative/rename work depends on any of this
 yet (that's Phase 5); this is purely "does the foundation actually work."
 
+## See it run
+
+![Lab 8 tour](tour.gif)
+
+A narrated replay of the two spikes actually wired into `just check-lab8` (0b, 0d) — the other
+three need heavier local state than a demo GIF should carry; see the table below for why.
+Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 8` (live,
+unrecorded) or `just tour::tour-record 8` (re-record + re-render).
+
 ## Verdicts at a glance
 
 | Spike | Question | Verdict | Detail |

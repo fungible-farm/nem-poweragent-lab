@@ -166,7 +166,9 @@ nem-poweragent-lab/
 ├── data/                            # gitignored raw CSIRO + NEMOSIS cache; fetch scripts populate
 ├── scripts/
 │   ├── fetch_csiro_nem_data.py
-│   └── record_asciinema_demo.sh
+│   ├── record_asciinema_demo.sh
+│   ├── tour_lib.sh
+│   └── record_tour.sh
 ├── kube/
 │   ├── llamacpp-phi-pod.yaml
 │   ├── powermcp-pandapower-pod.yaml
@@ -427,13 +429,24 @@ One command, POSIX shell, checks-then-acts (never silently reinstalls something 
    reports the display tools' presence, informational only) and prints PASS/FAIL -- this is the
    "did the install actually work" gate before anyone opens a lab.
 
-## 11. asciinema training recording
+## 11. Recorded demos: install walkthrough + per-lab tours
 
-`scripts/record_asciinema_demo.sh` wraps `asciinema rec` around: `./install.sh` → Lab 1 → Lab 2 →
-Lab 3 summary table, with `PS1` and terminal width pinned so the `.cast` file plays back
-consistently regardless of the presenter's own shell config. The recording is an artifact of this
-repo, not a separate hand-edited video — re-running the script after any lab changes regenerates
-it, so the walkthrough can't drift out of sync with the actual code the way a slide deck does.
+Two recording mechanisms, both wrapping real `asciinema rec` sessions around real commands rather
+than a hand-edited video — the recording is an artifact of this repo, regenerable on demand, so a
+walkthrough can't silently drift out of sync with the actual code the way a slide deck does:
+
+- `scripts/record_asciinema_demo.sh` wraps `./install.sh` → Lab 1 → Lab 2 → Lab 3 summary table,
+  with `PS1` and terminal width pinned so the `.cast` plays back consistently regardless of the
+  presenter's own shell config. The original, narrower walkthrough.
+- `scripts/record_tour.sh` covers every lab (1-9): `labs/0N-.../tour.sh` narrates each lab's real
+  `check-labN` gate (via `scripts/tour_lib.sh`'s `narrate`/`run_cmd` helpers — asciinema records
+  real terminal stdout, not a script's `#` comments, so the story has to be spoken on purpose), then
+  renders the `.cast` to a committed `tour.gif` (primary — renders inline on GitHub, zero clicks)
+  and `tour.mp4` (secondary, higher quality) via `agg`/`ffmpeg`. Each lab's own README embeds its
+  GIF under `## See it run`. The raw `.cast` stays gitignored/regenerate-on-demand like the original
+  script's; only the rendered GIF/MP4 are the deliberate exception, committed the same way this
+  repo already commits final rendered PNG charts while keeping their generation pipelines
+  regenerable. Memoized via the `labs/tour.just` module (`just tour::tour[-record|-render]`).
 
 ## 12. Explicit non-goals
 

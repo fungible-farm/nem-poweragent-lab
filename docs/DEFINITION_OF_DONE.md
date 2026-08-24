@@ -150,8 +150,15 @@ checkable by someone who has never seen this repo, on a machine with nothing pre
 
 ## Recording
 
-- [ ] `scripts/record_asciinema_demo.sh` produces a `.cast` file covering install → Lab 1 → Lab 2 →
+- [x] `scripts/record_asciinema_demo.sh` produces a `.cast` file covering install → Lab 1 → Lab 2 →
       Lab 3 summary, playable with `asciinema play`, regenerable on demand (not hand-edited).
+- [x] Every lab (1-9) carries a recorded, narrated proof artifact in its own README (`## See it
+      run`): a committed `tour.gif` (renders inline on GitHub, zero clicks) and `tour.mp4`
+      (secondary, higher quality), rendered from a gitignored `.cast` recording of that lab's real
+      `check-labN` gate — `scripts/tour_lib.sh` + `labs/0N-.../tour.sh` +
+      `scripts/record_tour.sh`, memoized via the `labs/tour.just` module (`just tour::tour-record
+      [lab]`). Only the rendered GIF/MP4 are committed; the pipeline that produces them stays
+      regenerable, same pattern as this repo's committed PNG charts.
 
 ## Governance / non-goals held
 

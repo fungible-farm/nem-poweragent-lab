@@ -21,6 +21,15 @@ DARE optimizer — one process, one grid, one contingency, one committed fixture
   SysML digital thread (`labs/06-sysml-digital-thread/`). Every one of Lab 8 0a's three
   root-caused grid2op/pandapower fixes is carried forward verbatim in `build_dataset.py`.
 
+## See it run
+
+![Lab 9 tour](tour.gif)
+
+A narrated replay of `just check-lab9` — the full Grid2Op -> Bevy -> SysML v2 -> scryer-prolog ->
+Rhai FSM -> DARE optimizer chain, fixture-based fast path (not the live grid2op bridge). Higher-
+quality version: [tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 9` (live,
+unrecorded) or `just tour::tour-record 9` (re-record + re-render).
+
 ## What you'll do
 
 - Run the whole mission headless against the committed fixture (`just check-lab9`) — five real
