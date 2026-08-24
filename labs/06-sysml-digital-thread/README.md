@@ -7,6 +7,14 @@
 
 *New to MBSE, SysML, or digital threads? See [Concepts for this lab](#concepts-for-this-lab) below.*
 
+## See it run
+
+![Lab 6 tour](tour.gif)
+
+A narrated replay of `just check-lab6` — one schema edit driving all three tracks end to end, no
+manual steps. Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself:
+`just tour::tour 6` (live, unrecorded) or `just tour::tour-record 6` (re-record + re-render).
+
 ## What you'll do
 
 This lab is a tooling **evaluation**, not just a demo: does SysML v2 (a systems-modelling language)

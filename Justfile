@@ -113,6 +113,14 @@ check-lab5:
     uv run labs/05-spartan-chaosnet-transient-stream/headroom_translation.py --step check
     uv run labs/05-spartan-chaosnet-transient-stream/delay_compensation.py --step check
 
+# Opt-in: the two historical blackout scenarios (PRD-0002 SA 2016, PRD-0003 Iberian 2025).
+# Each is ~10 real minutes of DPsim solving -- not part of `just check`'s fast gate by design,
+# same reasoning their own pytest wrappers use (RUN_SLOW_SCENARIOS=1). Run this when those
+# scenarios' own code changes, not routinely.
+check-lab5-scenarios:
+    uv run labs/05-spartan-chaosnet-transient-stream/scenarios/sa_2016_black_system.py --step check
+    uv run labs/05-spartan-chaosnet-transient-stream/scenarios/iberian_2025_blackout.py --step check
+
 check-lab6:
     ./scripts/demo_lab6.sh
 
@@ -378,3 +386,6 @@ watch-tct name="list":
 # --- help -------------------------------------------------------------------
 default:
     @just --list
+
+# --- lab tours (recorded, narrated demos) -----------------------------------
+mod tour "labs/tour.just"

@@ -12,6 +12,14 @@ benchmarks/power-agent-bench-lite/results/*
 # scripts from real physics/fixture data on demand, never committed (the
 # script is the artifact, the MP4 is a render).
 *.mp4
+# Lab tours (scripts/record_tour.sh): tour.gif/tour.mp4 are the one
+# deliberate exception to the *.mp4 rule above -- committed so a README
+# reader gets a working rendered demo with zero setup, same "commit the
+# final render, keep the pipeline regenerable" pattern already used for
+# this repo's committed PNG charts. The raw .cast that produced them stays
+# gitignored (*.cast above); regenerate with `just tour-record labN`.
+!labs/*/tour.gif
+!labs/*/tour.mp4
 # Sonification render (view_3d_audio.py) -- regenerated from real data.
 *.wav
 # pyinfra writes a debug log to CWD on a crashed run.

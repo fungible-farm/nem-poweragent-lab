@@ -8,6 +8,14 @@ it back and recover the same oscillation-mode finding? It's a testbench, not a h
 integration: the point is proving the generate (Python)/detect (Rust) round trip works end to end,
 via the real interchange format, before any real relay or DFR is ever in the loop.
 
+## See it run
+
+![Lab 7 tour](tour.gif)
+
+A narrated replay of `just check-lab7` — a real COMTRADE file, read back and re-detected by an
+independent Rust FFT pipeline. Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself:
+`just tour::tour 7` (live, unrecorded) or `just tour::tour-record 7` (re-record + re-render).
+
 ## What you'll do
 
 - Regenerate (optional — the results are already committed) two real COMTRADE fixtures from the

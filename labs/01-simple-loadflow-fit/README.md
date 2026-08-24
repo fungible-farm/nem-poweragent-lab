@@ -7,6 +7,14 @@ possible version of that.
 
 *New to power flow / pu voltage? See the root [README's Concepts section](../../README.md#concepts-in-plain-terms).*
 
+## See it run
+
+![Lab 1 tour](tour.gif)
+
+A ~15s narrated replay of `just check-lab1` — real commands, real output, no editing. Higher-quality
+version: [tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 1` (live, unrecorded) or
+`just tour::tour-record 1` (re-record + re-render).
+
 ## What you'll do
 
 1. Load `snemSA.m` — the South Australia slice of CSIRO's Synthetic-NEM-2000-Bus grid model — into

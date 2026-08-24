@@ -12,6 +12,14 @@ AEMO's own public incident report, not a claim that this model reproduces that e
 
 *New to interconnectors or MW/MVA? See the root [README's Concepts section](../../README.md#concepts-in-plain-terms).*
 
+## See it run
+
+![Lab 4 tour](tour.gif)
+
+A narrated replay of `just check-lab4` — a real AEMO data pull, real reconciliation, real (honest)
+mismatch. Higher-quality version: [tour.mp4](tour.mp4). Regenerate it yourself: `just tour::tour 4`
+(live, unrecorded) or `just tour::tour-record 4` (re-record + re-render).
+
 ## What you'll do
 
 - **Part A** — pull one real day (15 June 2026) of South Australian dispatch data via
