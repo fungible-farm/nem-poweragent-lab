@@ -89,7 +89,10 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core
+
+check-systhread-core:
+    cargo test -p systhread-core --manifest-path rust/Cargo.toml
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
