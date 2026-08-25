@@ -4,5 +4,6 @@
 pub mod instances;
 pub mod iso_ir;
 pub mod layout;
+pub mod render;
 pub mod sysml_gen;
 pub mod validate;
