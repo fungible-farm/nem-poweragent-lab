@@ -22,7 +22,7 @@ fn expected_positions(fixture_rel: &str) -> Vec<(f64, f64)> {
 
 #[test]
 fn digital_thread_positions_match_fixture() {
-    let inst = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml"));
+    let inst = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml")).unwrap();
     let (nodes, edges) = extract_digital_thread(&inst);
     let got = cassowary_positions(&nodes, &edges);
     assert_eq!(got, expected_positions("expected/expected_digital_thread_iso_ir.json"));
@@ -30,7 +30,7 @@ fn digital_thread_positions_match_fixture() {
 
 #[test]
 fn grid_topology_positions_match_fixture() {
-    let inst = load_grid(&fixture_path("schema/grid_instances.yaml"));
+    let inst = load_grid(&fixture_path("schema/grid_instances.yaml")).unwrap();
     let (nodes, edges) = extract_grid(&inst);
     let got = cassowary_positions(&nodes, &edges);
     assert_eq!(got, expected_positions("expected/expected_grid_topology_iso_ir.json"));

@@ -19,9 +19,9 @@ use systhread_core::sysml_gen::{render_digital_thread, render_grid_topology, ren
 /// test.
 #[test]
 fn all_three_tracks_all_three_artifact_kinds_are_stable_across_repeated_runs() {
-    let dt = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml"));
-    let grid = load_grid(&fixture_path("schema/grid_instances.yaml"));
-    let pipeline = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml"));
+    let dt = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml")).unwrap();
+    let grid = load_grid(&fixture_path("schema/grid_instances.yaml")).unwrap();
+    let pipeline = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml")).unwrap();
 
     for _ in 0..3 {
         assert_eq!(render_digital_thread(&dt), render_digital_thread(&dt));
