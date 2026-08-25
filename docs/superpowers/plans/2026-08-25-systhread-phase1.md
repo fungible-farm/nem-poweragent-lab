@@ -6,7 +6,9 @@
 
 **Architecture:** `systhread-cli` is a thin orchestration layer: it never re-implements generation/validation/iso-IR/rendering logic (that's `systhread-core`, unchanged), it only wires CLI args / MCP tool calls to `systhread-core`'s existing public functions and writes their output to disk. The MCP transport is the same binary as the CLI (FR2's "no logic fork") — `--stdio` is a dispatch flag, exactly mirroring the real, working `just-mcp` binary already vendored on this machine. `explore`/`drift` are honest stubs (their real logic is FR7/Phase 3 and FR10/Phase 4) that exist now only so the packaging/wiring surface (b00t datums, the `just` module) is complete and testable in Phase 1.
 
-**Tech Stack:** Rust 2024 edition, `clap` 4 (derive API) for CLI parsing, `rmcp` 0.3.0 (`server`/`macros`/`transport-io`/`schemars` features) for the MCP server, `tokio` 1 (`full`) for the async runtime `rmcp` needs, `sha2` 0.10 for the manifest's content hashes — all new to this crate; `systhread-core`'s existing `serde`/`serde_json`/`serde_norway` stay in `systhread-core` only.
+**Tech Stack:** Rust 2024 edition, `clap` 4 (derive API) for CLI parsing, `rmcp` 3.1.4 (`server`/`macros`/`transport-io`/`schemars` features) for the MCP server, `tokio` 1 (`full`) for the async runtime `rmcp` needs, `sha2` 0.10 for the manifest's content hashes — all new to this crate; `systhread-core`'s existing `serde`/`serde_json`/`serde_norway` stay in `systhread-core` only.
+
+> **Correction (2026-08-25, mid-execution, before Task 5 ran):** this plan was originally drafted citing `~/.dotfiles/vendor/just-mcp`'s vendored `rmcp = "0.3.0"` as the real ground-truth precedent — correct as "a real, working example on this machine" but stale as a version choice; crates.io's current `rmcp` is `3.1.4`, ten-plus releases ahead. Task 1 (already executed) added `rmcp = { version = "0.3.0", ... }` to `rust/systhread-cli/Cargo.toml` before this correction landed — **Task 5 owns bumping it to `3.1.4`** as part of its own commit, alongside the API fixes below, rather than a stray mid-stream edit. Verified by downloading and reading the real `rmcp-3.1.4` source from crates.io directly (not docs, not assumption): `#[tool_router]`/`#[tool_handler]` bare macros, `ServiceExt`, `rmcp::transport::stdio`, `ErrorData`/`ErrorCode` (same fields), `CallToolResult::success`, and `Implementation::from_build_env()` are all unchanged from 0.3.0 and match this plan's Task 5 code as originally written. Three things did change and Task 5's code below reflects the fix: (1) `Content` is renamed `ContentBlock` (`ContentBlock::text(...)`); (2) the `Parameters` extractor moved from `handler::server::tool::Parameters` to `handler::server::wrapper::Parameters`; (3) `ServerInfo` is now `pub type ServerInfo = InitializeResult`, which gained a `meta: Option<MetaObject>` field — a bare struct literal omitting it won't compile, so Task 5 now builds it via `ServerInfo::new(capabilities).with_protocol_version(...).with_instructions(...)` instead of a struct literal.
 
 **Spec:** `docs/superpowers/specs/2026-08-25-systhread-design.md` (Phase 1 = FR1-FR6, spec §6). Executors read both this plan and the spec — the spec is the binding authority, this plan is its argument.
 
@@ -702,9 +704,7 @@ git commit -m "systhread-cli: --stdio dispatch wiring (async main, mcp::run_stdi
 - Consumes: `commands::check::run`, `commands::render::run`, `track::Track` (Tasks 2/3/1); `rmcp`'s real 0.3.0 API (see below).
 - Produces: `mcp::SysthreadMcpServer` (the `ServerHandler` implementation) and `mcp::run_stdio()`'s real body (replacing Task 4's placeholder).
 
-**Before starting, read both of these directly** — this task's code is closely modeled on them, and the real files may have details this plan's excerpt below doesn't capture:
-- `~/.dotfiles/vendor/just-mcp/just-mcp-lib/src/mcp_server.rs` (the `#[tool_router]`/`#[tool]`/`#[tool_handler]`/`ServerHandler` pattern — read at least lines 1-60 and 190-315 for the imports, the struct shape, one real `#[tool]` method, and the `ServerHandler` impl's `get_info()`).
-- `~/.dotfiles/vendor/just-mcp/src/main.rs` (how `server.serve(stdio()).await?` and `running_service.waiting().await?` are actually called).
+**Before starting, read this directly** — it confirms the dispatch shape (`server.serve(stdio()).await?`, `running_service.waiting().await?`) still applies: `~/.dotfiles/vendor/just-mcp/src/main.rs`. Do NOT copy `~/.dotfiles/vendor/just-mcp/just-mcp-lib/src/mcp_server.rs`'s exact code — it targets rmcp 0.3.0, and this task targets `rmcp = "3.1.4"` (bumped from Task 1's `0.3.0` as part of this task's own commit — see the plan header's "Correction" note). The code below has already been verified against the real, downloaded `rmcp-3.1.4` source and is the one to use.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -741,12 +741,18 @@ Expected: FAIL to compile — `SysthreadMcpServer` doesn't exist yet.
 
 - [ ] **Step 3: Write the implementation**
 
-Replace `rust/systhread-cli/src/mcp.rs` entirely:
+First, bump `rust/systhread-cli/Cargo.toml`'s `rmcp` dependency (Task 1 added it pinned to `0.3.0`, which predates this correction) to:
+
+```toml
+rmcp = { version = "3.1.4", features = ["server", "macros", "transport-io", "schemars"] }
+```
+
+Then replace `rust/systhread-cli/src/mcp.rs` entirely:
 
 ```rust
 use crate::track::Track;
-use rmcp::handler::server::{ServerHandler, router::tool::ToolRouter, tool::Parameters};
-use rmcp::model::{CallToolResult, Content, ErrorCode, ErrorData as McpError, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
+use rmcp::handler::server::{ServerHandler, router::tool::ToolRouter, wrapper::Parameters};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorCode, ErrorData as McpError, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
 use rmcp::schemars::{self, JsonSchema};
 use rmcp::{ServiceExt, tool, tool_handler, tool_router, transport::stdio};
 use serde::Deserialize;
@@ -765,7 +771,7 @@ pub struct RenderParams {
 }
 
 fn to_mcp_error(reason: String) -> McpError {
-    McpError { code: ErrorCode(-1), message: reason.into(), data: None }
+    McpError { code: ErrorCode::INTERNAL_ERROR, message: reason.into(), data: None }
 }
 
 #[derive(Clone)]
@@ -788,7 +794,7 @@ impl SysthreadMcpServer {
     ) -> Result<CallToolResult, McpError> {
         let path = std::path::PathBuf::from(&params.path);
         crate::commands::check::run(params.track, &path).map_err(to_mcp_error)?;
-        Ok(CallToolResult::success(vec![Content::text("PASS")]))
+        Ok(CallToolResult::success(vec![ContentBlock::text("PASS")]))
     }
 
     #[tool(description = "Generate, validate, translate, and render one systhread track to a manifest-described output directory")]
@@ -800,22 +806,20 @@ impl SysthreadMcpServer {
         let out = std::path::PathBuf::from(&params.out);
         let written = crate::commands::render::run(params.track, &path, &out).map_err(to_mcp_error)?;
         let summary = written.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n");
-        Ok(CallToolResult::success(vec![Content::text(summary)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(summary)]))
     }
 }
 
 #[tool_handler]
 impl ServerHandler for SysthreadMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
-            server_info: Implementation::from_build_env(),
-            instructions: Some(
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_protocol_version(ProtocolVersion::V_2024_11_05)
+            .with_server_info(Implementation::from_build_env())
+            .with_instructions(
                 "systhread MCP server: generate/validate/render SysML v2 digital-thread models. \
-                 Tools: systhread_check, systhread_render.".into(),
-            ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-        }
+                 Tools: systhread_check, systhread_render.",
+            )
     }
 }
 
@@ -827,7 +831,9 @@ pub async fn run_stdio() -> Result<(), String> {
 }
 ```
 
-`track::Track` needs `#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]` for `CheckParams`/`RenderParams` to derive `JsonSchema` themselves — confirm Task 1's `track.rs` already has both derives (it does, per Task 1's Step 3 code above — `#[derive(Clone, Copy, Debug, clap::ValueEnum, serde::Deserialize, rmcp::schemars::JsonSchema)]`); if this task's implementer finds it missing, that's a real gap in Task 1's output to fix directly, not a reason to duplicate the enum.
+`ServerInfo` is `pub type ServerInfo = InitializeResult` in rmcp 3.1.4, which carries a `meta: Option<MetaObject>` field the plan's earlier struct-literal draft omitted — building it via `InitializeResult::new(capabilities).with_protocol_version(...).with_server_info(...).with_instructions(...)` (all real methods on `InitializeResult`, verified against the downloaded 3.1.4 source) avoids that field entirely rather than requiring `..Default::default()`.
+
+`track::Track` needs `#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]` (or the crate's own direct `schemars::JsonSchema` — Task 1 ended up using a direct `schemars = "0.8"` dependency instead of `rmcp::schemars`'s re-export, which is equally valid: Cargo unifies the resolved `schemars` version across the graph since rmcp 3.1.4 also declares a compatible `schemars` range) for `CheckParams`/`RenderParams` to derive `JsonSchema` themselves — confirm Task 1's `track.rs` already has the derive (it does); if this task's implementer finds it missing, that's a real gap in Task 1's output to fix directly, not a reason to duplicate the enum.
 
 - [ ] **Step 4: Run test to verify it passes**
 
