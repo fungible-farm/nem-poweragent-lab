@@ -163,18 +163,29 @@ fn positions_for(nodes: &[Node], edges: &[Edge]) -> Vec<(f64, f64)> {
 }
 
 fn assemble(title: &str, nodes: &[Node], edges: &[Edge]) -> Value {
+    // Mirrors translate_iso_ir.py's _iso_positions dispatch: the no-edges fallback calls
+    // _grid_positions, which is annotated `list[dict[str, int]]` and computes on Python ints, so
+    // json.dumps writes bare integer literals ("x": 2, not "x": 2.0). The other two paths
+    // (sequence_positions, cassowary_positions) produce real fractional/rounded values that
+    // Python also serializes as floats, so only this fallback path needs integer JSON numbers.
+    let grid_fallback = edges.is_empty();
     let positions = positions_for(nodes, edges);
     let node_values: Vec<Value> = nodes
         .iter()
         .zip(positions.iter())
         .map(|(n, (x, y))| {
             let node_type = type_by_part_type(n.part_type);
+            let position = if grid_fallback {
+                json!({ "x": *x as i64, "y": *y as i64 })
+            } else {
+                json!({ "x": x, "y": y })
+            };
             json!({
                 "id": n.id,
                 "label": n.label,
                 "type": node_type,
                 "shape": shape_by_type(node_type),
-                "position": { "x": x, "y": y },
+                "position": position,
             })
         })
         .collect();
@@ -234,6 +245,43 @@ mod grid_positions_tests {
         assert_eq!(
             positions,
             vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (0.0, 2.0), (2.0, 2.0)]
+        );
+    }
+}
+
+#[cfg(test)]
+mod assemble_grid_fallback_tests {
+    use super::{assemble, Node};
+
+    #[test]
+    fn no_edges_fallback_serializes_positions_as_json_integers_not_floats() {
+        // Regression test for the no-edges fallback path (grid_positions via positions_for):
+        // translate_iso_ir.py's _grid_positions is annotated `list[dict[str, int]]` and computes
+        // on Python ints, so json.dumps writes "x": 2 (an integer literal), never "x": 2.0. The
+        // Rust port must match that JSON number type for this one path, even though
+        // grid_positions itself still returns Vec<(f64, f64)>.
+        let nodes = vec![
+            Node { id: "a".to_string(), label: "a".to_string(), part_type: "Agent" },
+            Node { id: "b".to_string(), label: "b".to_string(), part_type: "Agent" },
+        ];
+        let edges: Vec<super::Edge> = vec![];
+
+        let spec = assemble("Test", &nodes, &edges);
+
+        let node_b = &spec["nodes"][1];
+        let x = &node_b["position"]["x"];
+        let y = &node_b["position"]["y"];
+
+        assert!(x.is_i64(), "expected integer JSON number for x, got {x:?}");
+        assert!(y.is_i64(), "expected integer JSON number for y, got {y:?}");
+        assert_eq!(x, 2);
+        assert_eq!(y, 0);
+
+        // Also check the raw serialized text doesn't contain a decimal point for this field.
+        let serialized = serde_json::to_string(&spec).unwrap();
+        assert!(
+            serialized.contains("\"x\":2") || serialized.contains("\"x\": 2"),
+            "serialized output should contain a bare integer \"x\": 2, got: {serialized}"
         );
     }
 }

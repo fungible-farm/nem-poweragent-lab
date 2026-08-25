@@ -78,8 +78,10 @@ fn poly(points: &[Point], fill: &str, opacity: f64, stroke: &str, stroke_width: 
     )
 }
 
-/// Python's `{:g}` format -- shortest representation, no trailing zeros. Only used for
-/// stroke-width in `poly` (matching render_diagram.py's `{stroke_width:g}`).
+/// Rust's `Display` for `f64` (drops trailing `.0` for whole numbers, e.g. `1.0` -> `"1"`), which
+/// happens to match Python's `{:g}` format only for this crate's actual stroke-width call sites
+/// (fixed literals `1.0`/`1.5`/`3.0`) -- it is NOT a general port of Python's `%g`/`{:g}`
+/// semantics (which switches to exponential notation for large magnitudes; this does not).
 fn fmt_g(v: f64) -> String {
     let s = format!("{v}");
     s
