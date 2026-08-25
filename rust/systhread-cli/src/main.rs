@@ -53,7 +53,18 @@ fn main() -> std::process::ExitCode {
                 std::process::ExitCode::FAILURE
             }
         },
-        Some(Commands::Render { .. }) => todo!("Task 3"),
+        Some(Commands::Render { track, path, out }) => match commands::render::run(track, &path, &out) {
+            Ok(paths) => {
+                for p in paths {
+                    println!("wrote {}", p.display());
+                }
+                std::process::ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("systhread render: {e}");
+                std::process::ExitCode::FAILURE
+            }
+        },
         Some(Commands::Explore) => todo!("Task 9"),
         Some(Commands::Drift) => todo!("Task 9"),
         None => {
