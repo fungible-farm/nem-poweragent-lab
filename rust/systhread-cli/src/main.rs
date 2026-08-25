@@ -1,4 +1,5 @@
 mod commands;
+mod mcp;
 mod track;
 
 use clap::{Parser, Subcommand};
@@ -38,11 +39,18 @@ enum Commands {
     Drift,
 }
 
-fn main() -> std::process::ExitCode {
+#[tokio::main]
+async fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
 
     if cli.stdio {
-        todo!("Task 4 wires this to the MCP stdio server");
+        return match mcp::run_stdio().await {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("systhread --stdio: {e}");
+                std::process::ExitCode::FAILURE
+            }
+        };
     }
 
     match cli.command {
