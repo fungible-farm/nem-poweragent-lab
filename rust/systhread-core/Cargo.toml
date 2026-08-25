@@ -1,0 +1,13 @@
+[package]
+name = "systhread-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Phase 0 of the systhread MBSE capability (docs/superpowers/specs/2026-08-25-systhread-design.md): parse/validate/render for SysML v2 Part/containment models, ported from labs/06-sysml-digital-thread's Python pipeline."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_norway = "0.9"
+sysml-v2-parser = "0.54"
+kasuari = "0.4"
