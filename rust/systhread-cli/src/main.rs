@@ -51,8 +51,12 @@ async fn main() -> std::process::ExitCode {
 
     match cli.command {
         Some(Commands::Check { track, path }) => match commands::check::run(track, &path) {
-            Ok(()) => std::process::ExitCode::SUCCESS,
+            Ok(()) => {
+                println!("PASS");
+                std::process::ExitCode::SUCCESS
+            }
             Err(e) => {
+                println!("FAIL: {e}");
                 eprintln!("systhread check: {e}");
                 std::process::ExitCode::FAILURE
             }

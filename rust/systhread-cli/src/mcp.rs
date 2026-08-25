@@ -24,6 +24,10 @@ fn to_mcp_error(reason: String) -> McpError {
 
 #[derive(Clone)]
 pub struct SysthreadMcpServer {
+    // Read by the `#[tool_router]`/`#[tool_handler]` macro-generated dispatch code, not by any
+    // code rustc's dead-code pass can see -- a known false positive for this idiom, not a real
+    // unused field.
+    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
@@ -36,7 +40,7 @@ impl SysthreadMcpServer {
 #[tool_router]
 impl SysthreadMcpServer {
     #[tool(description = "Generate the .sysml text for one systhread track and validate it")]
-    async fn systhread_check(
+    pub async fn systhread_check(
         &self,
         Parameters(params): Parameters<CheckParams>,
     ) -> Result<CallToolResult, McpError> {
@@ -46,7 +50,7 @@ impl SysthreadMcpServer {
     }
 
     #[tool(description = "Generate, validate, translate, and render one systhread track to a manifest-described output directory")]
-    async fn systhread_render(
+    pub async fn systhread_render(
         &self,
         Parameters(params): Parameters<RenderParams>,
     ) -> Result<CallToolResult, McpError> {
@@ -63,7 +67,10 @@ impl ServerHandler for SysthreadMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2024_11_05)
-            .with_server_info(Implementation::from_build_env())
+            // `Implementation::from_build_env()` expands CARGO_PKG_NAME/CARGO_PKG_VERSION inside
+            // the rmcp crate at rmcp's own compile time, so it reports rmcp's own identity
+            // instead of systhread-cli's. Use this crate's own env! expansion instead.
+            .with_server_info(Implementation::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .with_instructions(
                 "systhread MCP server: generate/validate/render SysML v2 digital-thread models. \
                  Tools: systhread_check, systhread_render.",

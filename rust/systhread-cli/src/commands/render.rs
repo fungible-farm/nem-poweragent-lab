@@ -4,32 +4,33 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use systhread_core::{instances, iso_ir, render as core_render, sysml_gen, validate};
 
-fn track_slug(track: Track) -> &'static str {
-    match track {
-        Track::DigitalThread => "digital-thread",
-        Track::Grid => "grid",
-        Track::Pipeline => "pipeline",
-    }
-}
-
 /// Generates, validates, translates to iso-IR, and renders SVG for `track`, writing all three
 /// artifacts into `out` (created if missing). Returns the paths written, in write order, so
 /// Task 6's manifest step can hash exactly these files without re-deriving the naming scheme.
 pub fn run(track: Track, path: &Path, out: &Path) -> Result<Vec<PathBuf>, String> {
     std::fs::create_dir_all(out).map_err(|e| format!("create {}: {e}", out.display()))?;
-    let slug = track_slug(track);
+    let slug = track.slug();
 
     let (sysml_text, iso_ir_value) = match track {
         Track::DigitalThread => {
             let inst = instances::load_digital_thread(path)?;
+            if inst.agents.is_empty() && inst.mcp_servers.is_empty() && inst.data_sources.is_empty() {
+                return Err(crate::commands::check::empty_instances_error(path, track));
+            }
             (sysml_gen::render_digital_thread(&inst), iso_ir::build_digital_thread_iso_ir(&inst))
         }
         Track::Grid => {
             let inst = instances::load_grid(path)?;
+            if inst.buses.is_empty() && inst.generators.is_empty() && inst.lines.is_empty() {
+                return Err(crate::commands::check::empty_instances_error(path, track));
+            }
             (sysml_gen::render_grid_topology(&inst), iso_ir::build_grid_iso_ir(&inst))
         }
         Track::Pipeline => {
             let inst = instances::load_pipeline(path)?;
+            if inst.phases.is_empty() {
+                return Err(crate::commands::check::empty_instances_error(path, track));
+            }
             (sysml_gen::render_pipeline_phases(&inst), iso_ir::build_pipeline_iso_ir(&inst))
         }
     };
