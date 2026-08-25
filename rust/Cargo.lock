@@ -3889,6 +3889,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kasuari"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bde5057d6143cc94e861d90f591b9303d6716c6b9602309150bd068853c10899"
+dependencies = [
+ "hashbrown 0.16.1",
+ "portable-atomic",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6330,6 +6341,17 @@ dependencies = [
  "nom",
  "nom_locate",
  "stacker",
+]
+
+[[package]]
+name = "systhread-core"
+version = "0.1.0"
+dependencies = [
+ "kasuari",
+ "serde",
+ "serde_json",
+ "serde_norway",
+ "sysml-v2-parser",
 ]
 
 [[package]]
