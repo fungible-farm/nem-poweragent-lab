@@ -1,0 +1,54 @@
+# Track A seed data: this repo's own real Agent/MCPServer/DataSource inventory, not invented.
+# Every `source` below is a real, committed file/path in this repo -- see each one's own header
+# comment for what it actually does. This is the file the demo edits live: add one five-line Agent
+# entry, re-run `generate_sysml.py --track digital-thread --step run`, and the new part appears in
+# the regenerated .sysml text, the diagram, and the SBOM with no other hand edits.
+#
+# Each Agent's `uses` below is read directly from its own real script, not assumed from its role:
+# both agents call `_shared.gridfit.load_case()` against a real snemSA/snem1803 case file (both
+# fetched by the same `csiro_synthetic_nem_2000bus` source script) -- confirmed by grepping each
+# script's own imports and DATA_FILE constant. Real quirk, reported honestly rather than smoothed
+# over: neither agent actually calls `powermcp_pandapower` -- orchestrator.py's own module
+# docstring says so directly ("podman kube play --replace genuinely works ... but this script was
+# not rewired to call it"). Both scripts import `pandapower` in-process instead. So this track's
+# real graph currently has no Agent-to-MCPServer edge at all -- an honest finding, not an omission.
+
+agents:
+  - name: lab1_bisection_search
+    source: labs/01-simple-loadflow-fit/run.py
+    refresh_cadence: on every lab run (--step fit)
+    owner: Lab 1 -- load-flow parameter fit
+    uses: csiro_synthetic_nem_2000bus
+
+  - name: lab3_local_policy_search
+    source: labs/03-advanced-provider-bakeoff/orchestrator.py
+    refresh_cadence: on every --step sweep
+    owner: Lab 3 -- multi-provider bake-off (local-policy-A/B/C)
+    uses: csiro_synthetic_nem_2000bus
+
+mcp_servers:
+  - name: powermcp_pandapower
+    source: kube/powermcp-pandapower-pod.yaml
+    refresh_cadence: on-demand, podman kube play
+    owner: root README "Connecting to the MCP servers"
+
+  - name: codebase_memory
+    source: .mcp.json
+    refresh_cadence: always-on, registered MCP server
+    owner: repo tooling (codebase-memory-mcp)
+
+data_sources:
+  - name: csiro_synthetic_nem_2000bus
+    source: scripts/fetch_csiro_nem_data.py
+    refresh_cadence: static case file, fetched once and checksum-verified
+    owner: Labs 1, 2, 4, 6
+
+  - name: aemo_nemweb_nemosis
+    source: labs/04-aemo-digital-twin-reconciliation/fetch_day.py
+    refresh_cadence: pulled per requested date via NEMOSIS
+    owner: Lab 4 -- digital-twin reconciliation
+
+  - name: simbench_1_mv_rural
+    source: labs/05-spartan-chaosnet-transient-stream/chaosnet.py
+    refresh_cadence: static seed grid, perturbed per run (Watts-Strogatz)
+    owner: Lab 5 -- SPARTAN chaos-net

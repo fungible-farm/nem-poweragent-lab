@@ -1,3 +1,4 @@
+mod commands;
 mod track;
 
 use clap::{Parser, Subcommand};
@@ -45,7 +46,13 @@ fn main() -> std::process::ExitCode {
     }
 
     match cli.command {
-        Some(Commands::Check { .. }) => todo!("Task 2"),
+        Some(Commands::Check { track, path }) => match commands::check::run(track, &path) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("systhread check: {e}");
+                std::process::ExitCode::FAILURE
+            }
+        },
         Some(Commands::Render { .. }) => todo!("Task 3"),
         Some(Commands::Explore) => todo!("Task 9"),
         Some(Commands::Drift) => todo!("Task 9"),
