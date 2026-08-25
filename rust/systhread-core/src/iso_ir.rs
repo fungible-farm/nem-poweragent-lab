@@ -1,4 +1,6 @@
 use crate::instances::{DigitalThreadInstances, GridInstances, PipelinePhasesInstances};
+use crate::layout::{cassowary_positions, sequence_positions};
+use serde_json::{json, Value};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
@@ -125,6 +127,99 @@ pub fn grid_positions(n: usize) -> Vec<(f64, f64)> {
     (0..n)
         .map(|i| (((i % PER_ROW) as f64) * SPACING, ((i / PER_ROW) as f64) * SPACING))
         .collect()
+}
+
+fn type_by_part_type(part_type: &str) -> &'static str {
+    match part_type {
+        "Agent" => "generic",
+        "MCPServer" => "server",
+        "DataSource" => "database",
+        "Bus" => "router",
+        "Generator" => "warehouse",
+        "Phase" => "generic",
+        _ => "generic",
+    }
+}
+
+fn shape_by_type(node_type: &str) -> &'static str {
+    match node_type {
+        "router" => "bar",
+        "warehouse" => "circle",
+        _ => "box",
+    }
+}
+
+/// Dispatches by real edge shape, exactly like translate_iso_ir.py's `_iso_positions`: a
+/// `sequence` edge means a real declared order; any other edges mean an undirected hub/star
+/// graph; no edges at all keeps the plain row-major grid.
+fn positions_for(nodes: &[Node], edges: &[Edge]) -> Vec<(f64, f64)> {
+    if edges.iter().any(|e| e.edge_type == "sequence") {
+        sequence_positions(nodes, edges)
+    } else if !edges.is_empty() {
+        cassowary_positions(nodes, edges)
+    } else {
+        grid_positions(nodes.len())
+    }
+}
+
+fn assemble(title: &str, nodes: &[Node], edges: &[Edge]) -> Value {
+    let positions = positions_for(nodes, edges);
+    let node_values: Vec<Value> = nodes
+        .iter()
+        .zip(positions.iter())
+        .map(|(n, (x, y))| {
+            let node_type = type_by_part_type(n.part_type);
+            json!({
+                "id": n.id,
+                "label": n.label,
+                "type": node_type,
+                "shape": shape_by_type(node_type),
+                "position": { "x": x, "y": y },
+            })
+        })
+        .collect();
+
+    let mut spec = json!({
+        "title": title,
+        "type": "generic",
+        "nodes": node_values,
+    });
+
+    if !edges.is_empty() {
+        let edge_values: Vec<Value> = edges
+            .iter()
+            .map(|e| {
+                let mut v = json!({
+                    "id": e.id,
+                    "from": e.from,
+                    "to": e.to,
+                    "type": e.edge_type,
+                });
+                if let Some(kind) = &e.kind {
+                    v["kind"] = json!(kind);
+                }
+                v
+            })
+            .collect();
+        spec["edges"] = json!(edge_values);
+    }
+
+    spec
+}
+
+pub fn build_digital_thread_iso_ir(inst: &DigitalThreadInstances) -> Value {
+    let (nodes, edges) = extract_digital_thread(inst);
+    assemble("Lab 6 Track A -- Digital Thread", &nodes, &edges)
+}
+
+pub fn build_grid_iso_ir(inst: &GridInstances) -> Value {
+    let (nodes, edges) = extract_grid(inst);
+    assemble("Lab 6 Track B -- Grid Topology", &nodes, &edges)
+}
+
+pub fn build_pipeline_iso_ir(inst: &PipelinePhasesInstances) -> Value {
+    let (nodes, edges) = extract_pipeline(inst);
+    assemble("Lab 6 Track C -- Pipeline Phases", &nodes, &edges)
 }
 
 #[cfg(test)]
