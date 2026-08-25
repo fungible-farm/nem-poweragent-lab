@@ -28,17 +28,29 @@ fn render_writes_a_manifest_with_real_content_hashes() {
     let artifacts = manifest["artifacts"].as_array().unwrap();
     assert_eq!(artifacts.len(), 3, "manifest should describe exactly the 3 rendered files, not itself");
 
-    let sysml_entry = artifacts.iter().find(|a| a["kind"] == "sysml").unwrap();
-    assert_eq!(sysml_entry["path"], "pipeline.sysml");
-    let hash = sysml_entry["content_hash"].as_str().unwrap();
-    assert!(hash.starts_with("sha256:"));
-    assert_eq!(hash.len(), "sha256:".len() + 64);
-
-    // The hash must be over the real bytes on disk, not a placeholder.
     use sha2::{Digest, Sha256};
-    let real_bytes = std::fs::read(out_dir.join("pipeline.sysml")).unwrap();
-    let expected = format!("sha256:{:x}", Sha256::digest(&real_bytes));
-    assert_eq!(hash, expected);
+
+    // Hash-verify all three artifact kinds against the real bytes on disk, not just `sysml` --
+    // the manifest is FR6's ledgrrr contract and every entry in it needs to be trustworthy.
+    for (kind, filename) in [
+        ("sysml", "pipeline.sysml"),
+        ("svg", "pipeline.svg"),
+        ("iso_ir_json", "pipeline_iso_ir.json"),
+    ] {
+        let entry = artifacts
+            .iter()
+            .find(|a| a["kind"] == kind)
+            .unwrap_or_else(|| panic!("manifest missing a '{kind}' entry: {artifacts:?}"));
+        assert_eq!(entry["path"], filename);
+        let hash = entry["content_hash"].as_str().unwrap();
+        assert!(hash.starts_with("sha256:"));
+        assert_eq!(hash.len(), "sha256:".len() + 64);
+
+        // The hash must be over the real bytes on disk, not a placeholder.
+        let real_bytes = std::fs::read(out_dir.join(filename)).unwrap();
+        let expected = format!("sha256:{:x}", Sha256::digest(&real_bytes));
+        assert_eq!(hash, expected, "content_hash mismatch for {filename}");
+    }
 
     std::fs::remove_dir_all(&out_dir).ok();
 }
