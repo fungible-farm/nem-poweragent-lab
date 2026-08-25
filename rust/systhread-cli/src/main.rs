@@ -69,8 +69,20 @@ async fn main() -> std::process::ExitCode {
                 std::process::ExitCode::FAILURE
             }
         },
-        Some(Commands::Explore) => todo!("Task 9"),
-        Some(Commands::Drift) => todo!("Task 9"),
+        Some(Commands::Explore) => match commands::explore::run() {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::ExitCode::FAILURE
+            }
+        },
+        Some(Commands::Drift) => match commands::drift::run() {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::ExitCode::FAILURE
+            }
+        },
         None => {
             eprintln!("systhread: no command given (try --help)");
             std::process::ExitCode::FAILURE
