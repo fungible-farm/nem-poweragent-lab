@@ -7,6 +7,7 @@ pub const ROW_SPACING: f64 = 2.0;
 pub const BUS_GAP: f64 = 2.0;
 
 fn round6(v: f64) -> f64 {
+    let v = v + 0.0; // normalize -0.0 -> 0.0, matching Python's `value() + 0.0` idiom
     (v * 1_000_000.0).round() / 1_000_000.0
 }
 
@@ -102,11 +103,16 @@ fn level_x_positions(
             continue;
         }
         let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut group_order: Vec<String> = Vec::new();
         for b in &level {
-            groups.entry(parent[b].clone()).or_default().push(b.clone());
+            let p = parent[b].clone();
+            if !groups.contains_key(&p) {
+                group_order.push(p.clone());
+            }
+            groups.entry(p).or_default().push(b.clone());
         }
-        let mut ordered_parents: Vec<String> = groups.keys().cloned().collect();
-        ordered_parents.sort_by(|a, b| x_by_anchor[a].total_cmp(&x_by_anchor[b]));
+        let mut ordered_parents = group_order;
+        ordered_parents.sort_by(|a, b| x_by_anchor[a].partial_cmp(&x_by_anchor[b]).unwrap());
 
         let mut solver = Solver::new();
         let mut x_vars: BTreeMap<String, Variable> = BTreeMap::new();
@@ -229,4 +235,29 @@ pub fn cassowary_positions(nodes: &[Node], edges: &[Edge]) -> Vec<(f64, f64)> {
     }
 
     nodes.iter().map(|n| positions[&n.id]).collect()
+}
+
+#[cfg(test)]
+mod round6_tests {
+    use super::round6;
+
+    #[test]
+    fn normalizes_negative_zero_to_positive_zero() {
+        // Regression for review finding 2 on commit 0f804cc: Python's `round(var.value() + 0.0, 6)`
+        // idiom turns -0.0 into 0.0 before rounding. `assert_eq!` on f64 treats -0.0 == 0.0 (so the
+        // fixture tests can't catch a divergence here), but downstream JSON serialization (Task 8)
+        // would print "-0" vs "0" as different bytes, breaking the byte-identical hard gate. Assert
+        // on the sign bit directly, since plain `==` can't distinguish -0.0 from 0.0. Note the
+        // `+ 0.0` idiom only normalizes an *exact* -0.0 input (from solver cancellation) -- a small
+        // negative value that later rounds to zero (e.g. -1e-9) still rounds to -0.0, matching
+        // Python's own `round(-1e-9 + 0.0, 6)` behavior; that's not what this fix addresses.
+        assert!(!round6(-0.0_f64).is_sign_negative());
+        assert_eq!(round6(-0.0_f64), 0.0);
+    }
+
+    #[test]
+    fn still_rounds_to_six_decimal_places() {
+        assert_eq!(round6(1.234_567_89), 1.234_568);
+        assert_eq!(round6(-1.234_567_89), -1.234_568);
+    }
 }
