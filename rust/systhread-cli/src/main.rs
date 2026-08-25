@@ -1,10 +1,6 @@
-mod commands;
-mod mcp;
-mod track;
-
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use track::Track;
+use systhread_cli::{commands, mcp, track::Track};
 
 #[derive(Parser)]
 #[command(name = "systhread", version, about = "SysML v2 digital-thread tooling (systhread-core Phase 1 CLI)")]
