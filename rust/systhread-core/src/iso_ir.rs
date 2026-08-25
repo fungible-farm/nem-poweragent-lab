@@ -114,3 +114,31 @@ pub fn extract_pipeline(inst: &PipelinePhasesInstances) -> (Vec<Node>, Vec<Edge>
     }
     (nodes, edges)
 }
+
+const PER_ROW: usize = 3;
+const SPACING: f64 = 2.0;
+
+/// Deterministic row-major grid layout -- Lab 6's fallback for a track with no edges at all.
+/// None of the three real committed tracks currently hits this path (see this task's own
+/// docstring in the plan); ported for dispatch completeness.
+pub fn grid_positions(n: usize) -> Vec<(f64, f64)> {
+    (0..n)
+        .map(|i| (((i % PER_ROW) as f64) * SPACING, ((i / PER_ROW) as f64) * SPACING))
+        .collect()
+}
+
+#[cfg(test)]
+mod grid_positions_tests {
+    use super::grid_positions;
+
+    #[test]
+    fn lays_out_row_major_with_spacing_two_per_row_three() {
+        // Ports translate_iso_ir.py's _grid_positions(n, per_row=3, spacing=2) defaults exactly:
+        // (i % 3) * 2, (i // 3) * 2.
+        let positions = grid_positions(5);
+        assert_eq!(
+            positions,
+            vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (0.0, 2.0), (2.0, 2.0)]
+        );
+    }
+}
