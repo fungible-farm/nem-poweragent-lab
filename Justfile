@@ -392,3 +392,4 @@ default:
 
 # --- lab tours (recorded, narrated demos) -----------------------------------
 mod tour "labs/tour.just"
+mod systhread "rust/systhread-cli/systhread.just"
