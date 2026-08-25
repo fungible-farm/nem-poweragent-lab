@@ -237,6 +237,70 @@ pub fn cassowary_positions(nodes: &[Node], edges: &[Edge]) -> Vec<(f64, f64)> {
     nodes.iter().map(|n| positions[&n.id]).collect()
 }
 
+/// Ports translate_iso_ir.py's `_sequence_positions` exactly: walks the real declared `next`
+/// order (starting from nodes with no incoming `sequence` edge, sorted for determinism), lays
+/// the resulting chain out left-to-right with REQUIRED consecutive gaps and a WEAK pin on the
+/// first element -- a real ordered relationship, not an undirected hub/star.
+pub fn sequence_positions(nodes: &[Node], edges: &[Edge]) -> Vec<(f64, f64)> {
+    let next_of: BTreeMap<String, String> = edges
+        .iter()
+        .filter(|e| e.edge_type == "sequence")
+        .map(|e| (e.from.clone(), e.to.clone()))
+        .collect();
+    let has_incoming: BTreeSet<&String> = next_of.values().collect();
+
+    let mut starts: Vec<String> = nodes
+        .iter()
+        .map(|n| &n.id)
+        .filter(|id| !has_incoming.contains(*id))
+        .cloned()
+        .collect();
+    starts.sort();
+
+    let mut order: Vec<String> = Vec::new();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for start in &starts {
+        let mut current = Some(start.clone());
+        while let Some(c) = current {
+            if seen.contains(&c) {
+                break;
+            }
+            order.push(c.clone());
+            seen.insert(c.clone());
+            current = next_of.get(&c).cloned();
+        }
+    }
+    let mut rest: Vec<String> = nodes
+        .iter()
+        .map(|n| &n.id)
+        .filter(|id| !seen.contains(*id))
+        .cloned()
+        .collect();
+    rest.sort();
+    order.extend(rest);
+
+    let mut solver = Solver::new();
+    let x_vars: BTreeMap<String, Variable> = order.iter().map(|id| (id.clone(), Variable::new())).collect();
+    for pair in order.windows(2) {
+        let (left, right) = (&pair[0], &pair[1]);
+        solver
+            .add_constraints([(x_vars[left] + BUS_GAP) | LE(Strength::REQUIRED) | x_vars[right]])
+            .unwrap();
+    }
+    if let Some(first) = order.first() {
+        solver
+            .add_constraints([x_vars[first] | EQ(Strength::WEAK) | 0.0])
+            .unwrap();
+    }
+
+    let positions: BTreeMap<String, (f64, f64)> = order
+        .iter()
+        .map(|id| (id.clone(), (round6(solver.get_value(x_vars[id])), 0.0)))
+        .collect();
+
+    nodes.iter().map(|n| positions[&n.id]).collect()
+}
+
 #[cfg(test)]
 mod round6_tests {
     use super::round6;
