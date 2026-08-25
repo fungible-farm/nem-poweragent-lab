@@ -2,3 +2,4 @@
 //! docs/superpowers/specs/2026-08-25-systhread-design.md.
 
 pub mod instances;
+pub mod sysml_gen;
