@@ -5,11 +5,11 @@
 
 # Generate + validate one track's .sysml (track: digital-thread | grid | pipeline).
 sysml-check track path:
-    systhread check --track {{track}} {{path}}
+    cd {{justfile_directory()}} && systhread check --track {{track}} {{path}}
 
 # Generate, validate, translate, and render one track to a manifest-described output directory.
 sysml-render track path out:
-    systhread render --track {{track}} {{path}} --out {{out}}
+    cd {{justfile_directory()}} && systhread render --track {{track}} {{path}} --out {{out}}
 
 # Interactive model explorer (FR7 -- ships in Phase 3).
 sysml-explore:
