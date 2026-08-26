@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>systhread explorer</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #101418; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import init from "./systhread-explorer.js";
+      // winit ends its startup call by throwing a control-flow exception; that one is expected,
+      // anything else is a real failure and must not be swallowed.
+      init().catch((e) => {
+        if (!String(e).includes("Using exceptions for control flow")) throw e;
+      });
+    </script>
+  </body>
+</html>

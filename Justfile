@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core check-systhread-wasm
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core check-systhread-wasm check-systhread-explorer
 
 check-systhread-core:
     cargo test -p systhread-core --manifest-path rust/Cargo.toml
@@ -104,6 +104,18 @@ systhread-wasm-setup:
 # The ouroboros gate: systhread-core's own code, compiled to wasm32 and actually executed.
 check-systhread-wasm:
     cargo test -p systhread-core --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown --test wasm_smoke_test --test ouroboros_wasm_test
+
+check-systhread-explorer:
+    cargo test -p systhread-explorer --manifest-path rust/Cargo.toml
+    cargo check -p systhread-explorer --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown
+
+# Build the explorer's self-contained web bundle (optionally from a specific PositionedGraph JSON).
+systhread-explorer-bundle graph="":
+    ./scripts/build_systhread_explorer.sh {{graph}}
+
+# Serve the built bundle for a real browser check.
+systhread-explorer-serve port="8765":
+    python3 -m http.server {{port}} --directory rust/systhread-explorer/dist
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
