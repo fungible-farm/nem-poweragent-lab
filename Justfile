@@ -330,8 +330,18 @@ lab5-villasnode: villasnode-up villasnode-verify villasnode-down
 # its own Heap::clear under rustc's debug ub_checks. Lab 8 0d found this;
 # Lab 9 re-confirmed it reproduces here. Release builds are unaffected, so
 # `just check-lab9` is what actually tests this crate.
+#
+# systhread-explorer is EXCLUDED for a different real reason: its
+# `explorer-3d` feature (not enabled by default, so a plain `cargo test`
+# doesn't need it) is verified to *compile* clean, native and
+# wasm32-unknown-unknown, but has never been *run* -- same honest posture as
+# mission-engine's own `interactive` feature (see that crate's README
+# "Interactive mode": "not run visually -- this is a headless shared host").
+# Running it here would try to construct a real Bevy App on a display-less
+# CI runner. `cargo check -p systhread-explorer [--target wasm32-unknown-unknown]`
+# is what actually verifies this crate today.
 rust-test:
-    cargo test --manifest-path rust/Cargo.toml --workspace --exclude mission-engine
+    cargo test --manifest-path rust/Cargo.toml --workspace --exclude mission-engine --exclude systhread-explorer
 
 # Build the simulation crate to WASM (the "sim compiled into wasm, shipped to
 # the browser" piece the Dioxus UI will load client-side).
