@@ -16,6 +16,7 @@
 //! functions that mix the two (partially fallible, partially not) today, and mixing them is a
 //! sign the function should be split rather than exempted from this rule.
 
+pub mod cytoscape;
 pub mod instances;
 pub mod iso_ir;
 pub mod layout;
