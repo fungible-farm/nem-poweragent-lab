@@ -10,6 +10,10 @@
 //! a time budget), input-order iteration everywhere (never a `HashMap`), and no transcendental
 //! functions (`sqrt` only, which IEEE-754 requires to be correctly rounded on every target).
 
+use crate::cytoscape::CytoscapeGraph;
+use crate::positioned::{Layout, NodePosition2D, NodePosition3D, PositionedGraph};
+use std::collections::BTreeMap;
+
 /// Fixed layout seed: the ASCII bytes of "SYSTHRED". Changing this value changes every explorer
 /// artifact in every adopting project -- treat it as a wire-format constant, not a tuning knob.
 pub const LAYOUT_SEED: u64 = 0x5359_5354_4852_4544;
@@ -104,6 +108,166 @@ fn center<const D: usize>(positions: &mut [[f64; D]]) {
             point[d] = round6(point[d] - centroid[d]);
         }
     }
+}
+
+/// Which geometry to compute. Separate from `Layout` because a caller choosing a mode has no
+/// positions yet: `Layout` carries data, `LayoutMode` carries only the choice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayoutMode {
+    TwoD,
+    ThreeD,
+}
+
+/// Vector from `b` to `a` and its length. Coincident points (distance below `MIN_DISTANCE`) get a
+/// deterministic nudge along an axis picked from the two node *indices* -- never from an RNG, a
+/// pointer, or iteration order, all of which would leak nondeterminism into the artifact.
+fn delta_and_distance<const D: usize>(
+    a: &[f64; D],
+    b: &[f64; D],
+    index_a: usize,
+    index_b: usize,
+) -> ([f64; D], f64) {
+    let mut delta = [0.0_f64; D];
+    let mut sum_of_squares = 0.0;
+    for d in 0..D {
+        delta[d] = a[d] - b[d];
+        sum_of_squares += delta[d] * delta[d];
+    }
+    let distance = sum_of_squares.sqrt();
+    if distance < MIN_DISTANCE {
+        let mut nudge = [0.0_f64; D];
+        nudge[(index_a + index_b) % D] = MIN_DISTANCE;
+        return (nudge, MIN_DISTANCE);
+    }
+    (delta, distance)
+}
+
+/// Resolves each edge to a pair of node indices, dropping edges that name a node the graph does
+/// not contain and self-loops (neither contributes a direction to push along). Uses a `BTreeMap`,
+/// not a `HashMap`: iteration order never reaches the output, but the crate-wide rule is that no
+/// hash-ordered container sits anywhere on an artifact's data path.
+fn edge_indices(graph: &CytoscapeGraph) -> Vec<(usize, usize)> {
+    let index: BTreeMap<&str, usize> = graph
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.data.id.as_str(), i))
+        .collect();
+    graph
+        .edges
+        .iter()
+        .filter_map(|e| {
+            let a = *index.get(e.data.source.as_str())?;
+            let b = *index.get(e.data.target.as_str())?;
+            if a == b { None } else { Some((a, b)) }
+        })
+        .collect()
+}
+
+/// Fruchterman-Reingold refinement: all-pairs repulsion `k²/d`, per-edge attraction `d²/k`, with
+/// a per-iteration displacement cap cooled linearly to zero. Fixed iteration count, fixed
+/// traversal order, no early exit -- the three things that make the result reproducible.
+fn refine<const D: usize>(positions: &mut [[f64; D]], edges: &[(usize, usize)]) {
+    let n = positions.len();
+    if n < 2 {
+        return;
+    }
+    let k = IDEAL_EDGE_LENGTH;
+    for iteration in 0..LAYOUT_ITERATIONS {
+        let mut displacement = vec![[0.0_f64; D]; n];
+
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let (delta, distance) = delta_and_distance(&positions[i], &positions[j], i, j);
+                let force = (k * k) / distance;
+                for d in 0..D {
+                    let unit = delta[d] / distance;
+                    displacement[i][d] += unit * force;
+                    displacement[j][d] -= unit * force;
+                }
+            }
+        }
+
+        for &(a, b) in edges {
+            let (delta, distance) = delta_and_distance(&positions[a], &positions[b], a, b);
+            let force = (distance * distance) / k;
+            for d in 0..D {
+                let unit = delta[d] / distance;
+                displacement[a][d] -= unit * force;
+                displacement[b][d] += unit * force;
+            }
+        }
+
+        let temperature =
+            INITIAL_TEMPERATURE * (1.0 - (iteration as f64) / (LAYOUT_ITERATIONS as f64));
+        for i in 0..n {
+            let mut sum_of_squares = 0.0;
+            for d in 0..D {
+                sum_of_squares += displacement[i][d] * displacement[i][d];
+            }
+            let magnitude = sum_of_squares.sqrt();
+            if magnitude < MIN_DISTANCE {
+                continue;
+            }
+            let scale = magnitude.min(temperature) / magnitude;
+            for d in 0..D {
+                positions[i][d] += displacement[i][d] * scale;
+            }
+        }
+    }
+}
+
+fn solve<const D: usize>(graph: &CytoscapeGraph) -> Vec<[f64; D]> {
+    let mut positions = initial_positions::<D>(graph.nodes.len());
+    refine(&mut positions, &edge_indices(graph));
+    center(&mut positions);
+    positions
+}
+
+/// Flat force-directed layout -- the same solver as `layout_3d` with one dimension removed, which
+/// is exactly what design §4 specifies ("computes `Layout::TwoD` and `Layout::ThreeD` ... using a
+/// fixed-seed, fixed-iteration-count force-directed algorithm"). This is *not* the isometric
+/// diagram layout in `layout.rs`; see design §3 on not conflating the two.
+pub fn layout_2d(graph: &CytoscapeGraph) -> Layout {
+    let positions = solve::<2>(graph);
+    Layout::TwoD(
+        graph
+            .nodes
+            .iter()
+            .zip(positions)
+            .map(|(node, p)| NodePosition2D {
+                node_id: node.data.id.clone(),
+                x: p[0],
+                y: p[1],
+            })
+            .collect(),
+    )
+}
+
+pub fn layout_3d(graph: &CytoscapeGraph) -> Layout {
+    let positions = solve::<3>(graph);
+    Layout::ThreeD(
+        graph
+            .nodes
+            .iter()
+            .zip(positions)
+            .map(|(node, p)| NodePosition3D {
+                node_id: node.data.id.clone(),
+                x: p[0],
+                y: p[1],
+                z: p[2],
+            })
+            .collect(),
+    )
+}
+
+/// The one entry point the CLI and the explorer both use.
+pub fn build_positioned_graph(graph: CytoscapeGraph, mode: LayoutMode) -> PositionedGraph {
+    let layout = match mode {
+        LayoutMode::TwoD => layout_2d(&graph),
+        LayoutMode::ThreeD => layout_3d(&graph),
+    };
+    PositionedGraph { graph, layout }
 }
 
 #[cfg(test)]
