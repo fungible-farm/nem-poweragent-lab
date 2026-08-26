@@ -31,3 +31,6 @@ default = []
 # in the resolved graph. `rust/mission-engine/Cargo.toml`'s `interactive` feature is the same
 # workaround for the 2D/UI case.
 explorer-3d = ["bevy/bevy_pbr", "bevy/bevy_render", "bevy/bevy_core_pipeline", "bevy/bevy_asset", "bevy/bevy_winit", "bevy/bevy_window"]
+# Native desktop run of the same viewer. Separate from `explorer-3d` because `bevy_winit` requires
+# an explicit windowing backend on Linux, and the wasm build must not pull x11.
+explorer-desktop = ["explorer-3d", "bevy/x11"]

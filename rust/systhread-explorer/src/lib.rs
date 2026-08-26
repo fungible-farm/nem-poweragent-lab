@@ -12,3 +12,5 @@ pub mod scene;
 
 #[cfg(feature = "explorer-3d")]
 pub mod asset;
+#[cfg(feature = "explorer-3d")]
+pub mod app;
