@@ -8,3 +8,4 @@
 //! a visual smoke check.
 
 pub mod loader;
+pub mod scene;
