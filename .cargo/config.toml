@@ -1,0 +1,6 @@
+# `cargo test --target wasm32-unknown-unknown` needs a runner that can execute a wasm module.
+# wasm-bindgen-test-runner drives it under Node (no browser or webdriver involved). This exists
+# for systhread-core's ouroboros test (docs/superpowers/specs/2026-08-26-systhread-3d-explorer-design.md
+# §6); no other crate in this repo targets wasm today.
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
