@@ -9,3 +9,6 @@
 
 pub mod loader;
 pub mod scene;
+
+#[cfg(feature = "explorer-3d")]
+pub mod asset;
