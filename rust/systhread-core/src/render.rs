@@ -26,6 +26,15 @@ struct Point {
     y: f64,
 }
 
+/// Escapes text for placement inside SVG/XML element content (not attribute values -- this
+/// crate never places project-supplied text inside an attribute). Node labels come from
+/// project-supplied instance YAML (`name` fields) and are otherwise interpolated unescaped,
+/// which lets an unescaped `<`/`&` in a label corrupt the SVG's XML well-formedness or break
+/// out of the enclosing `<text>` element entirely.
+fn escape_xml_text(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
 fn fill_by_type(node_type: &str) -> &'static str {
     match node_type {
         "generic" => "#6b7280",
@@ -201,7 +210,7 @@ pub fn render_svg(spec: &Value) -> String {
 
         node_body.push(format!(
             "<text x=\"{:.1}\" y=\"{:.1}\" font-family=\"monospace\" font-size=\"{:.0}\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
-            center.x, label_y, FONT_SIZE, LABEL_FILL, label
+            center.x, label_y, FONT_SIZE, LABEL_FILL, escape_xml_text(label)
         ));
         node_body.push("</g>".to_string());
         all_points.push(Point { x: center.x - label.chars().count() as f64 * CHAR_WIDTH / 2.0, y: label_y });
