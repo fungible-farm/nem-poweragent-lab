@@ -32,6 +32,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -48,6 +50,15 @@ jobs:
 
       - name: Fetch CSIRO case data
         run: just fetch
+
+      # systhread-core's ouroboros gate (check-systhread-wasm, part of `just check`) needs a
+      # wasm-bindgen-cli whose version matches wasm-bindgen-test's pin exactly, or the test
+      # runner rejects the module with a schema-version error -- see
+      # docs/superpowers/plans/2026-08-26-systhread-3d-explorer-v1.md Task 6. The
+      # `wasm32-unknown-unknown` target itself comes from the toolchain step above; this only
+      # installs the CLI.
+      - name: Install matching wasm-bindgen-cli
+        run: just systhread-wasm-setup
 
       - name: Per-lab check gates (labs 1-9)
         run: just check
