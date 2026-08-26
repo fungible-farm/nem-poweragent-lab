@@ -61,6 +61,10 @@ fn positions(graph: &PositionedGraph) -> (Vec<[f32; 3]>, bool) {
 /// Infallible: `loader::load_positioned_graph` has already established that the layout has one
 /// entry per node, in order, so the zip below cannot mismatch.
 pub fn scene_spec(graph: &PositionedGraph) -> SceneSpec {
+    debug_assert!(
+        graph.layout_matches_graph(),
+        "PositionedGraph layout does not match its graph -- see layout_matches_graph()"
+    );
     let (points, flat) = positions(graph);
 
     let nodes: Vec<NodeVisual> = graph

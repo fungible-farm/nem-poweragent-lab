@@ -99,7 +99,7 @@ check-systhread-core:
 # rejects the module with a schema-version error.
 systhread-wasm-setup:
     rustup target add wasm32-unknown-unknown
-    cargo install -f wasm-bindgen-cli --version 0.2.127
+    cargo install wasm-bindgen-cli --version 0.2.127
 
 # The ouroboros gate: systhread-core's own code, compiled to wasm32 and actually executed.
 check-systhread-wasm:
@@ -108,6 +108,7 @@ check-systhread-wasm:
 check-systhread-explorer:
     cargo test -p systhread-explorer --manifest-path rust/Cargo.toml
     cargo check -p systhread-explorer --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown
+    cargo check -p systhread-explorer --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown --features explorer-3d
 
 # Build the explorer's self-contained web bundle (optionally from a specific PositionedGraph JSON).
 systhread-explorer-bundle graph="":
@@ -356,10 +357,12 @@ lab5-villasnode: villasnode-up villasnode-verify villasnode-down
 #
 # systhread-explorer is EXCLUDED for a different real reason: its
 # `explorer-3d` feature (not enabled by default, so a plain `cargo test`
-# doesn't need it) is verified to *compile* clean, native and
-# wasm32-unknown-unknown, but has never been *run* -- same honest posture as
-# mission-engine's own `interactive` feature (see that crate's README
-# "Interactive mode": "not run visually -- this is a headless shared host").
+# doesn't need it) is verified to *compile* clean for wasm32-unknown-unknown,
+# but has never been *run* -- same honest posture as mission-engine's own
+# `interactive` feature (see that crate's README "Interactive mode": "not run
+# visually -- this is a headless shared host"). `explorer-3d` alone does not
+# build natively (winit reports "platform not supported" without a windowing
+# backend); `explorer-desktop` (which adds `bevy/x11`) is the native path.
 # Running it here would try to construct a real Bevy App on a display-less
 # CI runner. `cargo check -p systhread-explorer [--target wasm32-unknown-unknown]`
 # is what actually verifies this crate today.

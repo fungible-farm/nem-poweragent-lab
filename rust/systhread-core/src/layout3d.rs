@@ -38,8 +38,7 @@ const MIN_DISTANCE: f64 = 1.0e-9;
 /// requires `layout.rs` to stay untouched, and making its private fn `pub(crate)` would be a
 /// modification. Ten duplicated lines is the cheaper side of that trade.
 fn round6(v: f64) -> f64 {
-    let v = v + 0.0;
-    (v * 1_000_000.0).round() / 1_000_000.0
+    (v * 1_000_000.0).round() / 1_000_000.0 + 0.0
 }
 
 /// SplitMix64 -- a fixed-seed PRNG in pure wrapping `u64` arithmetic, identical on every target.
@@ -334,5 +333,13 @@ mod placement_tests {
     fn round6_matches_the_isometric_pipelines_rounding() {
         assert_eq!(round6(1.234_567_89), 1.234_568);
         assert!(!round6(-0.0_f64).is_sign_negative());
+    }
+
+    #[test]
+    fn round6_normalizes_negative_zero_produced_by_rounding_a_tiny_negative_input() {
+        // -1e-7 rounds to -0.0 at the rounding step itself (not the input), so the normalization
+        // must happen after rounding, not before. `-0.0 == 0.0` is true in IEEE 754, so assert on
+        // sign rather than equality -- otherwise this test would pass even with the bug present.
+        assert!(!round6(-1.0e-7_f64).is_sign_negative());
     }
 }
