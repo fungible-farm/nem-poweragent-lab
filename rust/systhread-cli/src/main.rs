@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use systhread_cli::{commands, mcp, track::Track};
+use systhread_cli::{commands, explorer::ExplorerLayout, mcp, track::Track};
 
 #[derive(Parser)]
 #[command(name = "systhread", version, about = "SysML v2 digital-thread tooling (systhread-core Phase 1 CLI)")]
@@ -28,6 +28,12 @@ enum Commands {
         path: PathBuf,
         #[arg(long)]
         out: PathBuf,
+        /// Also emit the explorer's PositionedGraph JSON (FR7).
+        #[arg(long)]
+        explorer: bool,
+        /// Geometry for --explorer. Ignored without it.
+        #[arg(long, value_enum, default_value = "3d")]
+        explorer_layout: ExplorerLayout,
     },
     /// Interactive model explorer (FR7 — ships in Phase 3, not yet implemented).
     Explore,
@@ -61,18 +67,21 @@ async fn main() -> std::process::ExitCode {
                 std::process::ExitCode::FAILURE
             }
         },
-        Some(Commands::Render { track, path, out }) => match commands::render::run(track, &path, &out) {
-            Ok(paths) => {
-                for p in paths {
-                    println!("wrote {}", p.display());
+        Some(Commands::Render { track, path, out, explorer, explorer_layout }) => {
+            let explorer = explorer.then_some(explorer_layout);
+            match commands::render::run_with_explorer(track, &path, &out, explorer) {
+                Ok(paths) => {
+                    for p in paths {
+                        println!("wrote {}", p.display());
+                    }
+                    std::process::ExitCode::SUCCESS
                 }
-                std::process::ExitCode::SUCCESS
+                Err(e) => {
+                    eprintln!("systhread render: {e}");
+                    std::process::ExitCode::FAILURE
+                }
             }
-            Err(e) => {
-                eprintln!("systhread render: {e}");
-                std::process::ExitCode::FAILURE
-            }
-        },
+        }
         Some(Commands::Explore) => match commands::explore::run() {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(e) => {

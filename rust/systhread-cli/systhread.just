@@ -11,6 +11,10 @@ sysml-check track path:
 sysml-render track path out:
     cd {{justfile_directory()}} && systhread render --track {{track}} {{path}} --out {{out}}
 
+# Render one track AND the explorer's PositionedGraph JSON (layout: 2d | 3d, default 3d).
+sysml-render-explorer track path out layout="3d":
+    cd {{justfile_directory()}} && systhread render --track {{track}} {{path}} --out {{out}} --explorer --explorer-layout {{layout}}
+
 # Interactive model explorer (FR7 -- ships in Phase 3).
 sysml-explore:
     systhread explore
