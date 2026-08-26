@@ -6557,6 +6557,7 @@ name = "systhread-explorer"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "systhread-core",
 ]
 
 [[package]]
