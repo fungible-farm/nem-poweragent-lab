@@ -6,6 +6,13 @@ renders a project's SysML model as an interactive 3D (or flat 2D) graph.
 Design: `docs/superpowers/specs/2026-08-26-systhread-3d-explorer-design.md`.
 Plan: `docs/superpowers/plans/2026-08-26-systhread-3d-explorer-v1.md`.
 
+## See it run
+
+![systhread-explorer tour](tour.gif)
+
+The recording covers the CLI pipeline (render with `--explorer` → bundle → serve); a terminal
+can't capture the WebGL canvas itself, so see "Browser status" below for what that looks like.
+
 ## How the pieces fit
 
 - `systhread render --track <track> <instances.yaml> --out <dir> --explorer` writes
@@ -61,15 +68,12 @@ network context in this environment; that's an environment quirk, not an app iss
 
 1. **Console log line** — PASS. Printed exactly as expected:
    `systhread-explorer: 20 nodes, 24 edges, flat=false`.
-2. **Spheres and connecting cylinders visible on the canvas** — PASS, with a caveat. Geometry
-   matches the grid track's 15 buses + 5 generators + edges (confirmed via screenshot), but they
-   render **magenta/unlit** rather than properly shaded. Traced to a genuine, non-fatal console
-   error: `TonyMcMapFace tonemapping requires the tonemapping_luts feature. Either enable the
-   tonemapping_luts feature for bevy in Cargo.toml (recommended), or use a different Tonemapping
-   method for your Camera2d/Camera3d.` This is a real defect, not cosmetic noise to ignore. Fix,
-   out of scope for this task: enable `bevy/tonemapping_luts` for the `explorer-web`/`explorer-3d`
-   features, or set an explicit non-LUT `Tonemapping` component (e.g. `Tonemapping::None`) on the
-   camera.
+2. **Spheres and connecting cylinders visible on the canvas** — PASS. Geometry matches the grid
+   track's 15 buses + 5 generators + edges, correctly shaded in the intended cyan-blue
+   `StandardMaterial` color. (Originally rendered magenta/unlit, traced to
+   `TonyMcMapFace` tonemapping requiring the `tonemapping_luts` feature; fixed by setting an
+   explicit `Tonemapping::None` on the camera in `app.rs` — no LUT asset needed, matches this
+   viewer's flat/unlit-shading style — and re-verified in the same real browser.)
 3. **Left-drag orbit / scroll-wheel zoom** — **not live-confirmed**, but **code-verified
    correct**. Multiple independent automated input methods (browser-extension drags, stepped
    incremental drags and scroll, and a separate Playwright script issuing real multi-step
@@ -87,3 +91,14 @@ network context in this environment; that's an environment quirk, not an app iss
    correct by inspection. **Recommendation: a human should do a 5-second manual spot-check** of
    orbit/zoom before relying on this control in a demo — it has not been live-confirmed, only
    verified by code inspection.
+
+## Native desktop (`explorer-desktop`)
+
+Verified with a real (virtual-display) run, not just a compile check: `cargo build --features
+explorer-desktop` under `xvfb-run`, forced onto Mesa's software Vulkan implementation
+(`VK_ICD_FILENAMES=.../lvp_icd.json`, since this host's real GPU driver — NVK — panics with
+`wgpu-hal invariant was violated: Requested feature is not available on this device`, a driver gap
+unrelated to this crate). The binary opened a real X11 window, logged
+`systhread-explorer: 20 nodes, 24 edges, flat=false`, and a captured screenshot (`xwd`/`convert`)
+shows the grid track's nodes and edges actually drawn — cyan spheres, white cylinder edges, dark
+background — confirming the native path renders real geometry, not only that it links.
