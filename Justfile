@@ -89,10 +89,21 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core check-systhread-wasm
 
 check-systhread-core:
     cargo test -p systhread-core --manifest-path rust/Cargo.toml
+
+# One-time (idempotent) setup for the wasm half of systhread's ouroboros test.
+# wasm-bindgen-test 0.3.77 pins wasm-bindgen =0.2.127; the CLI must match exactly or the runner
+# rejects the module with a schema-version error.
+systhread-wasm-setup:
+    rustup target add wasm32-unknown-unknown
+    cargo install -f wasm-bindgen-cli --version 0.2.127
+
+# The ouroboros gate: systhread-core's own code, compiled to wasm32 and actually executed.
+check-systhread-wasm:
+    cargo test -p systhread-core --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown --test wasm_smoke_test --test ouroboros_wasm_test
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
