@@ -1,9 +1,10 @@
 # Requirements: `systhread` — a b00t-installable MBSE vendor capability
 
-**Status:** Draft v0.4 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
+**Status:** Draft v0.5 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
 repo's own current state (see §7, Amendments from v0.1); amended again after Phase 1 shipped (see
 §8, Amendments from Phase 1); amended again to record a long-term, explicitly-unphased direction
-(see §9).
+(see §9); amended again to point FR7 at a dedicated design doc for the Bevy-native 2D/3D explorer
+(`2026-08-26-systhread-3d-explorer-design.md`), which itself carries its own v1/v2 scope split.
 
 **Relationship to prior work:** generalizes Lab 6 (`nem-poweragent-lab`, PRD-0006) from a two-track
 evaluation lab into a standalone, reusable capability. Lab 6 stays as-is; this is what it becomes if
@@ -109,6 +110,13 @@ exploration of a metamodel instance), deliberately without MM-AR's *infrastructu
 Express API server, no Aurelia2/WebXR client stack). Built from `systhread-core`'s graph model as a
 `systhread-explorer` output artifact, not a Rust crate. Static-embeddable-widget scope only; live
 collaborative editing is explicitly out of scope (§5).
+
+**Sourcing amended 2026-08-26:** the Bevy-native path in
+[`2026-08-26-systhread-3d-explorer-design.md`](2026-08-26-systhread-3d-explorer-design.md)
+supersedes §5's Cytoscape.js/d3-only sourcing pick (that pick was to avoid forking MM-AR's AGPL
+code, not a rejection of 3D — FR7's own text above already named 3D exploration as the target
+capability). That document also resolves this entry's "output artifact, not a Rust crate" wording
+against §7 amendment 6's crate-layout list — see its §5.
 
 ### FR8 — UFO/KerML base-type representation via `ufo-types`
 Every domain class modeled through systhread MUST declare which `ufo_types::UfoStereotype` variant it
