@@ -1,3 +1,4 @@
+use crate::numfmt::{fmt_g, fmt_real};
 use serde_json::Value;
 
 const TILE_W: f64 = 120.0;
@@ -78,22 +79,13 @@ fn bar_face(center: Point) -> Vec<Point> {
 fn poly(points: &[Point], fill: &str, opacity: f64, stroke: &str, stroke_width: f64) -> String {
     let pts: Vec<String> = points.iter().map(|p| format!("{:.1},{:.1}", p.x, p.y)).collect();
     format!(
-        "<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"{:?}\" stroke=\"{}\" stroke-width=\"{}\"/>",
+        "<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"{}\" stroke=\"{}\" stroke-width=\"{}\"/>",
         pts.join(" "),
         fill,
-        opacity,
+        fmt_real(opacity),
         stroke,
         fmt_g(stroke_width)
     )
-}
-
-/// Rust's `Display` for `f64` (drops trailing `.0` for whole numbers, e.g. `1.0` -> `"1"`), which
-/// happens to match Python's `{:g}` format only for this crate's actual stroke-width call sites
-/// (fixed literals `1.0`/`1.5`/`3.0`) -- it is NOT a general port of Python's `%g`/`{:g}`
-/// semantics (which switches to exponential notation for large magnitudes; this does not).
-fn fmt_g(v: f64) -> String {
-    let s = format!("{v}");
-    s
 }
 
 fn edge_skips_node(from: &str, to: &str, positions_by_id: &std::collections::BTreeMap<String, (f64, f64)>) -> bool {

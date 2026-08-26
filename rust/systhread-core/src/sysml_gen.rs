@@ -1,20 +1,8 @@
 use crate::instances::{DigitalThreadInstances, GridInstances, PipelinePhasesInstances};
+use crate::numfmt::fmt_real;
 
 fn esc(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
-/// Formats an f64 the way Python's f"{value}" formats a YAML-sourced float: always includes a
-/// decimal point, even for whole numbers (275.0, not 275) -- Rust's default f64 Display omits it.
-/// Every numeric value in Lab 6's grid schema is written with an explicit decimal point in YAML,
-/// so this path is always exercised, never the bare-integer path.
-fn fmt_real(value: f64) -> String {
-    let s = format!("{value}");
-    if s.contains('.') || s.contains('e') || s.contains('E') {
-        s
-    } else {
-        format!("{s}.0")
-    }
 }
 
 pub fn render_digital_thread(inst: &DigitalThreadInstances) -> String {
