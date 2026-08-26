@@ -4,6 +4,7 @@
 use crate::asset::{ExplorerAssetPlugin, PositionedGraphAsset};
 use crate::camera::{orbit_from_scene, orbit_offset, Orbit};
 use crate::scene::{scene_spec, EdgeVisual, NodeVisual, EDGE_RADIUS};
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
 
 #[derive(Resource)]
@@ -91,6 +92,12 @@ fn spawn_scene_when_loaded(
     let orbit = orbit_from_scene(&spec);
     commands.spawn((
         Camera3d::default(),
+        // `TonyMcMapFace` (the default) requires the `tonemapping_luts` feature's baked LUT
+        // assets, which this crate doesn't enable -- without them it errors at draw time and
+        // nothing renders lit. `None` needs no LUT asset and matches the flat, unlit-shading
+        // style this viewer already uses (StandardMaterial with no PBR lighting setup beyond one
+        // DirectionalLight).
+        Tonemapping::None,
         Transform::from_translation(Vec3::from_array(spec.camera_position))
             .looking_at(Vec3::from_array(spec.camera_target), Vec3::Y),
         orbit,

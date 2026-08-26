@@ -22,6 +22,8 @@ benchmarks/power-agent-bench-lite/results/*
 !labs/*/tour.mp4
 !rust/systhread-cli/tour.gif
 !rust/systhread-cli/tour.mp4
+!rust/systhread-explorer/tour.gif
+!rust/systhread-explorer/tour.mp4
 # Sonification render (view_3d_audio.py) -- regenerated from real data.
 *.wav
 # pyinfra writes a debug log to CWD on a crashed run.

@@ -1,3 +1,4 @@
+use crate::explorer::ExplorerLayout;
 use crate::track::Track;
 use rmcp::handler::server::{ServerHandler, router::tool::ToolRouter, wrapper::Parameters};
 use rmcp::model::{CallToolResult, ContentBlock, ErrorCode, ErrorData as McpError, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
@@ -16,6 +17,11 @@ pub struct RenderParams {
     pub track: Track,
     pub path: String,
     pub out: String,
+    /// Also emit the explorer's PositionedGraph JSON (FR7), in this geometry. Omit for the
+    /// Phase 1 behaviour (no explorer artifact) -- matches the CLI's `--explorer-layout`, ignored
+    /// unless present.
+    #[serde(default)]
+    pub explorer_layout: Option<ExplorerLayout>,
 }
 
 fn to_mcp_error(reason: String) -> McpError {
@@ -56,7 +62,8 @@ impl SysthreadMcpServer {
     ) -> Result<CallToolResult, McpError> {
         let path = std::path::PathBuf::from(&params.path);
         let out = std::path::PathBuf::from(&params.out);
-        let written = crate::commands::render::run(params.track, &path, &out).map_err(to_mcp_error)?;
+        let written = crate::commands::render::run_with_explorer(params.track, &path, &out, params.explorer_layout)
+            .map_err(to_mcp_error)?;
         let summary = written.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n");
         Ok(CallToolResult::success(vec![ContentBlock::text(summary)]))
     }
