@@ -86,20 +86,17 @@ pub struct PhaseInstance {
     pub next: Option<String>,
 }
 
-pub fn load_digital_thread(path: &Path) -> DigitalThreadInstances {
-    let text = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_norway::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+pub fn load_digital_thread(path: &Path) -> Result<DigitalThreadInstances, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    serde_norway::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }
 
-pub fn load_grid(path: &Path) -> GridInstances {
-    let text = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_norway::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+pub fn load_grid(path: &Path) -> Result<GridInstances, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    serde_norway::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }
 
-pub fn load_pipeline(path: &Path) -> PipelinePhasesInstances {
-    let text = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_norway::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+pub fn load_pipeline(path: &Path) -> Result<PipelinePhasesInstances, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    serde_norway::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }

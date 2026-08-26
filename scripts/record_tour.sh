@@ -61,11 +61,40 @@ record_one() {
     echo "[record_tour.sh] done: ${gif} ($(du -h "$gif" | cut -f1)), ${mp4} ($(du -h "$mp4" | cut -f1))"
 }
 
+record_dir() {
+    local dir="$1"
+    if [[ ! -f "${dir}/tour.sh" ]]; then
+        echo "[record_tour.sh] FAIL: no ${dir}/tour.sh found" >&2
+        exit 1
+    fi
+    local slug
+    slug=$(basename "$dir")
+    local cast="recordings/${slug}_tour.cast"
+    local gif="${dir}/tour.gif"
+    local mp4="${dir}/tour.mp4"
+    mkdir -p recordings
+
+    echo "[record_tour.sh] recording ${dir}/tour.sh -> ${cast}"
+    PS1='demo$ ' asciinema rec --overwrite --cols "$REC_COLS" --rows "$REC_ROWS" \
+        --command "bash ${dir}/tour.sh" "$cast"
+
+    echo "[record_tour.sh] rendering ${cast} -> ${gif}"
+    agg --font-size 16 --speed 1.0 "$cast" "$gif"
+
+    echo "[record_tour.sh] rendering ${gif} -> ${mp4}"
+    ffmpeg -y -loglevel error -i "$gif" -movflags faststart -pix_fmt yuv420p \
+        -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "$mp4"
+
+    echo "[record_tour.sh] done: ${gif} ($(du -h "$gif" | cut -f1)), ${mp4} ($(du -h "$mp4" | cut -f1))"
+}
+
 target="${1:-all}"
 if [[ "$target" == "all" ]]; then
     for n in 1 2 3 4 5 6 7 8 9; do
         record_one "$n"
     done
+elif [[ "$target" == */* ]]; then
+    record_dir "$target"
 else
     record_one "$((10#$target))"
 fi

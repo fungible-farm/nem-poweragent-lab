@@ -6,7 +6,7 @@ use systhread_core::layout::sequence_positions;
 
 #[test]
 fn pipeline_positions_match_fixture() {
-    let inst = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml"));
+    let inst = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml")).unwrap();
     let (nodes, edges) = extract_pipeline(&inst);
     let got = sequence_positions(&nodes, &edges);
 

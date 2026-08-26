@@ -38,7 +38,7 @@ fn expected_edges(fixture_rel: &str) -> Vec<Edge> {
 
 #[test]
 fn digital_thread_structure_matches_fixture() {
-    let inst = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml"));
+    let inst = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml")).unwrap();
     let (nodes, edges) = extract_digital_thread(&inst);
     let ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
     assert_eq!(ids, expected_node_ids("expected/expected_digital_thread_iso_ir.json"));
@@ -47,7 +47,7 @@ fn digital_thread_structure_matches_fixture() {
 
 #[test]
 fn grid_structure_matches_fixture() {
-    let inst = load_grid(&fixture_path("schema/grid_instances.yaml"));
+    let inst = load_grid(&fixture_path("schema/grid_instances.yaml")).unwrap();
     let (nodes, edges) = extract_grid(&inst);
     let ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
     assert_eq!(ids, expected_node_ids("expected/expected_grid_topology_iso_ir.json"));
@@ -56,7 +56,7 @@ fn grid_structure_matches_fixture() {
 
 #[test]
 fn pipeline_structure_matches_fixture() {
-    let inst = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml"));
+    let inst = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml")).unwrap();
     let (nodes, edges) = extract_pipeline(&inst);
     let ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
     assert_eq!(ids, expected_node_ids("expected/expected_pipeline_phases_iso_ir.json"));

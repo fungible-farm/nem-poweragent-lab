@@ -20,6 +20,8 @@ benchmarks/power-agent-bench-lite/results/*
 # gitignored (*.cast above); regenerate with `just tour-record labN`.
 !labs/*/tour.gif
 !labs/*/tour.mp4
+!rust/systhread-cli/tour.gif
+!rust/systhread-cli/tour.mp4
 # Sonification render (view_3d_audio.py) -- regenerated from real data.
 *.wav
 # pyinfra writes a debug log to CWD on a crashed run.

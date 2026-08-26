@@ -1,0 +1,20 @@
+[b00t]
+name = "systhread"
+type = "cli"
+hint = "SysML v2 digital-thread tooling: generate/validate/render a project's .sysml model from committed instance data. Rust binary, no external service dependency (docs/superpowers/specs/2026-08-25-systhread-design.md)."
+
+detect = [
+    "command -v systhread",
+]
+
+[[b00t.usage]]
+description = "Validate one track's generated .sysml against sysml-v2-parser"
+command = "systhread check --track digital-thread <instances.yaml>"
+
+[[b00t.usage]]
+description = "Render one track's .sysml, SVG, iso-IR JSON, and ledgrrr manifest"
+command = "systhread render --track grid <instances.yaml> --out <dir>"
+
+[[b00t.references]]
+name = "systhread design spec"
+url = "docs/superpowers/specs/2026-08-25-systhread-design.md"

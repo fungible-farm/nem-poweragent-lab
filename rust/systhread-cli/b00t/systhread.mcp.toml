@@ -1,0 +1,30 @@
+[b00t]
+name = "systhread"
+type = "mcp"
+hint = "systhread MCP tools over stdio: systhread_check, systhread_render — same binary as the systhread CLI, --stdio transport flag."
+depends_on = ["systhread.cli"]
+
+[[b00t.mcp.stdio]]
+priority = 0
+command = "systhread"
+args = ["--stdio"]
+transport = "stdio"
+
+[[b00t.gate]]
+rhai = "command_exists(\"systhread\")"
+hint = "build from source: cargo build -p systhread-cli --manifest-path rust/Cargo.toml --release"
+
+[[b00t.usage]]
+description = "Run stdio transport directly (what an MCP client spawns)"
+command = "systhread --stdio"
+
+[[b00t.references]]
+name = "systhread design spec"
+url = "docs/superpowers/specs/2026-08-25-systhread-design.md"
+
+# b00t:map v1
+# summary: systhread MCP tools (systhread_check, systhread_render) over stdio, same binary as the CLI
+# tags: mcp, sysml, mbse, stdio, rust
+# tier: ch0nky
+# cmds: systhread --stdio
+# complexity: 3

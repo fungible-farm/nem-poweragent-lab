@@ -6,13 +6,13 @@ use systhread_core::validate::is_valid_sysml;
 
 #[test]
 fn accepts_all_three_generated_tracks() {
-    let dt = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml"));
+    let dt = load_digital_thread(&fixture_path("schema/digital_thread_instances.yaml")).unwrap();
     assert!(is_valid_sysml(&render_digital_thread(&dt)).is_ok());
 
-    let grid = load_grid(&fixture_path("schema/grid_instances.yaml"));
+    let grid = load_grid(&fixture_path("schema/grid_instances.yaml")).unwrap();
     assert!(is_valid_sysml(&render_grid_topology(&grid)).is_ok());
 
-    let pipeline = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml"));
+    let pipeline = load_pipeline(&fixture_path("schema/pipeline_phases_instances.yaml")).unwrap();
     assert!(is_valid_sysml(&render_pipeline_phases(&pipeline)).is_ok());
 }
 
