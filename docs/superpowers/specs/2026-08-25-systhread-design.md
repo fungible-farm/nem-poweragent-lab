@@ -1,8 +1,9 @@
 # Requirements: `systhread` — a b00t-installable MBSE vendor capability
 
-**Status:** Draft v0.3 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
+**Status:** Draft v0.4 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
 repo's own current state (see §7, Amendments from v0.1); amended again after Phase 1 shipped (see
-§8, Amendments from Phase 1).
+§8, Amendments from Phase 1); amended again to record a long-term, explicitly-unphased direction
+(see §9).
 
 **Relationship to prior work:** generalizes Lab 6 (`nem-poweragent-lab`, PRD-0006) from a two-track
 evaluation lab into a standalone, reusable capability. Lab 6 stays as-is; this is what it becomes if
@@ -293,3 +294,47 @@ making binding for every phase from here on, not just noting once and forgetting
    [nem-poweragent-lab#37](https://github.com/fungible-farm/nem-poweragent-lab/issues/37). Not an
    open item for Phase 2 anymore — recorded here only so a future reader doesn't have to
    re-establish that it was resolved.
+
+## 9. Long-term direction: whole-crate structural extraction (not phased, no target date)
+
+**Deliberately outside §6's Phase 0–5 sequence.** This is a stated goal, not a commitment — it
+does not get its own phase number, is not blocking anything above, and MUST NOT be started before
+Phase 2–4 (FR8–FR10) are real and dogfooded. Recorded now, while the idea is fresh, so a future
+session doesn't have to reconstruct the reasoning from scratch — the opposite failure mode from
+inventing false urgency.
+
+**The idea:** FR9's `ToSysml` trait (built on `sysml-derive`) is a procedural macro — it sees only
+the syntax of the one struct it's attached to, at macro-expansion time, with no type information
+and no view of the rest of the crate. That's the right starting mechanism (stable Rust, already
+real, already validated — see §8 item 2) but it has a ceiling: every type that wants SysML
+representation needs its own `#[derive(...)]` annotation, and FR10's per-commit drift tracking
+(§3 FR10) inherits that ceiling, since it extracts structure by reusing FR9's output.
+
+The long-term alternative is a `rustc_driver`-based tool: a custom `rustc_driver::Callbacks`
+implementation that hooks rustc's own frontend and walks the **type-checked HIR/MIR across the
+whole crate graph**, with no per-item annotation required. This is not a novel or speculative
+architecture — it is the same shape `clippy`, `rust-analyzer`, and `miri` already use, and
+concretely, **Kani's own compiler** (`kani-compiler`) already does exactly this for a different
+target: a custom `rustc_driver` + `Callbacks` that lowers MIR to GOTO-C for the CBMC model checker
+instead of lowering it to machine code. Retargeting that same architecture to lower MIR to SysML
+v2 text instead of GOTO-C is the concrete long-term goal — real precedent, not an invented one.
+
+**What it would buy, beyond FR9/FR10 as currently scoped:** automatic whole-crate structural
+extraction with real type information (not syntax-only), removing the requirement that every type
+needing SysML representation carry its own derive annotation — a plausible eventual replacement
+for FR10's "infer structural facts from the actual codebase" extraction step, not an addition
+alongside it.
+
+**Why this is explicitly not near-term, and not given a phase number:**
+- `rustc_private` (the API surface this requires) carries no stability guarantee and is
+  nightly-only forever — every rustc release is a potential breaking change, requiring ongoing,
+  dedicated maintenance this project has not budgeted for.
+- It is a multi-month compiler-engineering undertaking, not a task-sized or even plan-sized unit
+  of work — nothing this spec's existing phasing assumes about task granularity applies to it.
+- Starting it before FR9/FR10 (Phase 2–4) are real and in use would mean designing the
+  whole-crate extractor's output shape against a hypothetical consumer instead of a working one —
+  exactly the "invent the universe to bake an apple pie" failure §2 already warns against.
+
+**Revisit trigger, not a date:** reconsider this once Phase 4 (FR10) has shipped and the
+per-type-annotation cost of FR9's proc-macro approach is a real, felt pain point in practice —
+not on a calendar schedule.
