@@ -19,6 +19,10 @@ systhread-core = { path = "../systhread-core" }
 # Optional so that a default `cargo check`/`cargo test` of this crate -- the loader and scene
 # math, which must build for both targets on a headless machine -- compiles no Bevy at all.
 bevy = { version = "0.19", default-features = false, features = ["std", "bevy_log", "async_executor"], optional = true }
+# Only used by the `explorer-web` fallback below -- see its comment. Unused otherwise.
+bevy_render = { version = "0.19", default-features = false, optional = true }
+bevy_core_pipeline = { version = "0.19", default-features = false, optional = true }
+bevy_pbr = { version = "0.19", default-features = false, optional = true }
 
 [features]
 default = []
@@ -34,3 +38,10 @@ explorer-3d = ["bevy/bevy_pbr", "bevy/bevy_render", "bevy/bevy_core_pipeline", "
 # Native desktop run of the same viewer. Separate from `explorer-3d` because `bevy_winit` requires
 # an explicit windowing backend on Linux, and the wasm build must not pull x11.
 explorer-desktop = ["explorer-3d", "bevy/x11"]
+# WebGL2 fallback for browsers without WebGPU. `bevy/webgl2` cannot be used: it maps to
+# `bevy_internal/webgl`, whose `bevy_dev_tools?/webgl` edge forces cargo to resolve
+# `bevy_dev_tools 0.19.1`, which requires the never-published `bevy_picking 0.19.1` (latest is
+# 0.16.1). Declaring the three render sub-crates directly turns the same feature on by
+# unification while keeping bevy_dev_tools out of the graph. Verified: resolves and compiles for
+# wasm32-unknown-unknown.
+explorer-web = ["explorer-3d", "dep:bevy_render", "bevy_render/webgl", "dep:bevy_core_pipeline", "bevy_core_pipeline/webgl", "dep:bevy_pbr", "bevy_pbr/webgl"]
