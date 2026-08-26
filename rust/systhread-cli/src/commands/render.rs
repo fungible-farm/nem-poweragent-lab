@@ -12,6 +12,9 @@ pub fn run(track: Track, path: &Path, out: &Path) -> Result<Vec<PathBuf>, String
     run_with_explorer(track, path, out, None)
 }
 
+/// Writes this track's artifacts into `out` (created if missing). Returns the paths written, in
+/// write order, so the manifest step can hash exactly these files without re-deriving the naming
+/// scheme.
 pub fn run_with_explorer(
     track: Track,
     path: &Path,

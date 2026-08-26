@@ -7,6 +7,7 @@
 //! That split is what makes the geometry unit-testable at all -- see design §6 on not settling for
 //! a visual smoke check.
 
+pub mod camera;
 pub mod loader;
 pub mod scene;
 

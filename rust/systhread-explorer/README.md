@@ -32,6 +32,7 @@ Controls: left-drag orbits, scroll wheel zooms. A 2D layout locks pitch and face
 ## Cargo features
 
 - `explorer-3d` — the Bevy renderer. An explicit component list, never a Bevy meta-feature.
+  (wasm target only — use `explorer-desktop` to build natively)
 - `explorer-web` — `explorer-3d` plus WebGL2, for browsers without WebGPU.
 - `explorer-desktop` — `explorer-3d` plus `bevy/x11`, for running the viewer natively on Linux.
 

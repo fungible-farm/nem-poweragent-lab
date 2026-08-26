@@ -1,10 +1,10 @@
-//! Only builds when the Bevy layer is enabled; `just check-systhread-explorer` runs the default
-//! (Bevy-free) feature set, and Task 12's bundle recipe runs this one.
-#![cfg(feature = "explorer-3d")]
+//! Runs under the crate's default feature set -- no feature flag needed. `camera.rs` is Bevy-free
+//! (only its `Component` derive is gated behind `explorer-3d`), so `just check-systhread-explorer`
+//! already exercises this file every run.
 
 use systhread_core::cytoscape::{CytoscapeGraph, CytoscapeNode, CytoscapeNodeData};
 use systhread_core::positioned::{Layout, NodePosition2D, NodePosition3D, PositionedGraph};
-use systhread_explorer::app::{orbit_from_scene, orbit_offset};
+use systhread_explorer::camera::{orbit_from_scene, orbit_offset};
 use systhread_explorer::scene::scene_spec;
 
 fn node(id: &str) -> CytoscapeNode {

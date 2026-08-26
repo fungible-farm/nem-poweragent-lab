@@ -2,11 +2,14 @@
 # Builds the systhread explorer's self-contained web bundle into
 # rust/systhread-explorer/dist/. Optional first argument: a PositionedGraph JSON to ship as the
 # viewer's data (default: freshly rendered from Lab 6's grid track, so the bundle always has real
-# content to show). Set SYSTHREAD_EXPLORER_FEATURES=explorer-web to use the WebGL2 fallback.
+# content to show). Defaults to the explorer-web (WebGL2) feature set, since that's the one
+# confirmed to actually render in a browser (see README's "Browser status": the default
+# explorer-3d WebGPU path panics on startup). Set SYSTHREAD_EXPLORER_FEATURES=explorer-3d to opt
+# back into the plain WebGPU build.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-features="${SYSTHREAD_EXPLORER_FEATURES:-explorer-3d}"
+features="${SYSTHREAD_EXPLORER_FEATURES:-explorer-web}"
 dist="$root/rust/systhread-explorer/dist"
 graph="${1:-}"
 
