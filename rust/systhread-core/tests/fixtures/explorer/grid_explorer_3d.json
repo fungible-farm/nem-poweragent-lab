@@ -1,0 +1,524 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "data": {
+          "id": "bus_4052",
+          "label": "bus_4052",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4128",
+          "label": "bus_4128",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4125",
+          "label": "bus_4125",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4148",
+          "label": "bus_4148",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4053",
+          "label": "bus_4053",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4054",
+          "label": "bus_4054",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4124",
+          "label": "bus_4124",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4238",
+          "label": "bus_4238",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4129",
+          "label": "bus_4129",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4335",
+          "label": "bus_4335",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4094",
+          "label": "bus_4094",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4095",
+          "label": "bus_4095",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4112",
+          "label": "bus_4112",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4117",
+          "label": "bus_4117",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "bus_4131",
+          "label": "bus_4131",
+          "kind": "Bus",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4052",
+          "label": "gen_4052",
+          "kind": "Generator",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4053",
+          "label": "gen_4053",
+          "kind": "Generator",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4054",
+          "label": "gen_4054",
+          "kind": "Generator",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4094",
+          "label": "gen_4094",
+          "kind": "Generator",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4095",
+          "label": "gen_4095",
+          "kind": "Generator",
+          "parent": null,
+          "z_layer": null,
+          "semantic_type": null
+        }
+      }
+    ],
+    "edges": [
+      {
+        "data": {
+          "id": "gen_4052_attach",
+          "source": "gen_4052",
+          "target": "bus_4052",
+          "label": "attachment"
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4053_attach",
+          "source": "gen_4053",
+          "target": "bus_4053",
+          "label": "attachment"
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4054_attach",
+          "source": "gen_4054",
+          "target": "bus_4054",
+          "label": "attachment"
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4094_attach",
+          "source": "gen_4094",
+          "target": "bus_4094",
+          "label": "attachment"
+        }
+      },
+      {
+        "data": {
+          "id": "gen_4095_attach",
+          "source": "gen_4095",
+          "target": "bus_4095",
+          "label": "attachment"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4117_4124",
+          "source": "bus_4117",
+          "target": "bus_4124",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4117_4131",
+          "source": "bus_4117",
+          "target": "bus_4131",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4124_4131",
+          "source": "bus_4124",
+          "target": "bus_4131",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4094_4124",
+          "source": "bus_4094",
+          "target": "bus_4124",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4095_4124",
+          "source": "bus_4095",
+          "target": "bus_4124",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4112_4129",
+          "source": "bus_4112",
+          "target": "bus_4129",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4112_4129_2",
+          "source": "bus_4112",
+          "target": "bus_4129",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4129_4148",
+          "source": "bus_4129",
+          "target": "bus_4148",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4112_4124",
+          "source": "bus_4112",
+          "target": "bus_4124",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4124_4125",
+          "source": "bus_4124",
+          "target": "bus_4125",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4125_4128",
+          "source": "bus_4125",
+          "target": "bus_4128",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "line_4128_4148",
+          "source": "bus_4128",
+          "target": "bus_4148",
+          "label": "branch:transmission"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4125_4238",
+          "source": "bus_4125",
+          "target": "bus_4238",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4125_4238_2",
+          "source": "bus_4125",
+          "target": "bus_4238",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4128_4052",
+          "source": "bus_4128",
+          "target": "bus_4052",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4128_4053",
+          "source": "bus_4128",
+          "target": "bus_4053",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4128_4054",
+          "source": "bus_4128",
+          "target": "bus_4054",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4148_4335",
+          "source": "bus_4148",
+          "target": "bus_4335",
+          "label": "branch:transformer"
+        }
+      },
+      {
+        "data": {
+          "id": "xfmr_4148_4335_2",
+          "source": "bus_4148",
+          "target": "bus_4335",
+          "label": "branch:transformer"
+        }
+      }
+    ]
+  },
+  "layout": {
+    "three_d": [
+      {
+        "node_id": "bus_4052",
+        "x": 2.486531,
+        "y": -3.139027,
+        "z": -8.810349
+      },
+      {
+        "node_id": "bus_4128",
+        "x": 2.571395,
+        "y": -1.848033,
+        "z": -4.541685
+      },
+      {
+        "node_id": "bus_4125",
+        "x": 0.919364,
+        "y": 0.712316,
+        "z": 0.619874
+      },
+      {
+        "node_id": "bus_4148",
+        "x": -1.586188,
+        "y": -3.21397,
+        "z": -3.511941
+      },
+      {
+        "node_id": "bus_4053",
+        "x": 5.407006,
+        "y": 0.281826,
+        "z": -7.20517
+      },
+      {
+        "node_id": "bus_4054",
+        "x": 5.889109,
+        "y": -4.713248,
+        "z": -5.203365
+      },
+      {
+        "node_id": "bus_4124",
+        "x": -2.402986,
+        "y": 2.232324,
+        "z": 5.400996
+      },
+      {
+        "node_id": "bus_4238",
+        "x": 2.79816,
+        "y": 1.886941,
+        "z": 1.063468
+      },
+      {
+        "node_id": "bus_4129",
+        "x": -3.526233,
+        "y": -1.941718,
+        "z": -0.200556
+      },
+      {
+        "node_id": "bus_4335",
+        "x": -3.155602,
+        "y": -4.783127,
+        "z": -4.66417
+      },
+      {
+        "node_id": "bus_4094",
+        "x": -5.453588,
+        "y": 1.8064,
+        "z": 8.873491
+      },
+      {
+        "node_id": "bus_4095",
+        "x": -3.909541,
+        "y": 6.269877,
+        "z": 6.903696
+      },
+      {
+        "node_id": "bus_4112",
+        "x": -3.690548,
+        "y": -0.373906,
+        "z": 2.297487
+      },
+      {
+        "node_id": "bus_4117",
+        "x": -0.915096,
+        "y": 3.451833,
+        "z": 7.986362
+      },
+      {
+        "node_id": "bus_4131",
+        "x": -1.33722,
+        "y": 1.749829,
+        "z": 8.403569
+      },
+      {
+        "node_id": "gen_4052",
+        "x": 2.487724,
+        "y": -4.138562,
+        "z": -12.088389
+      },
+      {
+        "node_id": "gen_4053",
+        "x": 7.593801,
+        "y": 1.825305,
+        "z": -9.317797
+      },
+      {
+        "node_id": "gen_4054",
+        "x": 8.429431,
+        "y": -6.878205,
+        "z": -5.791788
+      },
+      {
+        "node_id": "gen_4094",
+        "x": -7.614489,
+        "y": 1.551462,
+        "z": 11.577405
+      },
+      {
+        "node_id": "gen_4095",
+        "x": -4.99103,
+        "y": 9.261683,
+        "z": 8.208861
+      }
+    ]
+  }
+}

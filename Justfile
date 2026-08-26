@@ -103,7 +103,7 @@ systhread-wasm-setup:
 
 # The ouroboros gate: systhread-core's own code, compiled to wasm32 and actually executed.
 check-systhread-wasm:
-    cargo test -p systhread-core --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown --test wasm_smoke_test
+    cargo test -p systhread-core --manifest-path rust/Cargo.toml --target wasm32-unknown-unknown --test wasm_smoke_test --test ouroboros_wasm_test
 
 check-lab1:
     uv run labs/01-simple-loadflow-fit/run.py --step check
