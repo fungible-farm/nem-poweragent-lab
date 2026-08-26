@@ -1,7 +1,8 @@
 # Requirements: `systhread` — a b00t-installable MBSE vendor capability
 
-**Status:** Draft v0.2 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
-repo's own current state (see §7, Amendments from v0.1).
+**Status:** Draft v0.3 — end-state spec, not a sprint plan. Amends v0.1 after reconciling with this
+repo's own current state (see §7, Amendments from v0.1); amended again after Phase 1 shipped (see
+§8, Amendments from Phase 1).
 
 **Relationship to prior work:** generalizes Lab 6 (`nem-poweragent-lab`, PRD-0006) from a two-track
 evaluation lab into a standalone, reusable capability. Lab 6 stays as-is; this is what it becomes if
@@ -251,3 +252,44 @@ Reconciled against this repo's actual current state during brainstorming on 2026
 6. Crate layout made explicit (§3 FR2, §6): `systhread-core` / `systhread-cli` / `systhread-service`
    / `systhread-explorer`, chosen over a single feature-flagged binary for isolation and independent
    testability of the pure logic core.
+
+## 8. Amendments from Phase 1 (2026-08-26)
+
+Phase 1 (`systhread-cli`, PR [nem-poweragent-lab#36](https://github.com/fungible-farm/nem-poweragent-lab/pull/36))
+shipped FR1–FR6. Its final whole-branch review surfaced one process gap and one real bug worth
+making binding for every phase from here on, not just noting once and forgetting:
+
+1. **Any task that adds an RPC/protocol surface MUST ship a protocol-level test as part of its own
+   completion criteria — not something a later whole-branch review has to catch.** Phase 1's MCP
+   stdio server printed a bare `PASS`/`FAIL` line to stdout from `commands::check::run` — a real
+   bug, since stdout **is** the JSON-RPC transport in `--stdio` mode, corrupting every
+   `systhread_check` tool call for any spec-compliant MCP client. It survived twelve independent
+   per-task reviews because every existing MCP test checked `get_info()` or that the process stayed
+   alive — none actually invoked a tool over the wire. A test that spawns the binary, speaks the
+   real protocol, and asserts every line of stdout parses is the only thing that would have caught
+   it, and the only thing that reliably catches this class of bug going forward. Binding for Phase 5
+   (FR2's HTTP/SSE remote transport) especially: a bare-diff review will not see a framing
+   corruption bug; only a protocol-level test or a whole-diff review run with real command
+   execution will.
+2. **FR9's "dedicated look" at `sysml-derive` (§6, Phase 2) found real, current facts worth
+   recording before Phase 2 planning starts, rather than re-deriving them:** `ledgrrr`'s
+   `crates/sysml-derive` is `#[derive(SysmlBlock)]`, a proc-macro mapping Rust struct fields
+   (`Vec<T>`/`Option<T>`/numeric primitives/`chrono::DateTime`/opaque domain types) to SysML v2
+   `part def` text and `ScalarValues` scalar types — it does **not** touch `UfoStereotype` at all
+   today, so FR8's stereotype-aware mapping is genuinely new ground, not an extension of existing
+   logic. It's real-grammar-validated (`ufo_types::sysml::validate_sysml_v2`), not just visually
+   inspected. Both `sysml-derive` and `holon-viz` already pin `ufo-types` at PR #3's unmerged
+   branch tip as a dev-dependency workaround — that PR merging is a shared prerequisite for Phase 2
+   regardless of which extension path is chosen. Decision-request filed:
+   [ledgrrr#202](https://github.com/PromptExecution/ledgrrr/issues/202).
+3. **FR6's manifest.json schema was designed unilaterally in Phase 1 and has not been reviewed by
+   `ledgrrr`.** It currently supports one track per output directory (no `track` field); review
+   requested before Phase 2 planning locks in a shape ledgrrr writes a real consumer against:
+   [nem-poweragent-lab#39](https://github.com/fungible-farm/nem-poweragent-lab/issues/39).
+4. The SVG label-escaping gap noted as a Phase 0→1 entry condition (Lab 6's `render_diagram.py`
+   and its Rust port both interpolate project-supplied instance names into SVG `<text>` content
+   unescaped) was fixed in
+   [nem-poweragent-lab#38](https://github.com/fungible-farm/nem-poweragent-lab/pull/38), closing
+   [nem-poweragent-lab#37](https://github.com/fungible-farm/nem-poweragent-lab/issues/37). Not an
+   open item for Phase 2 anymore — recorded here only so a future reader doesn't have to
+   re-establish that it was resolved.

@@ -8,8 +8,16 @@ name: check
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  # No `branches:` filter here (deliberately, not an oversight): a PR whose
+  # base isn't `main` -- e.g. a stacked-PR-per-milestone workflow where each
+  # PR targets the previous milestone's branch -- got zero real CI under the
+  # old `branches: [main]` filter, since `pull_request`'s `branches` matches
+  # the PR's *base*, not `main` itself. Discovered when systhread Phase 0's
+  # stacked PRs (#32-#35) all ran real checks only via local `cargo test`
+  # inside subagents, not GitHub Actions, until the stack collapsed onto
+  # `main` directly. See docs/superpowers/specs/2026-08-25-systhread-design.md
+  # §8.
+  pull_request: {}
 
 jobs:
   check:
