@@ -20,6 +20,7 @@ pub mod cytoscape;
 pub mod instances;
 pub mod iso_ir;
 pub mod layout;
+pub mod layout3d;
 mod numfmt;
 pub mod positioned;
 pub mod render;
