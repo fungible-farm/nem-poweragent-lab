@@ -1,0 +1,41 @@
+[package]
+name = "systhread-explorer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Bevy-native 2D/3D SysML model graph explorer (docs/superpowers/specs/2026-08-26-systhread-3d-explorer-design.md). Crate scaffold only -- no PositionedGraph/Layout types or rendering logic yet."
+
+[dependencies]
+# Base list matches mission-engine's own minimal, headless-safe default
+# (rust/mission-engine/Cargo.toml) -- default-features = false keeps the
+# default build free of wgpu/winit/audio and the system libs they need.
+bevy = { version = "0.19", default-features = false, features = ["std", "bevy_log", "async_executor"] }
+
+# `explorer-3d`'s core list (bevy_pbr/bevy_render/bevy_core_pipeline/
+# bevy_asset/bevy_winit/bevy_window) is the feature list verified by a real
+# spike against this exact Bevy version (2026-08-26): resolves and compiles
+# clean for wasm32-unknown-unknown, and `cargo tree -i` confirms
+# bevy_animation/bevy_gltf/bevy_scene are genuinely absent from the resolved
+# graph, not just unrequested -- so Bevy 0.19.1's broken bevy_animation
+# version pin (the bug mission-engine's own `interactive` feature works
+# around, see that crate's Cargo.toml) never comes into play here, because
+# nothing in this list reaches bevy_pbr's actual dependency edges: only the
+# `ui`/`default_app`/`scene` meta-feature path (unused here) does.
+#
+# `bevy/x11` was added after the spike, verifying this crate for real in
+# this repo's workspace (not the throwaway scratch package): the spike only
+# checked wasm32-unknown-unknown, where winit uses its web backend
+# automatically. Native compilation failed without it ("The platform you're
+# compiling for is not supported by winit") -- same requirement
+# mission-engine's own `interactive` feature already has, for the same
+# reason.
+[features]
+explorer-3d = [
+    "bevy/bevy_pbr",
+    "bevy/bevy_render",
+    "bevy/bevy_core_pipeline",
+    "bevy/bevy_asset",
+    "bevy/bevy_winit",
+    "bevy/bevy_window",
+    "bevy/x11",
+]
