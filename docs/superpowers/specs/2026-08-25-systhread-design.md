@@ -158,6 +158,20 @@ promptexecution's own types:
 The exact variant mapping above MUST be confirmed against `ufo-types`' actual current enum (not
 assumed) when Phase 2 starts — the table states intent, not a verified mapping.
 
+**Update (2026-08-29, b00t SysML v2 spine consolidation epic, `elasticdotventures/_b00t_#1177`):**
+the "open item" above is now resolved as choice (b) — `sysml-derive` was extracted out of `ledgrrr`
+into its own standalone crate (`PromptExecution/sysml-derive`, `ledgrrr#210`/#211) specifically so
+`systhread-core` and other consumers can depend on the derive directly, without either forking it or
+pulling in the whole `ledgrrr` workspace. Separately, this crate's own `iso_ir.rs` (the generic
+`Node`/`Edge` graph vocabulary, not the lab-specific extraction/layout/render logic that stays here)
+was promoted into `ufo-types` (`PromptExecution/ufo-types#4`/#5) as the "non-visualization sysml-v2
+type interface" home the user named directly. `systhread-core` now re-exports `Node`/`Edge` from
+`ufo-types::iso_ir` (see `src/iso_ir.rs`) instead of defining them locally — verified behavior-
+preserving via `cargo test` (all fixture-reproduction tests, including the three byte-identical
+`iso_ir_full_test`/`render_test`/`sysml_gen_test` suites, pass unchanged). The `ToSysml` trait itself
+and its variant-mapping table above remain open Phase 2 work; only the crate-ownership question is
+now settled.
+
 ### FR10 — per-commit modelled-shape tracking
 This is the requirement with no existing prior art among the tools evaluated so far — the
 differentiator, not a reuse target:

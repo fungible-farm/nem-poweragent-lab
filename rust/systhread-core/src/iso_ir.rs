@@ -2,23 +2,14 @@ use crate::instances::{DigitalThreadInstances, GridInstances, PipelinePhasesInst
 use crate::layout::{cassowary_positions, sequence_positions};
 use serde_json::{json, Value};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Node {
-    pub id: String,
-    pub label: String,
-    /// The SysML part-def type name this node came from ("Agent" | "MCPServer" | "DataSource" |
-    /// "Bus" | "Generator" | "Phase") -- Task 8 maps this to the iso-IR "type"/"shape" fields.
-    pub part_type: &'static str,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Edge {
-    pub id: String,
-    pub from: String,
-    pub to: String,
-    pub edge_type: String,
-    pub kind: Option<String>,
-}
+// Generic Node/Edge graph vocabulary, promoted into ufo-types (b00t SysML v2 spine
+// consolidation, elasticdotventures/_b00t_#1177, PromptExecution/ufo-types#4). This
+// module keeps the lab-specific extraction (below) and layout/render dispatch that
+// don't belong in a cross-domain types crate -- only the shape moved.
+//
+// `part_type` is `String` here (was `&'static str`) to match the promoted type, since
+// a cross-domain type can't assume every consumer's classification set is `'static`.
+pub use ufo_types::iso_ir::{Edge, Node};
 
 pub fn extract_digital_thread(inst: &DigitalThreadInstances) -> (Vec<Node>, Vec<Edge>) {
     let mut nodes = Vec::new();
@@ -28,7 +19,7 @@ pub fn extract_digital_thread(inst: &DigitalThreadInstances) -> (Vec<Node>, Vec<
         nodes.push(Node {
             id: a.name.clone(),
             label: a.name.clone(),
-            part_type: "Agent",
+            part_type: "Agent".to_string(),
         });
         if let Some(uses) = &a.uses {
             edges.push(Edge {
@@ -44,14 +35,14 @@ pub fn extract_digital_thread(inst: &DigitalThreadInstances) -> (Vec<Node>, Vec<
         nodes.push(Node {
             id: m.name.clone(),
             label: m.name.clone(),
-            part_type: "MCPServer",
+            part_type: "MCPServer".to_string(),
         });
     }
     for d in &inst.data_sources {
         nodes.push(Node {
             id: d.name.clone(),
             label: d.name.clone(),
-            part_type: "DataSource",
+            part_type: "DataSource".to_string(),
         });
     }
     (nodes, edges)
@@ -65,14 +56,14 @@ pub fn extract_grid(inst: &GridInstances) -> (Vec<Node>, Vec<Edge>) {
         nodes.push(Node {
             id: b.name.clone(),
             label: b.name.clone(),
-            part_type: "Bus",
+            part_type: "Bus".to_string(),
         });
     }
     for g in &inst.generators {
         nodes.push(Node {
             id: g.name.clone(),
             label: g.name.clone(),
-            part_type: "Generator",
+            part_type: "Generator".to_string(),
         });
         edges.push(Edge {
             id: format!("{}_attach", g.name),
@@ -102,7 +93,7 @@ pub fn extract_pipeline(inst: &PipelinePhasesInstances) -> (Vec<Node>, Vec<Edge>
         nodes.push(Node {
             id: p.name.clone(),
             label: p.name.clone(),
-            part_type: "Phase",
+            part_type: "Phase".to_string(),
         });
         if let Some(next) = &p.next {
             edges.push(Edge {
@@ -174,7 +165,7 @@ fn assemble(title: &str, nodes: &[Node], edges: &[Edge]) -> Value {
         .iter()
         .zip(positions.iter())
         .map(|(n, (x, y))| {
-            let node_type = type_by_part_type(n.part_type);
+            let node_type = type_by_part_type(&n.part_type);
             let position = if grid_fallback {
                 json!({ "x": *x as i64, "y": *y as i64 })
             } else {
@@ -261,8 +252,8 @@ mod assemble_grid_fallback_tests {
         // Rust port must match that JSON number type for this one path, even though
         // grid_positions itself still returns Vec<(f64, f64)>.
         let nodes = vec![
-            Node { id: "a".to_string(), label: "a".to_string(), part_type: "Agent" },
-            Node { id: "b".to_string(), label: "b".to_string(), part_type: "Agent" },
+            Node { id: "a".to_string(), label: "a".to_string(), part_type: "Agent".to_string() },
+            Node { id: "b".to_string(), label: "b".to_string(), part_type: "Agent".to_string() },
         ];
         let edges: Vec<super::Edge> = vec![];
 
