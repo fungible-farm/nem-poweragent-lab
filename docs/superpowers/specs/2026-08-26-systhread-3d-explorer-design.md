@@ -24,10 +24,10 @@ Given a fixed `.sysml` model, `systhread render --explorer` MUST produce byte-id
 unchanged input — same hard requirement as every other systhread artifact (§2 of the main spec).
 Both 2D and 3D are views over one shared graph; nothing in v1 mutates, nothing in v1 is live.
 
-**v2 (§7, explicitly deferred):** live telemetry ingestion, mutable operational overlay state, an
-operations-dashboard mode, and a future AR/VR front-end. Named and scoped now so v1's data model
-doesn't foreclose it, not built now — same treatment already given to the `rustc_driver` direction
-in the main spec's §9.
+**v2 (§7, explicitly deferred):** SysML v2/KerML typed visualization, live telemetry ingestion,
+mutable operational overlay state, an operations-dashboard mode, and a future AR/VR front-end.
+Named and scoped now so v1's data model doesn't foreclose it, not built now — same treatment
+already given to the `rustc_driver` direction in the main spec's §9.
 
 ## 3. Data model — extending, not replacing, holon-viz's `CytoscapeGraph`
 
@@ -156,6 +156,50 @@ genuine, non-obvious testing pattern worth this codebase adopting more broadly.
 
 Named now so v1's data model doesn't foreclose it — same posture as the main spec's §9.
 
+- **SysML v2/KerML typed visualization, owned by systhread, backed by `ufo-types`.** `systhread`
+  is the visualization/control-plane consumer of the shared `promptexecution/ufo-types` vocabulary:
+  it MUST NOT pretend Kroki or any other text-diagram renderer directly understands SysML v2
+  semantics. Kroki issue [yuzutech/kroki#1020](https://github.com/yuzutech/kroki/issues/1020)
+  remains a useful warning: "render SysML" is not a native Kroki diagram family to build product
+  behavior around. v2 therefore adds a typed intermediate model *before* `CytoscapeGraph` lowering,
+  retaining the source SysML/KerML construct and UFO stereotype for each visual element. The current
+  `CytoscapeNodeData.semantic_type: Option<String>` field is the v1 placeholder for this, not the
+  whole design.
+- **Canonical v2 graph vocabulary.** The generic `Node`/`Edge` shape already promoted to
+  `ufo-types::iso_ir` stays the cross-crate transport floor, but v2 needs a typed layer above it:
+  package/namespace containment, part/item/action/requirement definitions and usages, feature
+  membership, port/interface/connection relationships, succession/control-flow, allocation,
+  satisfaction, verification, alias/import provenance, and metadata extensions. Each typed node or
+  edge MUST carry a stable model id, a qualified SysML/KerML name when available, source-span or
+  generation provenance, and the resolved `ufo_types::UfoStereotype` when one exists. Lowering to
+  `Node`/`Edge`, Cytoscape JSON, D2, GraphViz, PlantUML, Mermaid, or Structurizr is derived output;
+  the typed model remains the source for view selection and validation.
+- **Required views.** v2 needs multiple projections over the same typed model, not one universal
+  force graph: package/containment tree, internal connection view, action/control-flow view,
+  requirement-satisfaction-verification trace view, allocation view, state/transition view, and a
+  semantic-alignment view. The alignment view is grounded in the approach described by
+  [arXiv:2508.16181v1](https://arxiv.org/pdf/2508.16181v1): LLM-assisted model extraction,
+  semantic matching, and verification can be useful, but the output must be represented with
+  explicit alias/import/metadata provenance rather than silently rewriting either source model.
+- **Reference toolchain posture.** The curated
+  [SysML v2 Resources](https://github.com/daltskin/SysML-v2-Resources) list points at the OMG
+  SysML v2/KerML specifications, the official release repositories, the Pilot Implementation, LSPs,
+  and editors/viewers. v2 should use those as reference or oracle inputs where practical, while
+  keeping systhread's generated artifact contract Rust-owned and deterministic. `sysml-v2-parser`
+  remains the lightweight syntax gate for the subset it can parse; any richer parser or Pilot
+  Implementation dependency must be isolated behind an oracle boundary unless it becomes a
+  deliberately accepted core dependency.
+- **b00t ontology integration.** The b00t datums `PRD-ONTOLOGY-OODA-UFO-SYSML` and
+  `PRD-ARCH-005-MBSE-VISUALIZATION` already name the intended ontology direction:
+  KerML-profile UFO classes, SHACL/OWL/CLIF-adjacent validation, and diagram export from ontology
+  data. v2 systhread should align with those datums by generating/managing the typed visualization
+  model as b00t-discoverable capability data. `b00t ontology diagram` can emit text-diagram formats,
+  but systhread owns the SysML v2/KerML-specific view model and the explorer artifacts.
+- **v2 acceptance hooks.** Add golden typed-graph fixtures before adding new renderers. Every lowered
+  artifact must prove: no dangling references, no duplicate stable ids, containment edges form a
+  tree or explicitly declared DAG where the SysML/KerML construct permits it, every non-derived
+  visual element has source provenance, and each diagram export can be regenerated byte-identically.
+- **First real consumer: cim-gridy.** v2's typed model stays consumer-less otherwise, the same trap the main b00t SysML spine epic (`elasticdotventures/_b00t_#1177`, closed) avoided by pointing itself at a real target (b00t's own MCP dispatch chain, `b00t-cli/src/dispatch_sysml.rs`) instead of staying abstract. This repo's own **cim-gridy** (#17 Phase 0, #20 Phases 1-3, both merged) is the natural first golden-fixture target: grid topology maps to the package/containment + internal connection views, dispatch/control logic to the action/control-flow view, and PRD-0009's own requirements to the requirement-satisfaction-verification trace view above. Golden typed-graph fixtures (previous bullet) should be drawn from cim-gridy's real model, not a synthetic example.
 - **Live telemetry ingestion and a mutable operational overlay.** The main spec's non-goal
   ("not live collaborative model editing... FR7 is read-only, editing happens in the `.sysml`
   text file") stays true for the **structural model** — v2 does not change that. What v2 adds is
