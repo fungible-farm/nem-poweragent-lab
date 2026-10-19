@@ -49,6 +49,42 @@ than disguised as a model comparison:
 - `kube/benchmark-runner-job.yaml` is a written Kubernetes Job manifest that runs this same matrix
   as parallel pods (`docs/VISION.md` §9); see its own header for what it needs to be run for real.
 
+## Live LLM provider (M03 — a real local model, not a stand-in)
+
+The deterministic policies above are the lab's *controls*. The mission's M03 step adds a genuinely
+live local language model to the same task matrix, so the scorecard can distinguish a real model
+from the deterministic controls and the non-LLM baseline:
+
+- **`llm_provider.py` (`LLMProvider`)** implements the same propose-next-trial interface as
+  `bisection_fit` — a drop-in `provider(evaluate, target, lo, hi, tol) -> FitResult`. Instead of a
+  deterministic rule it asks a local LLM (served by llama-swap over OpenAI-compatible HTTP, default
+  `qwen3.8-flash-next` at `http://127.0.0.1:8000`) to propose each trial value. The model sees the
+  task spec, the current bracket endpoints with their residuals, and the running trial history; it
+  infers the monotonic direction from the measurements (the prompt never asserts it) and proposes
+  the next `s`. The harness evaluates every proposal with a real `pandapower.runpp()` — the solver,
+  not the model, establishes the numerical truth.
+- **No hard-coded model answer.** The prompt gives the model a *method* (the secant formula,
+  direction-agnostic) plus the measurements; the model computes the actual value. No fitted value is
+  baked into the prompt, and the deterministic policies are left untouched as the comparison
+  baseline.
+- **Sandbox stand-in, named:** the only substitution is the transport — the model is reached over
+  HTTP (llama-swap) rather than an in-process llama.cpp call, because that is the API boundary the
+  mission fixes. If a trial's response fails to parse as a number (the model rambled past the token
+  cap), the harness falls back to the bracket midpoint (bisection's move) and flags the trial
+  `adjusted=true` in the provenance — it never silently invents a value.
+- **Scorecard distinction.** `--step sweep-llm` writes `scorecard.llm.json` +
+  `scorecard.llm.provenance.json` (real prompt/completion token counts, model name, base URL, git
+  commit, and per-trial raw response + reasoning). `--step report` merges the cached LLM rows into
+  `scorecard.json` so the real model sits beside the deterministic controls; the grouped bar chart
+  skips the LLM rows (non-deterministic, not part of the committed fixture), and `--step check`
+  still diffs only the deterministic rows against `expected_scorecard.json`.
+
+```
+uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep-llm
+uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step sweep-llm --model qwen3.8-27b-uncensored
+uv run labs/03-advanced-provider-bakeoff/orchestrator.py --step report   # merges cached LLM rows
+```
+
 ## pypowsybl spike (solver comparison, not a bake-off provider)
 
 > Full write-up, conclusions, and implications:
