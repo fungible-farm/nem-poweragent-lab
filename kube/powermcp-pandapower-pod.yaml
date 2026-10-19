@@ -80,5 +80,5 @@ spec:
   volumes:
     - name: case-data
       hostPath:
-        path: /home/brianh/promptexecution/aemo/nem-poweragent-lab/data
+        path: /home/brianh/promptexecution/fungible/nem-poweragent-lab/data
         type: Directory
