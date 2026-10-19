@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 LAB_DIR = Path(__file__).resolve().parent
 
 
@@ -34,6 +36,13 @@ def test_lab2_memo_finalizes_with_approval():
     assert "MEMO FINALIZED" in result.stdout
 
 
+import platform
+
+
+@pytest.mark.skipif(
+    platform.system() == "Linux" and platform.machine() == "aarch64",
+    reason="pypowsybl has no aarch64 wheel; skipped on this platform",
+)
 def test_pypowsybl_n1_cross_check_matches_fixture():
     """pypowsybl_cross_check.py is a real second-engine cross-validation of workflow.py's own
     N-1 screen (see its module docstring) -- this only checks its own --step check gate, the
