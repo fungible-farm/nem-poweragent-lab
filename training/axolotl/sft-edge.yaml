@@ -47,6 +47,7 @@ save_steps: 50
 eval_steps: 50
 save_total_limit: 3
 save_safetensors: true
+save_only_model: false
 wandb_project: null
 resume_from_checkpoint: null
 auto_resume_from_checkpoints: false

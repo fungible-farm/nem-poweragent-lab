@@ -3,7 +3,8 @@
 The crashed pi session left a Qwen3.5-4B rank-32 adapter and checkpoint-100.
 The training log reports 273 training rows, 100 steps, 390.2732 seconds,
 NVIDIA GB10, and torch 2.13.0+cu130. These are recorded observations from
-that run; GPU reload and inference have not been verified by the recovery.
+that run. Recovery has since verified adapter and merged-checkpoint CUDA
+reload/inference; answer quality and benchmark improvement remain unproven.
 
 The saved checkpoint audit finds 688 finite F32 adapter tensors. All 248
 language LoRA B matrices differ from their default zero initialization. The
@@ -56,7 +57,12 @@ or template. It covers four power-flow task families on the existing synthetic
 NEM topology. General Python, agent behaviour, robustness, and the critical
 fabrication suite remain required for M09.
 
-## Next GPU gate
+## Closed-book diagnostic and export
+
+The evaluation script below is a direct-response diagnostic. The grader uses
+the solver, but the model itself has no tool interface. This does not establish
+the mission's agent correctness or evidence-backed tool execution. The release
+comparison needs an actual solver/tool interface for both base and candidate.
 
 Inside the existing qualified GPU environment, with the repository mounted
 as the working directory and the base model cached. Independent numerical
@@ -84,8 +90,11 @@ suites even if domain improvement exceeds ten percentage points.
 
 Export now loads the saved adapter before calling PEFT's
 `merge_and_unload(safe_merge=True)`. The previous implementation loaded only
-the base and could not produce a valid tuned export. Neither the corrected
-GPU export nor the updated container recipe has been executed in recovery.
+the base and could not produce a valid tuned export. The corrected GPU export
+exited 0, and all 15 manifest files (9,429,343,523 bytes) were independently
+rehashed. `out/merged-reload-smoke.json` also confirms full CUDA placement and
+actual GB10 inference from the merged checkpoint. These probes establish
+checkpoint usability, not numerical answer correctness.
 
 The initial recovery was restricted by the sandbox. GPU, Podman, and network
 access were restored on 2026-10-20. Ruff now runs successfully. The evaluation
@@ -93,12 +102,12 @@ image built as `74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda15c00ff
 using `Containerfile.eval`; its resolved packages are recorded in
 `out/eval-environment.lock.txt`.
 
-`powercoder-m06-eval306-r1` is the live 306-task evaluation container. Its
-completed rows are written incrementally to `out/eval306-r1-raw/`; a crash
-preserves finished answers. Each new run refuses to mix with existing raw
-files. This running process uses the loader from launch, before the explicit
-CUDA placement correction below. If its adapter stage fails, preserve and
-reuse its completed base responses rather than discarding that work.
+`powercoder-m06-eval306-r1` was intentionally stopped after preserving 106
+base responses in `out/eval306-r1-raw/`. It is an incomplete closed-book
+diagnostic, not a completed base-versus-candidate or M09 agent comparison.
+The stop freed GPU capacity for independent Axolotl reproduction. Keep the raw
+responses as diagnostic evidence. The incremental-output mechanism preserves
+finished answers on interruption and refuses to mix new runs with old files.
 
 The first actual adapter reload exposed a PEFT offload-index failure for
 `base_model.model.mtp.fc` under automatic device placement. The shared loader
@@ -115,8 +124,8 @@ The edge base has been downloaded at revision
 separate rank-32 run. Training now honours an explicit model revision. Edge
 training and rank-64 experiments remain unexecuted.
 
-M06 still needs GPU reload/inference, baseline comparison, merged export,
-validation loss, rank-64 and edge-student experiments, and a fully pinned
+M06 still needs the valid baseline comparison, validation loss, rank-64 and
+edge-student experiments, and a fully pinned
 environment. M07 needs independent Axolotl training and verified resume/lineage.
 M08 must follow evidence of SFT improvement. M09 needs the remaining suites
 and actual model scorecards. M10 needs selected-model ONNX quantization and

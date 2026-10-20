@@ -74,16 +74,30 @@ base, no adapter parent, no checkpoint resume, and automatic resume disabled.
 The prepared training directory can be mounted alone; the benchmark directory
 does not need to be exposed to the training container.
 
-Before starting training, record the resolved image ID, command, configuration
-hash, tokenized-data hashes, base revision, and tokenizer fingerprints in a run
-manifest. For a reproduction, parent checkpoint must be null. This run-manifest
-gate and actual GPU training remain pending.
+`training/axolotl/run.py` validates the sealed tokenized files and records the
+command, frozen configuration, source/data hashes, package versions, physical
+GPU, elapsed time, and checkpoint hashes in a run manifest. A reproduction has
+a null parent. Existing output directories are refused, including the directory
+previously created by preprocessing; the first actual run uses a separate
+`reproduction-4b-r1` directory.
+
+Inside the separate Axolotl image, with this training directory and model cache
+mounted:
+
+```sh
+python training/axolotl/run.py --mode reproduction \
+  --output-dir training/axolotl/out/reproduction-4b-r1
+```
+
+The guards pass five CPU tests using explicitly synthetic token/checkpoint
+markers. These tests do not establish actual GPU training or checkpoint resume.
 
 Continuation must explicitly name a validated parent checkpoint and use a new
 output directory. Match its model revision, tokenizer, target-module names,
 LoRA rank/alpha, and dataset hashes; retain hashes of its adapter, optimizer,
-scheduler, RNG state, and trainer state. Then use Axolotl's explicit
-`--resume-from-checkpoint` option. Resuming checkpoint-50 to step 100 is a
+scheduler, RNG state, and trainer state. The launcher checks saved hashes,
+model/data/optimizer compatibility and package versions before setting
+Axolotl's explicit `resume_from_checkpoint`. Resuming checkpoint-50 to step 100 is a
 concrete restart test; merely loading a finished checkpoint-100 with a
 100-step budget does not demonstrate further training.
 
