@@ -21,16 +21,74 @@ def fingerprint(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
+def compare_adapters(first: Path, second: Path) -> dict:
+    """Measure saved tensor changes without loading a model or claiming a tolerance pass."""
+    import numpy as np
+    from safetensors import safe_open
+
+    first = first if first.suffix == ".safetensors" else first / "adapter_model.safetensors"
+    second = second if second.suffix == ".safetensors" else second / "adapter_model.safetensors"
+    mismatches, changed, non_finite = [], [], []
+    elements, squared_sum, max_difference, finite = 0, 0.0, 0.0, True
+    with safe_open(str(first), framework="np") as left, safe_open(str(second), framework="np") as right:
+        left_names, right_names = set(left.keys()), set(right.keys())
+        shared = left_names & right_names
+        for name in sorted(shared):
+            a, b = left.get_tensor(name), right.get_tensor(name)
+            if a.shape != b.shape or a.dtype != b.dtype:
+                mismatches.append(name)
+                continue
+            if a.tobytes() != b.tobytes():
+                changed.append(name)
+            if not (np.isfinite(a).all() and np.isfinite(b).all()):
+                finite = False
+                non_finite.append(name)
+                continue
+            delta = a.astype(np.float64) - b.astype(np.float64)
+            elements += delta.size
+            squared_sum += float(np.square(delta).sum())
+            max_difference = max(max_difference, float(np.abs(delta).max()))
+    from training.axolotl.run import digest
+
+    return {
+        "source_sha256": {str(first): digest(first), str(second): digest(second)},
+        "shared_tensors": len(shared),
+        "only_first": sorted(left_names - right_names), "only_second": sorted(right_names - left_names),
+        "shape_or_dtype_mismatches": mismatches, "all_finite": finite and bool(shared),
+        "non_finite_tensors": non_finite,
+        "changed_tensors": len(changed),
+        "changed_language_tensors": sum(".visual." not in name for name in changed),
+        "changed_visual_tensors": sum(".visual." in name for name in changed),
+        "max_absolute_difference": max_difference if finite else None,
+        "root_mean_square_difference": (squared_sum / elements) ** 0.5 if elements and finite else None,
+        "compared_elements": elements,
+        "exact_tensor_bytes_equal": not changed and left_names == right_names and not mismatches,
+        "tolerance_gate_claim": False,
+    }
+
+
 def main() -> int:
     """Compare actual trainer preprocessing, rather than assuming template parity."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("training/unsloth/config.yaml"))
     parser.add_argument("--prepared-root", type=Path, default=Path("training/axolotl/out/prepared-4b"))
-    parser.add_argument("--out", type=Path, default=Path("training/axolotl/out/token-parity.json"))
+    parser.add_argument("--out", type=Path)
+    parser.add_argument("--adapters", type=Path, nargs=2)
     parser.add_argument("--export-tokens", action="store_true")
     parser.add_argument("--export-only", action="store_true")
     parser.add_argument("--messages-dir", type=Path, default=Path("training/axolotl/out/data"))
     args = parser.parse_args()
+    if args.adapters:
+        report = compare_adapters(*args.adapters)
+        output = args.out or Path("training/axolotl/out/adapter-comparison.json")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+        print(json.dumps(report, indent=2, allow_nan=False))
+        return 0 if (
+            report["all_finite"] and not report["shape_or_dtype_mismatches"]
+            and not report["only_first"] and not report["only_second"]
+        ) else 1
+    args.out = args.out or Path("training/axolotl/out/token-parity.json")
     # Import the original trainer first so Unsloth patches precede transformers.
     from training.unsloth.train import build_dataset, load_config, load_train_examples
     # isort: split

@@ -1,8 +1,8 @@
 # Trainer parity — M07 qualification in progress
 
-This records measured preprocessing and environment qualification. Axolotl GPU
-training, checkpoint resume, accuracy comparison, and performance parity have
-not yet been demonstrated. M07 remains incomplete.
+Axolotl GPU training, full checkpoint resume and merged-model inference have
+succeeded on physical GB10. Measured evidence appears below. Task accuracy
+comparison and performance parity remain unproven; M07 remains incomplete.
 
 ## Environments
 
@@ -104,3 +104,55 @@ concrete restart test; merely loading a finished checkpoint-100 with a
 Loading an Unsloth adapter into Axolotl remains unverified. Do not silently
 substitute adapter-only loading for a full optimizer/RNG resume or describe a
 continuation as an independent reproduction.
+
+## Verified GB10 execution — 2026-10-20
+
+This section supersedes the earlier statement that GPU training and resume are
+unverified. Both containers exited 0, their manifests report `state=complete`,
+and both final trainer states report global step 100.
+
+| Measurement | Independent reproduction | Resume checkpoint-50 to 100 |
+| --- | --- | --- |
+| Container | `powercoder-m07-reproduction-4b-r1` | `powercoder-m07-resume50-100-r1` |
+| Directory under `training/axolotl/out/` | `reproduction-4b-r1` | `resumed-4b-r1` |
+| Parent | none; pinned original base | reproduction checkpoint-50, full optimizer/RNG resume |
+| Actual updates in this launch | 100 | 50 |
+| Trainer runtime, seconds | 218.7 | 113.6 |
+| Initial validation loss | 1.3415668011 | 0.1845375896 at resumed step 50 |
+| Final validation loss | 0.1763202846 | 0.1758020669 |
+| Final adapter SHA-256 | `1574dd45d80b451c95500be4010a5863c39b676ac4253fa33862ffe014ed1df2` | `5b1c386b4f53b24dac22631fabe9c138564179e2f9790eea1703667a83c6efde` |
+
+Evidence: each directory's `run_manifest.json` and
+`checkpoint-100/trainer_state.json`. The manifests retain frozen configurations,
+source/data hashes, checkpoint hashes, software versions and explicit ancestry.
+Both final adapters contain 694 finite F32 tensors; all 248 language LoRA B
+matrices are nonzero. Reports: `out/checkpoint100-audit.json` and
+`out/resumed100-audit.json`.
+
+Continuation changes all 496 language adapter tensors relative to checkpoint-50,
+with maximum absolute change 0.00495513; no vision tensor changes. Compared with
+uninterrupted step 100, it differs in those same 496 tensors: maximum absolute
+difference 0.00252026 and RMS difference 0.00000721419. Reports:
+`out/resume-update-tensor-comparison.json` and
+`out/reproduction-resume-tensor-comparison.json`. Resume is not bitwise identical;
+no numerical repeatability tolerance was preregistered.
+
+All 688 original Unsloth tensor names and shapes match Axolotl. Axolotl adds six
+tensors in three vision modules (merger linear_fc1/linear_fc2 and patch_embed.proj);
+their B matrices remain zero in this text-only run. Active language targets match,
+but the complete target sets differ. Report: `out/module-parity-checkpoint50.json`.
+
+The original Unsloth log reports 390.2732 seconds for 100 updates. This is not a
+controlled speed comparison: package versions differ, initial Unsloth adapter
+weights were not retained, and resource/warmup conditions were not matched.
+Validation loss does not establish domain pass@1 or the required 10 pp improvement.
+
+Native `axolotl merge-lora` exited 0 in `powercoder-m07-merge-4b-r1`, writing
+`out/export-4b-r1/merged/`. The native Transformers probe
+`training/axolotl/smoke.py` then exited 0 in `powercoder-m07-merged-smoke-r1`:
+all parameters on cuda:0, GB10 generation, peak allocated 9,229,814,272 bytes.
+It reads only a training prompt without the answer. Its 64-token response
+restated the task without solving it. Report: `out/merged-reload-smoke-r1.json`.
+This proves usability, not accuracy. M07 remains incomplete pending controlled
+trainer/task comparisons and environment qualification; edge and rank-64 trials
+also remain required by the broader training scope.

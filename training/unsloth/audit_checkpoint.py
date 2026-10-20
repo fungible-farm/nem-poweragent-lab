@@ -98,7 +98,7 @@ def main() -> int:
     report["files"] = {str(path): digest_file(path) for path in sources + args.source}
     report["limitations"] = [
         "Initial adapter tensors were not retained; exact before/after deltas are unavailable.",
-        "Hashes describe current files; the crashed run did not hash sources at launch.",
+        "Audit hashes describe current files; consult the run manifest for launch-time fingerprints when available.",
         "Reload, inference, physical GPU execution, and model accuracy require separate evidence.",
     ]
     args.out.parent.mkdir(parents=True, exist_ok=True)
