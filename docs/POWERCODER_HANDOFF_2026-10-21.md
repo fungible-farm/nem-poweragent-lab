@@ -1,7 +1,8 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **09:38:44 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Snapshot: **09:54:23 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
 Implementation HEAD: `8442962f67739eb3e439e6d8f5030bece3c3746c`.
+Initial handoff commit: `b1a7b44`.
 The evaluation and its sequential driver remain running. Writing this handoff did
 not pause, stop, or restart them.
 
@@ -15,11 +16,20 @@ The detailed original request/audit is local at
 `/home/brianh/.codex/attachments/573df69a-e50a-4716-b01e-1e68b2cd83bc/pasted-text-1.txt`.
 
 **The experiment is incomplete.** At this snapshot, the Qwen base has completed
-**27/306 tasks**. Qwen student evaluation, Granite training, and both Granite
+**30/306 tasks**, up from 27 at the initial handoff. Qwen student evaluation,
+Granite training, and both Granite
 evaluations remain queued. No complete comparison or required improvement has
 been demonstrated. Scripts, parser tests, and checkpoint existence are not model
 performance evidence. Do not claim GRPO, the Windows audit, or the full G5 gate
 is complete based on prior milestone/commit titles.
+
+The 30 completed base attempts have **0 strict agent passes** so far. This is
+partial-run evidence, not a completed pass@1 comparison or the separate numerical
+scorecard. No final `summary.json` exists yet for any of the four evaluation
+runs. The latest backend logs show HTTP 200 responses and active generation at
+about 19 tokens/second. Both evaluator and driver retain their original process
+identities; the driver's latest event remains `adopt_base`. The user's
+interruption of an observation sleep did not stop these background processes.
 
 Two additional user requests were handled:
 
@@ -33,7 +43,7 @@ Two additional user requests were handled:
 
 | Component | Identity | State at snapshot |
 | --- | --- | --- |
-| Qwen base evaluator | PID `954658`, Linux start ticks `7853761`, exec session `51587` | Live, 27 results |
+| Qwen base evaluator | PID `954658`, Linux start ticks `7853761`, exec session `51587` | Live, 30 results; next task in progress |
 | Sequential comparison driver | PID `987032`, start ticks `8013726`, exec session `46886` | Live, waiting for base |
 | Base vLLM backend | `powercoder-qwen-base-domain-r1`, `http://127.0.0.1:8101` | Adopted by driver |
 | Authoritative driver journal | `training/unsloth/out/agent-domain-r2/pipeline-scorecards.jsonl` | Last event `adopt_base` |
