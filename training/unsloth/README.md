@@ -87,11 +87,33 @@ Export now loads the saved adapter before calling PEFT's
 the base and could not produce a valid tuned export. Neither the corrected
 GPU export nor the updated container recipe has been executed in recovery.
 
-Recovery execution is currently limited: no `/dev/nvidia*` devices are visible,
-`nvidia-smi` cannot reach the driver, and Podman fails on read-only
-`/run/user/1000/libpod`. Ruff is absent from the offline cache, and fetching it
-failed because `pypi.org` DNS was unavailable. Syntax compilation, CPU tests,
-and actual pandapower dataset generation succeeded.
+The initial recovery was restricted by the sandbox. GPU, Podman, and network
+access were restored on 2026-10-20. Ruff now runs successfully. The evaluation
+image built as `74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda15c00ff`
+using `Containerfile.eval`; its resolved packages are recorded in
+`out/eval-environment.lock.txt`.
+
+`powercoder-m06-eval306-r1` is the live 306-task evaluation container. Its
+completed rows are written incrementally to `out/eval306-r1-raw/`; a crash
+preserves finished answers. Each new run refuses to mix with existing raw
+files. This running process uses the loader from launch, before the explicit
+CUDA placement correction below. If its adapter stage fails, preserve and
+reuse its completed base responses rather than discarding that work.
+
+The first actual adapter reload exposed a PEFT offload-index failure for
+`base_model.model.mtp.fc` under automatic device placement. The shared loader
+now requests `device_map={"": "cuda:0"}` explicitly. The follow-up probe is
+`powercoder-m06-adapter-smoke-r2`, writing `out/adapter-reload-smoke-r2.json`.
+That follow-up exited 0: all parameters loaded on `cuda:0`, and the GB10
+generated a nonempty response from a training prompt. The saved adapter hash
+is `d749dd82e787625e5a217c8092eec06603a58c69236ff3cbf5a9385f64cde319`.
+The generated answer is poor. This verifies reload and inference, and does
+not establish answer correctness or improvement over the base model.
+
+The edge base has been downloaded at revision
+`df3ce67c0e24480f20468b6ef2894622d69eb73b`; `config.edge.yaml` records the
+separate rank-32 run. Training now honours an explicit model revision. Edge
+training and rank-64 experiments remain unexecuted.
 
 M06 still needs GPU reload/inference, baseline comparison, merged export,
 validation loss, rank-64 and edge-student experiments, and a fully pinned

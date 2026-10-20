@@ -32,8 +32,8 @@ from pathlib import Path
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from powercoder.datasets.audit import audit_rows, load_rows  # noqa: E402
-from training.unsloth.runtime import load_checkpoint  # noqa: E402
+from powercoder.datasets.audit import audit_rows, load_rows
+from training.unsloth.runtime import load_checkpoint
 
 # --- Tolerances for pass@1 comparison (per subfamily) -----------------------
 # Reports print voltages to four decimals and loading to two. Allow one last
@@ -134,10 +134,10 @@ def extract_report(text: str) -> dict | None:
     if m:
         out["violations"] = int(m.group(1))
     out["converged"] = bool(re.search(r"\bconverged in \d+ iterations\b", text))
-    if re.search(r"failed to execute", text, re.I):
+    if re.search(r"failed to execute", text, re.IGNORECASE):
         out["converged"] = False
         out["outcome"] = "execution_failure"
-    elif re.search(r"did not converge|non[- ]convergen", text, re.I):
+    elif re.search(r"did not converge|non[- ]convergen", text, re.IGNORECASE):
         out["converged"] = False
         out["outcome"] = "non_convergence"
     elif out["converged"]:
@@ -173,12 +173,9 @@ def compare(subfamily: str, model_text: str, expected_text: str) -> bool:
         if "iterations" in ev and mv.get("iterations") != ev["iterations"]:
             return False
         for key, tol in (("min_v", REPORT_VOLT_TOL), ("max_v", REPORT_VOLT_TOL), ("max_load", REPORT_LOAD_TOL)):
-            if key in ev:
-                if key not in mv or abs(mv[key] - ev[key]) > tol:
-                    return False
-        if "violations" in ev and mv.get("violations") != ev["violations"]:
-            return False
-        return True
+            if key in ev and (key not in mv or abs(mv[key] - ev[key]) > tol):
+                return False
+        return "violations" not in ev or mv.get("violations") == ev["violations"]
     if subfamily == "mcp-trajectory":
         mv = extract_trajectory(model_text)
         ev = extract_trajectory(expected_text)
@@ -186,9 +183,7 @@ def compare(subfamily: str, model_text: str, expected_text: str) -> bool:
             return False
         if mv.get("final_status") != ev.get("final_status"):
             return False
-        if "iterations" in ev and mv.get("iterations") != ev["iterations"]:
-            return False
-        return True
+        return "iterations" not in ev or mv.get("iterations") == ev["iterations"]
     # Unknown subfamily: fall back to exact string match.
     return model_text.strip() == expected_text.strip()
 
@@ -258,14 +253,17 @@ def uncertainty(base_results: list[dict], tuned_results: list[dict]) -> dict:
 
 
 def load_tasks(split_paths: list[str]) -> list[dict]:
-    tasks = []
-    for p in split_paths:
-        for line in open(p):
-            tasks.append(json.loads(line))
-    return tasks
+    return [row for path in split_paths for row in load_rows(Path(path))]
 
 
-def evaluate_model(label: str, model, tokenizer, tasks: list[dict]) -> dict:
+def evaluate_model(
+    label: str, model, tokenizer, tasks: list[dict], raw_path: Path | None = None
+) -> dict:
+    """Generate and score each task, retaining completed raw rows on disk."""
+    if raw_path is not None:
+        # A new run must not silently mix with an interrupted or older run.
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.open("x").close()
     results = []
     n_pass = 0
     t0 = time.time()
@@ -287,6 +285,9 @@ def evaluate_model(label: str, model, tokenizer, tasks: list[dict]) -> dict:
                 "diagnostics": diagnostics,
             }
         )
+        if raw_path is not None:
+            with raw_path.open("a") as stream:
+                stream.write(json.dumps(results[-1]) + "\n")
         if (i + 1) % 10 == 0:
             print(f"[{label}] {i+1}/{len(tasks)} pass={n_pass}", flush=True)
     wall = time.time() - t0
@@ -319,13 +320,20 @@ def main() -> None:
     if not audit["clean"]:
         raise ValueError(f"Held-out independence audit failed: {audit}")
     print(f"Loaded {len(tasks)} held-out tasks", flush=True)
+    source_hashes = {
+        path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        for path in args.splits + args.exclude
+    }
+    raw_dir = Path(args.out).parent / (Path(args.out).stem + "-raw")
+    raw_dir.mkdir(parents=True, exist_ok=False)
+    (raw_dir / "inputs.json").write_text(json.dumps(source_hashes, indent=2))
     import torch
 
     # Base model.
     print("=== Evaluating BASE model ===", flush=True)
     base_model, base_tok = load_model(args.model, adapter_path=None)
     base_revision = getattr(base_model.config, "_commit_hash", None)
-    base_res = evaluate_model("base", base_model, base_tok, tasks)
+    base_res = evaluate_model("base", base_model, base_tok, tasks, raw_dir / "base.jsonl")
     del base_model
     torch.cuda.empty_cache()
 
@@ -341,7 +349,7 @@ def main() -> None:
         or base_tok.all_special_ids != ft_tok.all_special_ids
     ):
         raise ValueError("Base and tuned tokenizer/template conditions differ")
-    ft_res = evaluate_model("fine_tuned", ft_model, ft_tok, tasks)
+    ft_res = evaluate_model("fine_tuned", ft_model, ft_tok, tasks, raw_dir / "fine_tuned.jsonl")
 
     delta = ft_res["pass_at_1"] - base_res["pass_at_1"]
     report = {
@@ -351,9 +359,14 @@ def main() -> None:
         "tuned_base_revision": tuned_base_revision,
         "n_tasks": len(tasks),
         "independence_audit": audit,
-        "source_sha256": {
-            path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
-            for path in args.splits + args.exclude
+        "source_sha256": source_hashes,
+        "raw_directory": str(raw_dir),
+        "runtime": {
+            "torch": torch.__version__,
+            "cuda": torch.version.cuda,
+            "gpu": torch.cuda.get_device_name(0),
+            "peak_gpu_allocated_bytes": torch.cuda.max_memory_allocated(),
+            "device": str(ft_model.device),
         },
         "adapter_sha256": hashlib.sha256(
             (Path(args.adapter) / "adapter_model.safetensors").read_bytes()

@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 from powercoder.datasets.audit import audit_rows
+from training.unsloth import evaluate as evaluator
 from training.unsloth import export, runtime
 from training.unsloth.evaluate import compare, extract_scale, uncertainty
 
@@ -79,7 +80,8 @@ def test_adapter_is_loaded_once_and_checked_before_gpu_import(
     ))
     assert runtime.load_checkpoint("base", str(tmp_path)) == ("model", "processor")
     loader.assert_called_once_with(
-        model_name=str(tmp_path), dtype="bf16", load_in_4bit=False
+        model_name=str(tmp_path), dtype="bf16", load_in_4bit=False,
+        device_map={"": "cuda:0"},
     )
     loader.reset_mock()
     with pytest.raises(ValueError, match="base model"):
@@ -114,3 +116,22 @@ def test_export_merges_saved_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert manifest["total_size_bytes"] == sum(
         item["size_bytes"] for item in manifest["files"].values()
     )
+
+
+def test_interrupted_evaluation_retains_completed_raw_rows(
+    cases: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later generation failure must retain prior answers and prevent mixing runs."""
+    case = cases["comparisons"][-1]
+    tasks = [dict(row, expected={"answer": case["reference"]}) for row in cases["tasks"]]
+    generator = Mock(side_effect=[case["candidate"], RuntimeError("simulated interruption")])
+    monkeypatch.setattr(evaluator, "generate_answer", generator)
+    output = tmp_path / "base.jsonl"
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        evaluator.evaluate_model("base", Mock(), Mock(), tasks, output)
+    retained = [json.loads(line) for line in output.read_text().splitlines()]
+    assert len(retained) == 1
+    assert retained[0]["example_id"] == tasks[0]["example_id"]
+    assert retained[0]["model_answer"] == case["candidate"]
+    with pytest.raises(FileExistsError):
+        evaluator.evaluate_model("base", Mock(), Mock(), tasks, output)

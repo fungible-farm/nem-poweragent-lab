@@ -31,12 +31,15 @@ def load_checkpoint(
         source = str(adapter)
 
     # Unsloth must patch transformers before importing the rest of the stack.
-    from unsloth import FastLanguageModel
     import torch
+    from unsloth import FastLanguageModel
 
     if not torch.cuda.is_available():
         raise RuntimeError("Physical CUDA GPU required; CPU fallback is forbidden")
     model, processor = FastLanguageModel.from_pretrained(
-        model_name=source, dtype=getattr(torch, dtype), load_in_4bit=False
+        model_name=source, dtype=getattr(torch, dtype), load_in_4bit=False,
+        # GB10's free-memory heuristic may offload MTP tensors that Unsloth
+        # removes, breaking PEFT's offload index. Require explicit CUDA loading.
+        device_map={"": "cuda:0"},
     )
     return model, processor

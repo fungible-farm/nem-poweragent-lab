@@ -20,10 +20,12 @@ from pathlib import Path
 # Unsloth must be imported before transformers for its optimized ops.
 from unsloth import FastLanguageModel, is_bfloat16_supported
 
+# isort: split
+
 import torch
 import yaml
 from datasets import Dataset
-from transformers import TrainingArguments, Trainer
+from transformers import Trainer, TrainingArguments
 
 
 def load_config(path: str) -> dict:
@@ -145,6 +147,7 @@ def main() -> None:
         max_seq_length=tr_cfg["seq_len"],
         dtype=model_cfg["dtype"],
         load_in_4bit=model_cfg.get("use_4bit", False),
+        revision=model_cfg.get("revision"),
     )
     # Qwen3.5-4B is a VL model: the returned object is a Qwen3VLProcessor. Use the
     # underlying text tokenizer for tokenization (a raw processor(text) call hits

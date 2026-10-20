@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from training.unsloth.runtime import load_checkpoint  # noqa: E402
+from training.unsloth.runtime import load_checkpoint
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
