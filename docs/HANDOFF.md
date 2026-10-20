@@ -1,5 +1,9 @@
 # Handoff — 2026-08-03 session
 
+For the current PowerCoder evaluation and Granite integration, see
+[the 21 October 2026 handoff](POWERCODER_HANDOFF_2026-10-21.md).
+The historical session notes below are preserved as written.
+
 What this session did, what's still open, and where to pick it back up. Written so a reader who
 wasn't in the conversation can continue cold.
 
