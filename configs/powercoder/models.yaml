@@ -57,6 +57,20 @@ models:
         status: deferred
     notes: Qualcomm Q6A student; edge deployment target
 
+  - id: granite-4.2-8b
+    name: IBM Granite 4.2-8B
+    role: challenger
+    architecture: granite
+    hf_id: ibm-granite/granite-4.2-8b
+    revision: b3791992239dce12d0038f1f54a8adb7b02d59ab
+    license: Apache 2.0
+    training_framework: transformers-peft
+    deployment:
+      - backend: vllm
+        target: local-llama-swap
+        status: verified
+    notes: Pinned upstream BF16 model; separate same-split LoRA experiment is pending
+
   - id: granite-4.2-3b
     name: IBM Granite 4.2-3B
     role: challenger

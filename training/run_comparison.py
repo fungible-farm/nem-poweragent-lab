@@ -30,6 +30,10 @@ TRAINING_IMAGE: str = "74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda
 # scheduling. Granite uses the built-in reasoning parser its model card permits.
 CONTEXT_TOKENS: int = 16384
 GPU_MEMORY_FRACTION: float = 0.12
+# Granite's pinned weight index contains 16,761,102,336 bytes, exceeding 12%
+# of the GB10's memory before runtime/KV cache. The local Granite service uses
+# 22%; keep generation/context budgets identical while allocating enough RAM.
+GRANITE_GPU_MEMORY_FRACTION: float = 0.22
 PORT: int = 8101
 # Model startup took about 90 s in the first run; allow ten minutes cold.
 STARTUP_TIMEOUT_S: float = 600.0
@@ -68,7 +72,8 @@ def command(args: list[str], log: Path, events: TextIO) -> None:
         raise RuntimeError(f"Stage exited {code}: {args}; see {log}")
 
 
-def serve(source: Path, name: str, model: str, reasoning: str, root: Path, events: TextIO) -> None:
+def serve(source: Path, name: str, model: str, reasoning: str, root: Path, events: TextIO,
+          memory_fraction: float = GPU_MEMORY_FRACTION) -> None:
     """Start a pinned, local-only model endpoint and wait for actual readiness."""
     args = ["podman", "run", "-d", "--name", name, "--device", "nvidia.com/gpu=all",
             "--security-opt", "label=disable", "--shm-size", "1g", "-p", f"127.0.0.1:{PORT}:8000",
@@ -76,7 +81,7 @@ def serve(source: Path, name: str, model: str, reasoning: str, root: Path, event
             "--entrypoint", "/opt/venv/bin/python", INFERENCE_IMAGE,
             "-m", "vllm.entrypoints.openai.api_server", "--model", "/student", "--served-model-name", model,
             "--host", "0.0.0.0", "--port", "8000", "--dtype", "bfloat16", "--max-model-len", str(CONTEXT_TOKENS),
-            "--max-num-seqs", "1", "--gpu-memory-utilization", str(GPU_MEMORY_FRACTION), "--enforce-eager",
+            "--max-num-seqs", "1", "--gpu-memory-utilization", str(memory_fraction), "--enforce-eager",
             "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_coder", "--reasoning-parser", reasoning,
             "--generation-config", "vllm", "--limit-mm-per-prompt", '{"image":0,"video":0}']
     command(args, root / f"{name}-start.log", events)
@@ -171,7 +176,8 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
                           ("granite-student", Path(config["output"]["dir"]) / "merged-bf16")):
         name = f"powercoder-{args.root.name}-{label}"
         model = f"powercoder-{label}"
-        serve(source, name, model, "nemotron_v3", args.root, events)
+        serve(source, name, model, "nemotron_v3", args.root, events,
+              memory_fraction=GRANITE_GPU_MEMORY_FRACTION)
         evaluate(model, args.root / label, events)
         stop_server(name, args.root, events)
     granite = write_comparison(args.root / "granite-base", args.root / "granite-student",
@@ -189,8 +195,12 @@ def main() -> None:
     parser.add_argument("--base-pid", type=int, required=True)
     parser.add_argument("--base-container", required=True)
     parser.add_argument("--download-container", required=True)
+    parser.add_argument("--journal-name", default="pipeline.jsonl",
+                        help="Fresh journal name when replacing a waiting driver; previous evidence is preserved")
     args = parser.parse_args()
-    with (args.root / "pipeline.jsonl").open("x") as events:
+    if Path(args.journal_name).name != args.journal_name:
+        raise ValueError("Driver journal must be a filename inside the run directory")
+    with (args.root / args.journal_name).open("x") as events:
         record(events, "driver_start", {"pid": os.getpid(), "unix_time": time.time(),
             "source_sha256": {str(p.relative_to(REPO)): digest(p) for parent in (REPO / "powercoder/inference", REPO / "training/granite")
                               for p in parent.glob("*.py")}, "driver_sha256": digest(Path(__file__))})

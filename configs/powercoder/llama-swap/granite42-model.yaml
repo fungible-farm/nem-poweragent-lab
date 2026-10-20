@@ -1,0 +1,13 @@
+# Merge this model entry into the existing llama-swap configuration.
+# The companion Quadlet runs an always-on, offline vLLM backend in the
+# gateway's network namespace. No new host port is exposed.
+models:
+  granite-4.2-8b:
+    capabilities:
+      tools: true
+    aliases:
+      - ibm-granite/granite-4.2-8b
+    useModelName: granite-4.2-8b
+    cmd: sleep infinity
+    proxy: http://127.0.0.1:18102
+    checkEndpoint: /health

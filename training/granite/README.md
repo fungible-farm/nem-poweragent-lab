@@ -74,6 +74,11 @@ per-model logs and fsynced per-task journals retain raw evidence. A PID in the
 journal alone does not prove the driver is still running: check `/proc` process
 birth/state or the corresponding live tool session. `pipeline_complete` means
 the stages completed, even if their measured gain misses the threshold.
+The waiting driver was replaced using `--journal-name pipeline-granite-memory.jsonl`
+to increase Granite's memory allocation for its 16.76 GB weights; the base
+evaluation PID and all of its generation budgets continued unchanged. The
+original journal records this replacement. Read the replacement journal for
+subsequent stage state.
 
 For an AEMO modeller, the comparison tests whether changing and fine-tuning a
 local model improves independently checked AC study answers under equal tool

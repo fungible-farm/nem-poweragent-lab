@@ -1,0 +1,31 @@
+# Local BF16 Granite 4.2 8B (Apache-2.0), pinned Hub revision:
+# b3791992239dce12d0038f1f54a8adb7b02d59ab.
+# The cached vLLM image was qualified on this GB10. Share llama-swap's network
+# namespace so this backend is reachable only through its loopback proxy.
+[Unit]
+Description=Granite 4.2 8B BF16 backend for llama-swap
+Requires=llama-swap.service
+After=llama-swap.service
+PartOf=llama-swap.service
+
+[Container]
+Image=d53cb735dd1822378c352da65b4ef1580c9764df7aed4bc8805c6c26f6b827de
+Pull=never
+ContainerName=llama-vllm-granite42
+Network=container:llama-swap
+AddDevice=nvidia.com/gpu=all
+SecurityLabelDisable=true
+ShmSize=1g
+Volume=%h/promptexecution/fungible/nem-poweragent-lab/training/unsloth/out/granite-4.2-8b-base:/granite:ro
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Entrypoint=/opt/venv/bin/python
+# A 16K context matches the current benchmark. 22% of GB10 memory accommodates
+# the 16.76 GB weights plus runtime and KV cache, alongside the active benchmark.
+Exec=-m vllm.entrypoints.openai.api_server --model /granite --served-model-name granite-4.2-8b --host 127.0.0.1 --port 18102 --dtype bfloat16 --max-model-len 16384 --max-num-seqs 1 --gpu-memory-utilization 0.22 --enforce-eager --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --generation-config vllm
+
+[Service]
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=llama-swap.service
