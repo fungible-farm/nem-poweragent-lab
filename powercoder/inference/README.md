@@ -54,3 +54,72 @@ The controller exited 0 after two actual tool calls and a final `stop` response.
 Raw evidence: `training/axolotl/out/tool-probe-r1.jsonl`. This training-prompt
 qualification does not establish held-out accuracy, zero fabrication across a
 suite, or an improvement over base.
+
+## Complete held-out domain comparison
+
+`evaluate_agent` runs all 306 audited tasks once, with greedy decoding and the
+probe's same turn, token, and tool budgets for each model. Only the task prompt
+is given to the model. `run_study_trial` permits the model to select scalar
+trials and returns real AC solver measurements; it does not fit a target for it.
+Keep each model's serving image, launch arguments, checkpoint revision and
+weight hashes beside the run. Use the original Unsloth merged student for the
+primary Qwen comparison; the independent Axolotl reproduction is a separate
+candidate.
+
+1. Start the pinned local model server with automatic tool calling enabled.
+   Run the following for each model, using a fresh output directory:
+
+   ```sh
+   uv run --offline --no-sync python -m powercoder.inference.evaluate_agent \
+     --base-url http://127.0.0.1:8101 --model powercoder-qwen-base \
+     --tasks benchmarks/power-agent-bench-lite/results/domain-held-out-20261020/examples.jsonl \
+     --exclude powercoder/datasets/smoke/examples.jsonl \
+     --out training/unsloth/out/agent-domain-r1/base
+   ```
+
+   You should see progress through `306/306`, followed by a complete summary.
+   Each model response and actual MCP response is fsynced to an exclusive
+   per-task journal. A terminal model answer alone is insufficient: the
+   independent grader must accept its numerical result and the controller must
+   have observed a matching successful study. A fit's final scale must itself
+   have been tried. Model protocol errors fail the attempt; transport errors
+   stop visibly. Interrupted output is preserved and never silently reused.
+
+2. Serve the student with matching settings and repeat into
+   `training/unsloth/out/agent-domain-r1/student`. Then compare:
+
+   ```sh
+   uv run --offline --no-sync python -m powercoder.inference.compare_agents \
+     --base-dir training/unsloth/out/agent-domain-r1/base \
+     --student-dir training/unsloth/out/agent-domain-r1/student \
+     --out training/unsloth/out/agent-domain-r1/comparison.json
+   ```
+
+   You should see the measured paired delta, confidence intervals and per-family
+   counts. Missing tasks, unequal budgets, changed inputs or changed raw journals
+   prevent a comparison. `domain_threshold_met` reports the measured ten-point
+   criterion; it is never presumed. General Python and fabrication gates remain
+   separate. This comparison supports an AEMO modeller assessing whether local
+   fine-tuning improves independently checked study results under equal tool
+   access, rather than whether a model can repeat saved answers.
+
+3. Check the scoring boundaries before changing the harness:
+
+   ```sh
+   uv run --offline --no-sync python -m pytest \
+     powercoder/inference/test_evaluate_agent.py \
+     training/unsloth/test_evaluation.py \
+     tests/integration/test_canonical_mcp_transport.py -q
+   ```
+
+   The evidence tests reject calls for another scale, case, element or
+   contingency, MCP errors, nonconvergence and truncated final generations.
+   Their small response envelopes are adversarial test fixtures, not physics
+   results or model performance evidence.
+
+Granite is a separate experiment configured in
+`training/unsloth/config.granite42.yaml`, using the same training split and
+hyperparameters. Its upstream model is Apache-2.0, pinned to revision
+`b3791992239dce12d0038f1f54a8adb7b02d59ab` of
+[`ibm-granite/granite-4.2-8b`](https://huggingface.co/ibm-granite/granite-4.2-8b).
+The config alone does not establish a completed download, training run or gain.

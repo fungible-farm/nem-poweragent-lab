@@ -23,6 +23,10 @@ from powercoder.inference.client import InferenceClient
 MAX_TURNS: int = 12
 MAX_TOOL_CALLS: int = 24
 MAX_TOKENS: int = 2048
+# The cold GB10 base request exceeded the old 120-second HTTP limit while
+# generating at roughly 19 tokens/s. Permit ten minutes without changing the
+# token, turn or tool budgets. This is transport patience, not extra attempts.
+INFERENCE_TIMEOUT_S: float = 600.0
 
 
 def record(stream: TextIO, kind: str, payload: Any) -> None:
@@ -46,6 +50,7 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         "model": args.model, "base_url": args.base_url, "messages": messages,
         "max_tokens": MAX_TOKENS, "temperature": 0.0,
         "max_turns": MAX_TURNS, "max_tool_calls": MAX_TOOL_CALLS,
+        "inference_timeout_s": INFERENCE_TIMEOUT_S,
         "benchmark_claim": False,
     })
     async with (
@@ -60,7 +65,7 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         record(journal, "tools", tools)
         calls = 0
         ids: set[str] = set()
-        with InferenceClient(args.base_url) as client:
+        with InferenceClient(args.base_url, timeout=INFERENCE_TIMEOUT_S) as client:
             for _ in range(MAX_TURNS):
                 result = await asyncio.to_thread(
                     client.chat_completion, args.model, messages,
@@ -80,10 +85,15 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
                     return 0 if success else 1
                 for call in requested:
                     if calls >= MAX_TOOL_CALLS or call["id"] in ids:
-                        raise ValueError("Tool budget exceeded or duplicate call ID")
+                        record(journal, "terminal", {"state": "invalid_tool_protocol", "actual_tool_calls": calls})
+                        return 1
                     ids.add(call["id"])
-                    arguments = json.loads(call["function"]["arguments"])
                     record(journal, "tool_request", call)
+                    try:
+                        arguments = json.loads(call["function"]["arguments"])
+                    except (ValueError, TypeError) as error:
+                        record(journal, "terminal", {"state": "invalid_tool_arguments", "actual_tool_calls": calls, "error": str(error)})
+                        return 1
                     response = await session.call_tool(call["function"]["name"], arguments)
                     observed = response.model_dump(mode="json", by_alias=True)
                     record(journal, "tool_response", {"tool_call_id": call["id"], "result": observed})
