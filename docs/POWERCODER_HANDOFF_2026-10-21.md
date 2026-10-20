@@ -1,7 +1,7 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **10:11 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
-Implementation HEAD: `8442962f67739eb3e439e6d8f5030bece3c3746c`.
+Snapshot: **10:46 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Implementation HEAD: `a279d7b` (r3 driver); `8442962` ran r2.
 Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live
 pipeline that no longer runs).
 
@@ -16,7 +16,8 @@ The detailed original request/audit is local to this host at
 The goal record is `.pi/goals/active_goal_2026102108123965_mvh6j65n-98gogh.md`
 (revision 4: contracts rewritten to match the real output files, auto-continue off).
 
-**The experiment is incomplete and nothing is running.** At 10:01 AEDT, on user
+**The experiment is incomplete. r3 is running supervised** (see "Live r3 run").
+At 10:01 AEDT, on user
 instruction, the r2 pipeline was stopped as unsupervised: driver PID `987032`,
 Qwen base evaluator PID `954658`, its MCP child and `uv` wrappers (SIGTERM), then
 `podman stop powercoder-qwen-base-domain-r1` (stopped, **not removed**). Granite
@@ -50,8 +51,9 @@ use: the Qwen base vLLM (13 GB GPU), the then-persistent llama-swap Granite vLLM
 the kernel's global OOM-killer killed that llama-server (pid 1026915), and pi's
 requests through llama-swap returned HTTP 500 (`upstream command exited
 prematurely`). Measured afterwards in isolation: `qwen3.8-flash-next` alone takes
-≈96 GB used, leaving ≈21 GB available. Neither `training/run_comparison.py` nor
-`training/granite/train.py` checks available memory before allocating, so Granite
+≈96 GB used, leaving ≈21 GB available. At the time neither `training/run_comparison.py` nor
+`training/granite/train.py` checked available memory before allocating (the
+driver now does), so Granite
 training (≥16.8 GB of weights alone) and a 0.22-fraction Granite eval backend
 (≈26 GB) would very likely have been OOM-killed while flash-next was resident.
 
@@ -76,27 +78,57 @@ Persistent proxy backends (`llama-vllm-27b`, `granite42-vllm`) are systemd units
 that `globalTTL` cannot unload; they must be stopped explicitly before
 memory-heavy PowerCoder stages.
 
-## Restart plan (not yet executed)
+## Live r3 run — observe before taking action
 
-The r2 driver could only *adopt* an externally started base evaluator
-(`--base-pid` is required), so there was never one supervising owner. Before
-relaunching (tracked as goal tasks `memory-preflight` and `supervised-restart`):
+The r2 driver could only *adopt* an externally started base evaluator, so there
+was never one supervising owner. Fixed in `d649e3d` + `a279d7b`:
 
-1. Add a `MemAvailable` gate before each vLLM serve and before Granite training,
-   with the per-stage requirement as a named, sourced constant, a journaled
-   refusal event, and a pytest.
-2. Let the driver launch and own the Qwen base evaluator, and run the driver as a
-   single `systemd --user` unit (journal, status, stop-kills-children) rather than
-   a detached exec session.
-3. Write to a new root, `training/unsloth/out/agent-domain-r3/`. Keep r2, r1 and
-   `eval306-r1-raw/` unmodified as historical evidence.
-4. Make sure llama-swap is idle (TTL-unloaded) and `granite42-vllm` is stopped
-   before each GPU stage, or coordinate with the users of the gateway.
+- The driver serves and evaluates the Qwen base itself (same weights snapshot,
+  image ID, budgets and evaluator command as r2).
+- Before each vLLM serve and before Granite training it waits up to an hour for
+  `MemAvailable` ≥ stage floor + 8 GiB margin (`memory_wait` / `memory_admitted`
+  / `memory_refused`); pytest `training/test_run_comparison.py`.
+- `scripts/launch_powercoder_comparison.sh` runs it as transient unit
+  **`powercoder-agent-domain-r3`**; `systemctl --user stop` stops containers
+  (ExecStop), then the driver and evaluator. No restart policy.
+- First launch (10:33) died in 0.4 s: the readiness poll got
+  `httpx.ReadError 104` from rootless port forwarding, which `serve()` did not
+  tolerate. This was latent in r2, which never reached `serve()`, and would have
+  killed it at the student stage. Evidence kept at
+  `training/unsloth/out/agent-domain-r3-attempt1-readiness-reset/`.
+- Relaunched 10:36:48. Base memory admitted with 127 GB available (the gateway's
+  flash-next had TTL-unloaded), server ready, evaluator running.
+
+```bash
+systemctl --user status powercoder-agent-domain-r3
+journalctl --user -u powercoder-agent-domain-r3 -f
+tail -3 training/unsloth/out/agent-domain-r3/pipeline.jsonl
+wc -l training/unsloth/out/agent-domain-r3/base/results.jsonl
+```
+
+Stop only with `systemctl --user stop powercoder-agent-domain-r3`; do not kill
+PIDs by hand. Never relaunch into an existing root; the driver refuses it.
+
+### Reproducibility finding (r3 task 1 vs r2 task 1)
+
+Same task, same weights, temperature 0: the trajectories are identical through
+the first two model turns and tool calls. They differ only in the solver
+response's wall-clock `execution_time_s` (1.2655 vs 1.1948 s), which the MCP
+tool returns to the model. That perturbs the prompt; on the next turn r2 called
+`run_study_trial` while r3 spent all 2048 response tokens reasoning
+(`finish_reason: length`), so the evaluator recorded `incomplete_generation`
+with an empty answer. Consequences, for the user to decide (not changed
+mid-run):
+
+- Single-attempt greedy pass@1 is **not reproducible** between runs; paired
+  base/student deltas carry this run-to-run noise on top of model differences.
+- The 2048-token response budget is binding for Qwen3.5's reasoning; this is the
+  observed mechanism behind r2's empty answers.
 
 ## Sequence and acceptance evidence (unchanged design)
 
-`training/run_comparison.py` checks process identity and complete, consistent
-306-task outputs before advancing:
+`training/run_comparison.py` requires complete, consistent 306-task outputs
+before advancing:
 
 1. Finish Qwen base, stop its owned backend, evaluate the original Unsloth merged
    student into `student/`, then generate paired strict and numerical comparisons.
@@ -224,8 +256,9 @@ These include a real AC solve on an explicitly named small fixture and actual MC
 stdio transport. They validate implementation, not student improvement. Granite
 training and the full sequential pipeline have never completed an end-to-end run.
 
-Next action: implement the restart plan above (memory gate, supervised owning
-driver, r3 root), then launch it with the user's agreement. Follow `AGENTS.md`,
+Next action: let r3 advance and audit each completed stage from
+`pipeline.jsonl`. Raise the reproducibility finding with the user before any
+benchmark change; a change means a new run root, not editing r3. Follow `AGENTS.md`,
 `docs/VISION.md`, and `docs/DEFINITION_OF_DONE.md`; use `uv`, preserve real
 evidence, and report exact tool/host environment mismatches without silently
 routing around them.
