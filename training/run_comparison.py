@@ -20,6 +20,7 @@ from typing import Any, TextIO
 import httpx
 
 from powercoder.inference.compare_agents import compare, verified_run
+from powercoder.inference.domain_scorecard import compare_domain
 from powercoder.inference.tool_probe import record
 from training.granite.train import digest, verify_base
 
@@ -129,6 +130,20 @@ def write_comparison(base: Path, candidate: Path, destination: Path, events: Tex
     return result
 
 
+def write_numerical_comparison(base: Path, candidate: Path, destination: Path, events: TextIO) -> dict[str, Any]:
+    """Add M09 numerical correctness while preserving the stricter agent scores."""
+    result = compare_domain(base, candidate)
+    with destination.open("x") as output:
+        json.dump(result, output, indent=2, allow_nan=False)
+        output.write("\n")
+    # Full individual responses stay in the artifact, keeping the stage journal compact.
+    record(events, "numerical_comparison_complete", {"path": str(destination),
+        "scorer_sha256": result["scorer_sha256"], "n_tasks": result["n_tasks"],
+        "base_pass_at_1": result["base_pass_at_1"], "student_pass_at_1": result["student_pass_at_1"],
+        "delta_percentage_points": result["delta_percentage_points"], "domain_threshold_met": result["domain_threshold_met"]})
+    return result
+
+
 def run(args: argparse.Namespace, events: TextIO) -> None:
     """Advance only after authoritative completion of each prior stage."""
     import yaml
@@ -154,6 +169,8 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
     evaluate("powercoder-qwen-student", args.root / "student", events)
     stop_server(name, args.root, events)
     qwen = write_comparison(args.root / "base", args.root / "student", args.root / "qwen-comparison.json", events)
+    qwen_numerical = write_numerical_comparison(args.root / "base", args.root / "student",
+                                               args.root / "qwen-numerical-comparison.json", events)
 
     record(events, "await_download", {"container": args.download_container})
     while True:
@@ -184,8 +201,16 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
                                args.root / "granite-comparison.json", events)
     write_comparison(args.root / "base", args.root / "granite-student", args.root / "granite-vs-qwen-base.json", events)
     write_comparison(args.root / "student", args.root / "granite-student", args.root / "granite-vs-qwen-student.json", events)
+    granite_numerical = write_numerical_comparison(args.root / "granite-base", args.root / "granite-student",
+                                                  args.root / "granite-numerical-comparison.json", events)
+    write_numerical_comparison(args.root / "base", args.root / "granite-student",
+                               args.root / "granite-vs-qwen-base-numerical.json", events)
+    write_numerical_comparison(args.root / "student", args.root / "granite-student",
+                               args.root / "granite-vs-qwen-student-numerical.json", events)
     record(events, "pipeline_complete", {"qwen_domain_threshold_met": qwen["domain_threshold_met"],
-                                         "granite_domain_threshold_met": granite["domain_threshold_met"]})
+        "granite_domain_threshold_met": granite["domain_threshold_met"],
+        "qwen_solver_verified_threshold_met": qwen_numerical["domain_threshold_met"],
+        "granite_solver_verified_threshold_met": granite_numerical["domain_threshold_met"]})
 
 
 def main() -> None:

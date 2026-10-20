@@ -126,3 +126,44 @@ hyperparameters. Its upstream model is Apache-2.0, pinned to revision
 The config alone does not establish a completed download, training run or gain.
 The sequential driver and Granite training procedure are documented in
 [`training/granite/README.md`](../../training/granite/README.md).
+
+## Solver-verified numerical scorecard
+
+MISSION.md M09 lists solver-verified domain pass@1 and agent behaviour as
+separate metrics. The original `compare_agents` output is the stricter agent
+metric: it also requires a successful matching model-selected study, including
+a trial at the final fit scale. Retain that output and its original scores.
+
+For the numerical metric, run the same fixed post-processing for every model:
+
+```sh
+uv run --offline --no-sync python -m powercoder.inference.domain_scorecard \
+  --base-dir training/unsloth/out/agent-domain-r2/base \
+  --student-dir training/unsloth/out/agent-domain-r2/student \
+  --out training/unsloth/out/agent-domain-r2/qwen-numerical-comparison.json
+```
+
+You should see all 306 paired tasks, the numerical pass-rate delta and its
+uncertainty, plus the retained stricter agent comparison. The command refuses
+partial runs, altered raw journals, mismatched source data or unequal budgets.
+It derives final answers from the actual model responses and checks them
+against their original scored records. Every fit is independently re-solved at
+the proposed scale. Every report is re-solved for its actual contingency with
+the canonical loader and real pandapower engine; labelled plain text, Markdown
+and JSON fields use the same documented tolerances (voltages 0.0001 pu, line
+loading 0.01 percentage points, exact iteration/violation counts). Missing or
+incorrect values, nonfinite JSON numbers, contradictory convergence declarations
+and incomplete model attempts fail. The parser consistently takes the first
+labelled occurrence of a repeated field, as the original evaluator does.
+
+The `solver-verified-domain-v1` grader was fixed before the first full paired
+comparison. Post-processing gives the models no feedback, new attempt or extra
+tool call. It preserves original scores and hashes, records its own source hash,
+and applies to Qwen and Granite equally. A numerically correct answer can have
+failed tool evidence; the scorecard retains both facts. Numerical correctness
+alone does not establish zero fabrication, the general Python gate or G5.
+
+`powercoder/inference/test_domain_scorecard.py` checks presentation invariance,
+failure precedence, missing/nonfinite fields and an actual AC solve on a named
+small solver fixture. Add it to the test command above when changing this
+post-processing. These fixture tests are not model performance results.

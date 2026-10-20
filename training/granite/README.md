@@ -53,9 +53,10 @@ not a trained model or an accuracy result.
    Compare Granite student with Granite base, Qwen base and Qwen student.
    You should see paired task counts, pass rates, deltas and uncertainty.
    The ten-percentage-point domain gain is a measured gate, not a guaranteed
-   consequence of training. Report scoring currently uses the original
-   reference's field labels; a numerically correct differently formatted
-   report can fail that parser. Keep raw responses to audit this limitation.
+   consequence of training. The original agent score uses the reference's field
+   labels; its parser can reject a numerically correct differently formatted
+   report. The numerical scorecard below re-solves reports and accepts labelled
+   plain text, Markdown and JSON. Both scores retain their raw responses.
 
 ## Sequential driver
 
@@ -79,6 +80,13 @@ to increase Granite's memory allocation for its 16.76 GB weights; the base
 evaluation PID and all of its generation budgets continued unchanged. The
 original journal records this replacement. Read the replacement journal for
 subsequent stage state.
+The driver now also writes `qwen-numerical-comparison.json`,
+`granite-numerical-comparison.json`, `granite-vs-qwen-base-numerical.json` and
+`granite-vs-qwen-student-numerical.json` using the frozen
+`powercoder.inference.domain_scorecard` grader. These contain M09's
+solver-verified numerical metric and retain the original stricter agent scores.
+The waiting driver was adopted again under `pipeline-scorecards.jsonl` to
+schedule these artifacts; the running base evaluation continued unchanged.
 
 For an AEMO modeller, the comparison tests whether changing and fine-tuning a
 local model improves independently checked AC study answers under equal tool
