@@ -61,32 +61,44 @@ not a trained model or an accuracy result.
 ## Sequential driver
 
 `uv run --offline --no-sync python -m training.run_comparison --help` describes
-the driver that adopts an already-running full Qwen base evaluation by its
-actual PID and output directory. It verifies that PID's command and birth time,
-waits for terminal process state, and requires all 306 scored tasks before
-advancing. It then runs Qwen student, Granite training, Granite base and Granite
-student, followed by all four comparisons. It releases each owned server only
-after its full evaluation. It never retries a failed stage or silently mixes
-new results with an old run.
+the driver. It serves and evaluates the pinned Qwen base, then the original Qwen
+student, trains Granite, and evaluates Granite base and student, followed by all
+four strict and four numerical comparisons. It requires all 306 scored tasks
+before advancing, releases each server only after its full evaluation, never
+retries a failed stage, and refuses to reuse an existing run root.
 
-The active 2026-10-21 run is `training/unsloth/out/agent-domain-r2/`.
-`pipeline.jsonl` records actual child PIDs, commands, stage exits and errors;
-per-model logs and fsynced per-task journals retain raw evidence. A PID in the
-journal alone does not prove the driver is still running: check `/proc` process
-birth/state or the corresponding live tool session. `pipeline_complete` means
-the stages completed, even if their measured gain misses the threshold.
-The waiting driver was replaced using `--journal-name pipeline-granite-memory.jsonl`
-to increase Granite's memory allocation for its 16.76 GB weights; the base
-evaluation PID and all of its generation budgets continued unchanged. The
-original journal records this replacement. Read the replacement journal for
-subsequent stage state.
-The driver now also writes `qwen-numerical-comparison.json`,
+Before each vLLM server and before Granite training it waits up to an hour for
+`MemAvailable` to cover the stage's floor plus `MEMORY_MARGIN_BYTES`
+(`memory_wait` / `memory_admitted` / `memory_refused` journal events). The floor
+is the vLLM memory fraction of `MemTotal`, or Granite's 16.76 GB of weights for
+training. GB10 memory is unified, so llama-swap models compete for it: idle
+models unload after the gateway's `globalTTL`, and the on-demand
+`granite42-vllm.service` must be stopped. Admission is checked once per stage;
+a gateway model loaded mid-stage can still trigger the OOM-killer.
+
+Launch it supervised, never as a detached shell:
+
+```sh
+./scripts/launch_powercoder_comparison.sh training/unsloth/out/agent-domain-r3
+systemctl --user status powercoder-agent-domain-r3
+systemctl --user stop powercoder-agent-domain-r3   # stops driver, evaluator and containers
+```
+
+`pipeline.jsonl` in the run root records actual child PIDs, commands, memory
+admission, stage exits, errors and a `driver_stopped` event on SIGTERM;
+per-model logs and fsynced per-task journals retain raw evidence.
+`pipeline_complete` means the stages completed, even if the measured gain misses
+the threshold. It writes `qwen-numerical-comparison.json`,
 `granite-numerical-comparison.json`, `granite-vs-qwen-base-numerical.json` and
-`granite-vs-qwen-student-numerical.json` using the frozen
-`powercoder.inference.domain_scorecard` grader. These contain M09's
-solver-verified numerical metric and retain the original stricter agent scores.
-The waiting driver was adopted again under `pipeline-scorecards.jsonl` to
-schedule these artifacts; the running base evaluation continued unchanged.
+`granite-vs-qwen-student-numerical.json` with the frozen
+`powercoder.inference.domain_scorecard` grader alongside the stricter agent
+scores.
+
+History: `agent-domain-r2/` was an earlier driver that adopted a separately
+started base evaluation by PID (journals `pipeline.jsonl`,
+`pipeline-granite-memory.jsonl`, `pipeline-scorecards.jsonl`). It was stopped
+unsupervised at 31/306 base results on 2026-10-21 and is kept as partial
+evidence only; see `docs/POWERCODER_HANDOFF_2026-10-21.md`.
 
 For an AEMO modeller, the comparison tests whether changing and fine-tuning a
 local model improves independently checked AC study answers under equal tool

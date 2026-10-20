@@ -1,10 +1,9 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **09:54:23 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Snapshot: **10:11 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
 Implementation HEAD: `8442962f67739eb3e439e6d8f5030bece3c3746c`.
-Initial handoff commit: `b1a7b44`.
-The evaluation and its sequential driver remain running. Writing this handoff did
-not pause, stop, or restart them.
+Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live
+pipeline that no longer runs).
 
 ## Objective and honest completion status
 
@@ -12,84 +11,92 @@ The user requested committing local work, completing the full 306-task compariso
 of Qwen3.5-4B base against its original Unsloth student, demonstrating at least a
 **10 percentage-point domain pass@1 improvement**, downloading Granite 4.2 8B,
 training it on the same dataset, and evaluating/comparing its base and student.
-The detailed original request/audit is local at
+The detailed original request/audit is local to this host at
 `/home/brianh/.codex/attachments/573df69a-e50a-4716-b01e-1e68b2cd83bc/pasted-text-1.txt`.
+The goal record is `.pi/goals/active_goal_2026102108123965_mvh6j65n-98gogh.md`
+(revision 4: contracts rewritten to match the real output files, auto-continue off).
 
-**The experiment is incomplete.** At this snapshot, the Qwen base has completed
-**30/306 tasks**, up from 27 at the initial handoff. Qwen student evaluation,
-Granite training, and both Granite
-evaluations remain queued. No complete comparison or required improvement has
-been demonstrated. Scripts, parser tests, and checkpoint existence are not model
-performance evidence. Do not claim GRPO, the Windows audit, or the full G5 gate
-is complete based on prior milestone/commit titles.
+**The experiment is incomplete and nothing is running.** At 10:01 AEDT, on user
+instruction, the r2 pipeline was stopped as unsupervised: driver PID `987032`,
+Qwen base evaluator PID `954658`, its MCP child and `uv` wrappers (SIGTERM), then
+`podman stop powercoder-qwen-base-domain-r1` (stopped, **not removed**). Granite
+training and all other evaluations never started. Only Granite download and
+llama-swap serving are done. Do not claim GRPO, the Windows audit, or the full G5
+gate is complete on the strength of earlier goal records: the paused goal
+`mvg58a4q-t1fzwh` marks M08/M09 `complete` with `evidence` fields that merely
+restate their contracts.
 
-The 30 completed base attempts have **0 strict agent passes** so far. This is
-partial-run evidence, not a completed pass@1 comparison or the separate numerical
-scorecard. No final `summary.json` exists yet for any of the four evaluation
-runs. The latest backend logs show HTTP 200 responses and active generation at
-about 19 tokens/second. Both evaluator and driver retain their original process
-identities; the driver's latest event remains `adopt_base`. The user's
-interruption of an observation sleep did not stop these background processes.
+### Partial r2 evidence (preserved, not a result)
 
-Two additional user requests were handled:
+`training/unsloth/out/agent-domain-r2/base/results.jsonl`: **31/306** results,
+0 strict passes, 0 numerical passes, 1 tool-evidence pass, 11 empty answers. No
+`summary.json`. This is **not a representative sample**: tasks run in subfamily
+order, so the 31 are 26 `pf-report` + 5 `pf-load-scale-fit`, with no line-rating
+or dispatch fits. The empty answers are a lead worth inspecting after a complete
+run (e.g. whether reasoning exhausts the 2048-token response budget); do not change
+the budget mid-benchmark to chase it. The driver journal
+`pipeline-scorecards.jsonl` ends at `adopt_base`; it records no stop event because
+the driver was killed. This section is the record of that stop.
 
-- Only this one Git worktree was registered; it was clean before this handoff.
-  Ignored datasets, checkpoints, and evaluation journals are substantial local
-  artifacts and do not appear in ordinary Git status.
-- Downloaded Granite was integrated into the local llama-swap service and passed
-  real chat and tool-selection smoke checks. Both services remain active.
+Measured r2 throughput: 31 tasks in ~94 minutes (≈3 min/task), so one 306-task
+run takes ≈15 h; four runs plus Granite training is roughly 2–3 days of GPU time,
+and Granite 8B will be slower than the 4B.
 
-## Live work — observe before taking action
+## Why it stopped: memory, not slowness
 
-| Component | Identity | State at snapshot |
-| --- | --- | --- |
-| Qwen base evaluator | PID `954658`, Linux start ticks `7853761`, exec session `51587` | Live, 30 results; next task in progress |
-| Sequential comparison driver | PID `987032`, start ticks `8013726`, exec session `46886` | Live, waiting for base |
-| Base vLLM backend | `powercoder-qwen-base-domain-r1`, `http://127.0.0.1:8101` | Adopted by driver |
-| Authoritative driver journal | `training/unsloth/out/agent-domain-r2/pipeline-scorecards.jsonl` | Last event `adopt_base` |
+GB10 memory is unified (121 GB shared by CPU and GPU). At 10:00 AEDT, 118 GB was in
+use: the Qwen base vLLM (13 GB GPU), the then-persistent llama-swap Granite vLLM
+(26 GB), and llama-swap's `qwen3.8-flash-next` llama-server loading. At **10:02:16**
+the kernel's global OOM-killer killed that llama-server (pid 1026915), and pi's
+requests through llama-swap returned HTTP 500 (`upstream command exited
+prematurely`). Measured afterwards in isolation: `qwen3.8-flash-next` alone takes
+≈96 GB used, leaving ≈21 GB available. Neither `training/run_comparison.py` nor
+`training/granite/train.py` checks available memory before allocating, so Granite
+training (≥16.8 GB of weights alone) and a 0.22-fraction Granite eval backend
+(≈26 GB) would very likely have been OOM-killed while flash-next was resident.
 
-The backend's name contains `r1`; the current evaluation output is **r2**.
-Individual requests can take minutes at roughly 19 tokens/second. An unchanged
-result count, expired observation session, or polling timeout does not establish
-that work stopped. Verify PID **and start ticks**, actual process state, backend
-logs, and the durable journal before intervening. Do not start a second driver,
-overwrite output, or restart the evaluator simply because observation is slow.
+## llama-swap changes (applied 10:05–10:10 AEDT)
 
-Read-only inspection, from the repository root:
+1. **Granite backend is on demand.** `configs/powercoder/llama-swap/granite42-vllm.container`
+   no longer has `[Install] WantedBy=llama-swap.service`; the installed copy
+   `~/.config/containers/systemd/granite42-vllm.container` matches it. It still
+   stops with the gateway (`PartOf`). Start it only when needed:
+   `systemctl --user start granite42-vllm.service`. Until then, `granite-4.2-8b`
+   requests through the gateway fail its `/health` check. It is currently inactive.
+2. **Idle unload.** `~/.config/llama-swap/config.yaml` gained `globalTTL: 600`
+   (backup `config.yaml.bak-ttl-20261021`). Before, `/running` reported `"ttl":0`
+   (never unload). The existing `unloadTimeout: 60` key is not an idle timeout.
+   After restart `/running` reports `ttl: 600` for `qwen3.8-flash-next`.
+3. `llama-swap.service` restarted; a real `qwen3.8-flash-next` chat returned
+   HTTP 200 `ready` (cold load ≈80 s). `granite42-vllm.service` exited 137 when
+   stopped (SIGKILL after stop timeout) and was `reset-failed` to inactive.
+   The unrelated `llama-vllm-27b.service` remains inactive; leave it so.
 
-```bash
-uv run --offline --no-sync python - <<'PY'
-import json
-from pathlib import Path
-from training.run_comparison import process_state
+Persistent proxy backends (`llama-vllm-27b`, `granite42-vllm`) are systemd units
+that `globalTTL` cannot unload; they must be stopped explicitly before
+memory-heavy PowerCoder stages.
 
-root = Path("training/unsloth/out/agent-domain-r2")
-events = [json.loads(line) for line in
-          (root / "pipeline-scorecards.jsonl").read_text().splitlines()]
-print("base:", process_state(954658))
-print("driver:", process_state(events[0]["payload"]["pid"]))
-print("completed:", len((root / "base/results.jsonl").read_text().splitlines()))
-print("last event:", events[-1])
-PY
-podman logs --tail 10 powercoder-qwen-base-domain-r1
-```
+## Restart plan (not yet executed)
 
-The driver command is:
+The r2 driver could only *adopt* an externally started base evaluator
+(`--base-pid` is required), so there was never one supervising owner. Before
+relaunching (tracked as goal tasks `memory-preflight` and `supervised-restart`):
 
-```text
-.venv/bin/python -m training.run_comparison --root training/unsloth/out/agent-domain-r2 --base-pid 954658 --base-container powercoder-qwen-base-domain-r1 --download-container powercoder-granite42-download-r1 --journal-name pipeline-scorecards.jsonl
-```
+1. Add a `MemAvailable` gate before each vLLM serve and before Granite training,
+   with the per-stage requirement as a named, sourced constant, a journaled
+   refusal event, and a pytest.
+2. Let the driver launch and own the Qwen base evaluator, and run the driver as a
+   single `systemd --user` unit (journal, status, stop-kills-children) rather than
+   a detached exec session.
+3. Write to a new root, `training/unsloth/out/agent-domain-r3/`. Keep r2, r1 and
+   `eval306-r1-raw/` unmodified as historical evidence.
+4. Make sure llama-swap is idle (TTL-unloaded) and `granite42-vllm` is stopped
+   before each GPU stage, or coordinate with the users of the gateway.
 
-This command documents the existing process; **do not run another copy**.
-Earlier waiting drivers were deliberately replaced without restarting the base
-evaluator to correct Granite GPU allocation and schedule numerical scorecards.
-Their `pipeline.jsonl` and `pipeline-granite-memory.jsonl` remain historical
-evidence. `pipeline-scorecards.jsonl` is current.
-
-## Automatic sequence and acceptance evidence
+## Sequence and acceptance evidence (unchanged design)
 
 `training/run_comparison.py` checks process identity and complete, consistent
-306-task outputs before advancing. It will:
+306-task outputs before advancing:
 
 1. Finish Qwen base, stop its owned backend, evaluate the original Unsloth merged
    student into `student/`, then generate paired strict and numerical comparisons.
@@ -98,13 +105,12 @@ evidence. `pipeline-scorecards.jsonl` is current.
 3. Evaluate Granite base and student into `granite-base/` and `granite-student/`,
    then compare Granite with its base and with both Qwen variants.
 
-All evaluation directories are under `training/unsloth/out/agent-domain-r2/`.
-Expected strict comparison files are `qwen-comparison.json`,
-`granite-comparison.json`, `granite-vs-qwen-base.json`, and
-`granite-vs-qwen-student.json`. Numerical counterparts are
-`qwen-numerical-comparison.json`, `granite-numerical-comparison.json`,
-`granite-vs-qwen-base-numerical.json`, and
-`granite-vs-qwen-student-numerical.json`.
+Strict comparison files: `qwen-comparison.json`, `granite-comparison.json`,
+`granite-vs-qwen-base.json`, `granite-vs-qwen-student.json`. Numerical
+counterparts: `qwen-numerical-comparison.json`, `granite-numerical-comparison.json`,
+`granite-vs-qwen-base-numerical.json`, `granite-vs-qwen-student-numerical.json`.
+`compare_agents.py` reports pass@1 with paired uncertainty; it does **not** report
+latency or peak memory, which the goal's Granite comparison asks for.
 
 Before declaring success, verify all four complete 306-task runs, their task/input
 hashes and equal budgets, raw attempt journals, final summaries, paired reports,
@@ -113,19 +119,16 @@ uncertainty. **At least 10 percentage points is a requirement to assess, not a
 result to assume.** If the experiment misses it, report that and scope further
 work without changing the completed benchmark retrospectively.
 
-The original strict agent metric requires matching real tool/study evidence as
-well as a correct final answer. The separate `solver-verified-domain-v1`
-numerical metric in `powercoder/inference/domain_scorecard.py` regrades saved
-terminal answers with fresh physical solves. It issues no new model attempts
-and gives no feedback to models. Report both metrics distinctly. Numerical
-success does not establish zero fabrication or full G5; `g5_met` remains false
-without the remaining general-Python/critical-fabrication suites.
-
-The first saved report passed a numerical smoke check but failed strict tool
-evidence. Receipt: `agent-domain-r2/numerical-grader-smoke.json` beneath the
-output root. This single example is not a completed benchmark. Base attempts
-include invalid tool requests; preserve those as model failures. Do not alter
-prompts, tool schemas, scoring criteria, or generation budgets mid-run.
+The strict agent metric requires matching real tool/study evidence as well as a
+correct final answer. The separate `solver-verified-domain-v1` numerical metric in
+`powercoder/inference/domain_scorecard.py` regrades saved terminal answers with
+fresh physical solves; it issues no new model attempts and gives no feedback to
+models. Report both metrics distinctly. Numerical success does not establish zero
+fabrication or full G5; `g5_met` remains false without the remaining
+general-Python/critical-fabrication suites. Smoke receipt (one example, not a
+benchmark): `agent-domain-r2/numerical-grader-smoke.json`. Base attempts include
+invalid tool requests; preserve those as model failures. Do not alter prompts,
+tool schemas, scoring criteria, or generation budgets mid-run.
 
 ## Inputs, checkpoints, and training lineage
 
@@ -150,63 +153,53 @@ prompts, tool schemas, scoring criteria, or generation budgets mid-run.
   Adapter SHA256: `d749dd82e787625e5a217c8092eec06603a58c69236ff3cbf5a9385f64cde319`.
   Merged weights SHA256: `84a4ab6d5f39b17c38b4046444ec708d230ea642d5191a510beccaa3e0bee20f`.
   Thirteen adapter/merged files were rechecked without mismatches; receipt:
-  `agent-domain-r2/qwen-student-integrity.json` beneath the output root.
+  `training/unsloth/out/agent-domain-r2/qwen-student-integrity.json`.
 - Granite: `ibm-granite/granite-4.2-8b`, Apache-2.0, revision
   `b3791992239dce12d0038f1f54a8adb7b02d59ab`.
   Download: `training/unsloth/out/granite-4.2-8b-base`, four shards totaling
-  16,761,102,336 weight bytes. Download container
-  `powercoder-granite42-download-r1` exited 0; all shard hashes matched pinned
-  metadata. Receipt: `training/unsloth/out/granite42-download-verified.json`.
+  16,761,102,336 weight bytes; all shard hashes matched pinned metadata.
+  Receipt: `training/unsloth/out/granite42-download-verified.json`.
 - Granite training implementation: `training/granite/train.py`; configuration:
   `training/unsloth/config.granite42.yaml`; guide: `training/granite/README.md`.
-  This uses real Transformers/PEFT CUDA training, not Unsloth model patches.
-  Same 273 rows and Qwen hyperparameters: 100 steps, BF16, LoRA rank 32/alpha 64,
-  all-linear, dropout 0, effective batch 4, warmup 10, learning rate 2e-5,
-  seed 42, sequence length 1024, AdamW 8-bit, cosine, weight decay 0.01.
-  All 273 native Granite tokenizations passed supervision checks; maximum 281
-  tokens. Training itself has **not yet run**.
-  Expected output: `training/unsloth/out/granite42-sft-r1/`, including
-  `granite42-8b-lora/`, `merged-bf16/`, `train_log.json`, `preflight.json`, and
-  `hash_manifest.json`. The script refuses existing output and verifies source
+  Real Transformers/PEFT CUDA training, not Unsloth model patches. Same 273 rows
+  and Qwen hyperparameters: 100 steps, BF16, LoRA rank 32/alpha 64, all-linear,
+  dropout 0, effective batch 4, warmup 10, learning rate 2e-5, seed 42, sequence
+  length 1024, AdamW 8-bit, cosine, weight decay 0.01. All 273 native Granite
+  tokenizations passed supervision checks; maximum 281 tokens. Training has
+  **not run**. Expected output: `training/unsloth/out/granite42-sft-r1/`
+  (`granite42-8b-lora/`, `merged-bf16/`, `train_log.json`, `preflight.json`,
+  `hash_manifest.json`); the script refuses existing output and verifies source
   shards before allocating GPU.
-- vLLM image ID:
+- vLLM image ID
   `d53cb735dd1822378c352da65b4ef1580c9764df7aed4bc8805c6c26f6b827de`
-  (`localhost/vllm-lmcache:gb10`, vLLM 0.31.0).
-  Training image ID:
+  (`localhost/vllm-lmcache:gb10`, vLLM 0.31.0). Training image ID
   `74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda15c00ff`
-  (`localhost/unsloth-gb10-eval:local`).
-  Granite inference uses GPU memory fraction 0.22, BF16, context 16384, one
-  sequence, eager execution; 0.12 was insufficient for its weights.
+  (`localhost/unsloth-gb10-eval:local`). Qwen eval backends use GPU memory
+  fraction 0.12; Granite uses 0.22, BF16, context 16384, one sequence, eager
+  execution (0.12 was insufficient for its weights).
 
 Models, datasets, training outputs, and raw evaluation artifacts are intentionally
 gitignored. A fresh clone alone cannot resume this experiment; these paths are
 local to this host. Preserve historical failed/partial diagnostics, including
-`agent-domain-r1/` and `eval306-r1-raw/`; neither is the current experiment.
+`agent-domain-r1/`, `agent-domain-r2/` and `eval306-r1-raw/`.
 
-## Granite through llama-swap — complete
+## Granite through llama-swap
 
-Endpoint: **`http://127.0.0.1:8000/v1`**. Model ID: **`granite-4.2-8b`**;
-alias: `ibm-granite/granite-4.2-8b`.
+Endpoint `http://127.0.0.1:8000/v1`; model ID `granite-4.2-8b`, alias
+`ibm-granite/granite-4.2-8b`. Source files and guide: `configs/powercoder/llama-swap/`;
+registry entry: `configs/powercoder/models.yaml`. Installed:
+`~/.config/llama-swap/config.yaml` (backups `config.yaml.bak-granite42-20261021`,
+`config.yaml.bak-ttl-20261021`) and
+`~/.config/containers/systemd/granite42-vllm.container` (unit
+`granite42-vllm.service`, container `llama-vllm-granite42`, private port 18102 in
+the gateway's network namespace, pinned local weights/image, offline). Now on
+demand — see "llama-swap changes" above.
 
-Source files and deployment guide are in
-`configs/powercoder/llama-swap/`; registry entry is in
-`configs/powercoder/models.yaml`. Installed configuration:
-
-- `~/.config/llama-swap/config.yaml`; backup
-  `config.yaml.bak-granite42-20261021` in the same directory.
-- `~/.config/containers/systemd/granite42-vllm.container`;
-  unit `granite42-vllm.service`, container `llama-vllm-granite42`.
-- Backend shares the `llama-swap` container network namespace on private port
-  18102 and uses the pinned local Granite weights/image offline.
-  It is tied to `llama-swap.service`. Both units were verified active at this
-  snapshot. Do not start the unrelated inactive `llama-vllm-27b.service`.
-
-Real chat returned “Granite is ready.” A real alias request produced a parsed
-`echo` tool call with `{"message":"ready"}`. These verify serving/tool parsing,
-not domain accuracy. Receipts: `training/unsloth/out/granite42-llama-swap-smoke.json`
-and `granite42-llama-swap-tool-smoke.json`. Installed/source config parity passed.
-The backend is persistent: unloading the gateway placeholder does not evict
-Granite weights. Leave these services available for the user.
+Verified earlier the same morning, while the backend was persistent: real chat
+returned “Granite is ready.”; an alias request produced a parsed `echo` tool call
+with `{"message":"ready"}`. These verify serving/tool parsing, not domain accuracy.
+Receipts: `training/unsloth/out/granite42-llama-swap-smoke.json` and
+`granite42-llama-swap-tool-smoke.json`.
 
 ## Committed implementation and validation
 
@@ -216,7 +209,7 @@ Granite weights. Leave these services available for the user.
 - `d3b9b7b`: Granite llama-swap deployment and verification.
 - `8442962`: separate solver-verified numerical scorecard and scheduled reports.
 
-Latest relevant checks: **24 passed in 8.17 seconds**:
+Last recorded relevant checks: **24 passed in 8.17 seconds**:
 
 ```bash
 uv run --offline --no-sync python -m pytest \
@@ -227,14 +220,12 @@ uv run --offline --no-sync python -m pytest \
   tests/integration/test_canonical_mcp_transport.py -q
 ```
 
-These include a real AC solve on an explicitly named small fixture and actual
-MCP stdio transport. They validate implementation, not student improvement.
-Granite training and the full sequential pipeline have not yet completed an
-end-to-end run.
+These include a real AC solve on an explicitly named small fixture and actual MCP
+stdio transport. They validate implementation, not student improvement. Granite
+training and the full sequential pipeline have never completed an end-to-end run.
 
-Next action: inspect the live process identities and current journal, let the
-existing pipeline advance, and audit each completed stage. If it exits with an
-error, inspect the exact durable stage/log before changing anything. Follow
-`AGENTS.md`, `docs/VISION.md`, and `docs/DEFINITION_OF_DONE.md`; use `uv`, preserve
-real evidence, and report exact tool/host environment mismatches without silently
+Next action: implement the restart plan above (memory gate, supervised owning
+driver, r3 root), then launch it with the user's agreement. Follow `AGENTS.md`,
+`docs/VISION.md`, and `docs/DEFINITION_OF_DONE.md`; use `uv`, preserve real
+evidence, and report exact tool/host environment mismatches without silently
 routing around them.

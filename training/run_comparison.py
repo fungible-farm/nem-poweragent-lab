@@ -1,9 +1,11 @@
 """Complete Qwen and Granite experiments in sequence, retaining all evidence.
 
-Adopt the already-running full Qwen base evaluation by its live PID, then run
-the original saved Qwen student, train the pinned Granite model on the same
-split, and evaluate both Granite base and student. No stage is retried or
-truncated automatically. A failed stage leaves its logs and stops this driver.
+Serve and evaluate the pinned Qwen base, then the original saved Qwen student,
+train the pinned Granite model on the same split, and evaluate both Granite base
+and student. This driver owns every stage it starts, so one supervising unit
+(`systemd-run --user`, see training/granite/README.md) stops all of them. Every
+GPU stage first waits for measured unified-memory headroom. No stage is retried
+or truncated automatically. A failed stage leaves its logs and stops this driver.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -35,6 +38,18 @@ GPU_MEMORY_FRACTION: float = 0.12
 # of the GB10's memory before runtime/KV cache. The local Granite service uses
 # 22%; keep generation/context budgets identical while allocating enough RAM.
 GRANITE_GPU_MEMORY_FRACTION: float = 0.22
+# Pinned Granite index weight bytes (granite42-download-verified.json). BF16
+# LoRA training must hold every base weight resident, so this is a hard floor.
+GRANITE_WEIGHT_BYTES: int = 16_761_102_336
+# Headroom beyond a stage's own floor for the evaluator, MCP solver children and
+# vLLM's API process (each well under 1 GiB RSS in r2) plus kernel/page-cache
+# slack. A chosen margin, not a measurement: on 2026-10-21 the GB10 OOM-killed
+# a process at 3 GB MemAvailable, so a stage must not start that close.
+MEMORY_MARGIN_BYTES: int = 8 << 30
+# Shared llama-swap models unload after globalTTL = 600 s idle; allow for that
+# plus a spell of active use by other gateway clients before refusing.
+MEMORY_WAIT_TIMEOUT_S: float = 3600.0
+MEMINFO: Path = Path("/proc/meminfo")
 PORT: int = 8101
 # Model startup took about 90 s in the first run; allow ten minutes cold.
 STARTUP_TIMEOUT_S: float = 600.0
@@ -44,15 +59,52 @@ BENCHMARK: Path = Path("benchmarks/power-agent-bench-lite/results/domain-held-ou
 EXCLUDED: Path = Path("powercoder/datasets/smoke/examples.jsonl")
 GRANITE_CONFIG: Path = Path("training/unsloth/config.granite42.yaml")
 REPO: Path = Path(__file__).resolve().parents[1]
+# The exact Qwen base mount and snapshot the r2 base evaluation served; the
+# snapshot's files are symlinks into the hub cache, so mount the hub, not it.
+HF_HUB: Path = Path.home() / ".cache/huggingface/.cache/hub"
+QWEN_BASE_SNAPSHOT: str = "models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+QWEN_STUDENT: Path = Path("training/unsloth/out/merged-bf16")
 
 
-def process_state(pid: int) -> tuple[str, str] | None:
-    """Read process birth and state, detecting both PID reuse and zombies."""
-    try:
-        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
-        return fields[19], fields[0]
-    except FileNotFoundError:
-        return None
+def meminfo_bytes(field: str, meminfo: Path = MEMINFO) -> int:
+    """Read one /proc/meminfo field (reported in KiB) as bytes."""
+    for line in meminfo.read_text().splitlines():
+        name, _, value = line.partition(":")
+        if name == field:
+            return int(value.split()[0]) * 1024
+    raise KeyError(f"{field} missing from {meminfo}")
+
+
+def await_memory(stage: str, required: int, events: TextIO, meminfo: Path = MEMINFO,
+                 timeout: float = MEMORY_WAIT_TIMEOUT_S, sleep: Any = time.sleep,
+                 clock: Any = time.monotonic) -> int:
+    """Wait for MemAvailable to cover a stage's floor plus margin, else refuse.
+
+    GB10 memory is unified, so other tenants (llama-swap models, persistent vLLM
+    backends) compete with every stage. Starting below the floor invites a
+    mid-stage OOM kill, which wastes hours and leaves partial evidence.
+
+    Returns:
+        The MemAvailable bytes observed when the stage was admitted.
+
+    Raises:
+        RuntimeError: Headroom did not appear within ``timeout`` seconds.
+    """
+    needed = required + MEMORY_MARGIN_BYTES
+    deadline = clock() + timeout
+    waiting = False
+    while True:
+        available = meminfo_bytes("MemAvailable", meminfo)
+        if available >= needed:
+            record(events, "memory_admitted", {"stage": stage, "available": available, "needed": needed})
+            return available
+        if not waiting:
+            record(events, "memory_wait", {"stage": stage, "available": available, "needed": needed})
+            waiting = True
+        if clock() >= deadline:
+            record(events, "memory_refused", {"stage": stage, "available": available, "needed": needed})
+            raise RuntimeError(f"{stage}: MemAvailable {available} < {needed} bytes after {timeout} s")
+        sleep(POLL_INTERVAL_S)
 
 
 def container_info(name: str) -> dict[str, Any]:
@@ -74,13 +126,20 @@ def command(args: list[str], log: Path, events: TextIO) -> None:
 
 
 def serve(source: Path, name: str, model: str, reasoning: str, root: Path, events: TextIO,
-          memory_fraction: float = GPU_MEMORY_FRACTION) -> None:
-    """Start a pinned, local-only model endpoint and wait for actual readiness."""
+          memory_fraction: float = GPU_MEMORY_FRACTION, model_path: str = "") -> None:
+    """Start a pinned, local-only model endpoint and wait for actual readiness.
+
+    ``source`` is mounted read-only at /student; ``model_path`` selects a
+    directory inside it (the Hugging Face hub layout needs its whole tree).
+    """
+    # vLLM preallocates this fraction of total memory, so that is the floor.
+    await_memory(name, int(memory_fraction * meminfo_bytes("MemTotal")), events)
     args = ["podman", "run", "-d", "--name", name, "--device", "nvidia.com/gpu=all",
             "--security-opt", "label=disable", "--shm-size", "1g", "-p", f"127.0.0.1:{PORT}:8000",
             "-v", f"{source.resolve()}:/student:ro", "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1",
             "--entrypoint", "/opt/venv/bin/python", INFERENCE_IMAGE,
-            "-m", "vllm.entrypoints.openai.api_server", "--model", "/student", "--served-model-name", model,
+            "-m", "vllm.entrypoints.openai.api_server", "--model", f"/student/{model_path}".rstrip("/"),
+            "--served-model-name", model,
             "--host", "0.0.0.0", "--port", "8000", "--dtype", "bfloat16", "--max-model-len", str(CONTEXT_TOKENS),
             "--max-num-seqs", "1", "--gpu-memory-utilization", str(memory_fraction), "--enforce-eager",
             "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_coder", "--reasoning-parser", reasoning,
@@ -148,26 +207,13 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
     """Advance only after authoritative completion of each prior stage."""
     import yaml
 
-    identity = process_state(args.base_pid)
-    if identity is None or identity[1] == "Z":
-        raise RuntimeError("The base evaluation PID is not live; inspect its terminal evidence before adopting")
-    expected_command = Path(f"/proc/{args.base_pid}/cmdline").read_bytes().split(b"\0")
-    if b"powercoder.inference.evaluate_agent" not in expected_command or str(args.root / "base").encode() not in expected_command:
-        raise ValueError("PID does not belong to the specified base evaluation")
-    record(events, "adopt_base", {"pid": args.base_pid, "birth": identity[0], "container": container_info(args.base_container)})
-    while True:
-        current = process_state(args.base_pid)
-        if current is None or current[1] == "Z" or current[0] != identity[0]:
-            break
-        time.sleep(POLL_INTERVAL_S)
-    verified_run(args.root / "base")
-    record(events, "adopted_base_complete", {"directory": str(args.root / "base")})
-    stop_server(args.base_container, args.root, events)
-
-    name = f"powercoder-{args.root.name}-qwen-student"
-    serve(Path("training/unsloth/out/merged-bf16"), name, "powercoder-qwen-student", "qwen3", args.root, events)
-    evaluate("powercoder-qwen-student", args.root / "student", events)
-    stop_server(name, args.root, events)
+    for label, source, model_path in (("qwen-base", HF_HUB, QWEN_BASE_SNAPSHOT),
+                                      ("qwen-student", QWEN_STUDENT, "")):
+        name = f"powercoder-{args.root.name}-{label}"
+        model = f"powercoder-{label}"
+        serve(source, name, model, "qwen3", args.root, events, model_path=model_path)
+        evaluate(model, args.root / ("base" if label == "qwen-base" else "student"), events)
+        stop_server(name, args.root, events)
     qwen = write_comparison(args.root / "base", args.root / "student", args.root / "qwen-comparison.json", events)
     qwen_numerical = write_numerical_comparison(args.root / "base", args.root / "student",
                                                args.root / "qwen-numerical-comparison.json", events)
@@ -183,6 +229,7 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
     config = yaml.safe_load(GRANITE_CONFIG.read_text())
     hashes = verify_base(config["model"])
     record(events, "download_verified", {"container": download, "sha256": hashes})
+    await_memory("granite-training", GRANITE_WEIGHT_BYTES, events)
     command(["podman", "run", "--name", f"powercoder-{args.root.name}-granite-training", "--device", "nvidia.com/gpu=all",
              "--network", "none", "--security-opt", "label=disable", "-v", f"{REPO}:/workspace",
              "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1", "-e", "PYTHONUNBUFFERED=1",
@@ -214,18 +261,15 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
 
 
 def main() -> None:
-    """Create one durable driver journal and refuse automatic re-execution."""
+    """Create a fresh run root and durable journal; refuse automatic re-execution."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--base-pid", type=int, required=True)
-    parser.add_argument("--base-container", required=True)
+    parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
     parser.add_argument("--download-container", required=True)
-    parser.add_argument("--journal-name", default="pipeline.jsonl",
-                        help="Fresh journal name when replacing a waiting driver; previous evidence is preserved")
     args = parser.parse_args()
-    if Path(args.journal_name).name != args.journal_name:
-        raise ValueError("Driver journal must be a filename inside the run directory")
-    with (args.root / args.journal_name).open("x") as events:
+    args.root.mkdir()
+    # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.
+    signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
+    with (args.root / "pipeline.jsonl").open("x") as events:
         record(events, "driver_start", {"pid": os.getpid(), "unix_time": time.time(),
             "source_sha256": {str(p.relative_to(REPO)): digest(p) for parent in (REPO / "powercoder/inference", REPO / "training/granite")
                               for p in parent.glob("*.py")}, "driver_sha256": digest(Path(__file__))})
@@ -233,6 +277,9 @@ def main() -> None:
             run(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
+            raise
+        except SystemExit as stop:
+            record(events, "driver_stopped", {"exit_code": stop.code, "unix_time": time.time()})
             raise
 
 

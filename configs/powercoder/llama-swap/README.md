@@ -24,9 +24,17 @@ image. Its Apache-2.0 model license and revision are recorded in
    This also starts `llama-swap.service`. The backend shares the gateway's
    network namespace and listens at its private loopback port 18102, so the
    existing localhost gateway port remains the entrypoint. Like the existing
-   long-context proxy entry, this is a persistent vLLM backend: unloading the
-   gateway's placeholder process does not evict its weights. The companion
-   service follows gateway stop/restart operations.
+   long-context proxy entry, this is a vLLM backend outside llama-swap's
+   TTL control: unloading the gateway's placeholder process does not evict
+   its weights. The companion service stops with the gateway but is **not**
+   started with it (no `[Install]` section, since 2026-10-21): left resident it
+   held ≈26 GB of the GB10's unified memory while `qwen3.8-flash-next` was
+   OOM-killed. Start it on demand and stop it before memory-heavy PowerCoder
+   evaluation or training stages:
+
+   ```sh
+   systemctl --user stop granite42-vllm.service
+   ```
 
 3. Request the model through the gateway:
 

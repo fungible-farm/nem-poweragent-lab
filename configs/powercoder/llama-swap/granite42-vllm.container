@@ -21,11 +21,14 @@ Environment=HF_HUB_OFFLINE=1
 Environment=TRANSFORMERS_OFFLINE=1
 Entrypoint=/opt/venv/bin/python
 # A 16K context matches the current benchmark. 22% of GB10 memory accommodates
-# the 16.76 GB weights plus runtime and KV cache, alongside the active benchmark.
+# the 16.76 GB weights plus runtime and KV cache.
 Exec=-m vllm.entrypoints.openai.api_server --model /granite --served-model-name granite-4.2-8b --host 127.0.0.1 --port 18102 --dtype bfloat16 --max-model-len 16384 --max-num-seqs 1 --gpu-memory-utilization 0.22 --enforce-eager --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser nemotron_v3 --generation-config vllm
 
 [Service]
 TimeoutStartSec=15min
 
-[Install]
-WantedBy=llama-swap.service
+# On demand only: no [Install] section. Starting this unit with the gateway
+# reserved ~26 GB permanently; on 2026-10-21 10:02:16 AEDT the kernel's global
+# OOM-killer killed the gateway's qwen3.8-flash-next llama-server (pid 1026915)
+# while this backend and a benchmark vLLM held unified memory. Start it with
+# `systemctl --user start granite42-vllm.service`; it stops with the gateway.
