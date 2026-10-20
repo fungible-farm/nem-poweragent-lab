@@ -53,6 +53,10 @@ _b00t_.toml
 # session artifacts above.
 .pi/
 
+# Fine-tuning outputs and Unsloth-generated kernels are local derived artifacts.
+training/**/out/
+unsloth_compiled_cache/
+
 # Lab 5: dpsimpy's own per-component logging (any component/Simulation
 # built with LogLevel above `warn`) writes here by default -- defensive
 # ignore, not expected to appear from the committed scripts' own log levels.
