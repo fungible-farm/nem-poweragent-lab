@@ -35,7 +35,7 @@ def record(stream: TextIO, kind: str, payload: Any) -> None:
 async def probe(args: argparse.Namespace, journal: TextIO) -> int:
     """Let the real model choose tools and feed back actual MCP responses."""
     parameters = StdioServerParameters(
-        command=sys.executable, args=["-m", "powercoder.inference.mcp_server"],
+        command=sys.executable, args=["-m", "powercoder.inference.mcp_server"] + (["--study-tools"] if args.study_tools else []),
         cwd=str(Path(__file__).resolve().parents[2]),
     )
     messages = [
@@ -101,6 +101,7 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--prompt", type=Path, required=True)
     parser.add_argument("--journal", type=Path, required=True)
+    parser.add_argument("--study-tools", action="store_true")
     args = parser.parse_args()
     args.journal.parent.mkdir(parents=True, exist_ok=True)
     with args.journal.open("x") as journal:
