@@ -108,6 +108,7 @@ candidate.
    ```sh
    uv run --offline --no-sync python -m pytest \
      powercoder/inference/test_evaluate_agent.py \
+     powercoder/inference/test_compare_agents.py \
      training/unsloth/test_evaluation.py \
      tests/integration/test_canonical_mcp_transport.py -q
    ```
@@ -123,3 +124,5 @@ hyperparameters. Its upstream model is Apache-2.0, pinned to revision
 `b3791992239dce12d0038f1f54a8adb7b02d59ab` of
 [`ibm-granite/granite-4.2-8b`](https://huggingface.co/ibm-granite/granite-4.2-8b).
 The config alone does not establish a completed download, training run or gain.
+The sequential driver and Granite training procedure are documented in
+[`training/granite/README.md`](../../training/granite/README.md).
