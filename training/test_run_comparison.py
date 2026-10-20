@@ -1,10 +1,11 @@
-"""CPU gates for the comparison driver's unified-memory admission check."""
+"""CPU gates for the comparison driver: memory admission and server readiness."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from training import run_comparison as driver
@@ -66,3 +67,28 @@ def test_refuses_after_timeout_without_starting_the_stage(tmp_path: Path) -> Non
         driver.await_memory("qwen-base", int(0.12 * 121 * GIB), stream, meminfo=info,
                             timeout=5.0, sleep=lambda _s: None, clock=lambda: next(now))
     assert [e["kind"] for e in events(journal)] == ["memory_wait", "memory_refused"]
+
+
+def test_serve_waits_through_connection_resets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Rootless podman port forwarding resets connections before vLLM listens.
+    answers = iter([httpx.ReadError("Connection reset by peer"), httpx.ConnectError("refused"),
+                    httpx.Response(200, json={"data": [{"id": "powercoder-qwen-base"}]})])
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    real_client = httpx.Client
+    monkeypatch.setattr(driver.httpx, "Client",
+                        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs))
+    monkeypatch.setattr(driver, "command", lambda *_args: None)
+    monkeypatch.setattr(driver, "container_info", lambda _name: {"state": {"Running": True}})
+    monkeypatch.setattr(driver, "await_memory", lambda *_args: 0)
+    monkeypatch.setattr(driver, "meminfo_bytes", lambda _field: 121 * GIB)
+    monkeypatch.setattr(driver.time, "sleep", lambda _s: None)
+    journal = tmp_path / "pipeline.jsonl"
+    with journal.open("x") as stream:
+        driver.serve(tmp_path, "powercoder-test-qwen-base", "powercoder-qwen-base", "qwen3", tmp_path, stream)
+    assert [e["kind"] for e in events(journal)] == ["server_ready"]

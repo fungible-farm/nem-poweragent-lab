@@ -157,8 +157,11 @@ def serve(source: Path, name: str, model: str, reasoning: str, root: Path, event
                 if response.status_code == 200 and model in {r["id"] for r in response.json()["data"]}:
                     record(events, "server_ready", {"container": name, "model": model})
                     return
-            except (httpx.ConnectError, httpx.ReadTimeout):
-                # A just-launched server has no listener until its weights load.
+            except httpx.TransportError:
+                # A just-launched server has no listener until its weights load,
+                # and rootless port forwarding resets connections until it does
+                # (r3's first launch died on ReadError 104); container exit is
+                # the failure signal, checked above.
                 pass
             time.sleep(POLL_INTERVAL_S)
     raise RuntimeError(f"Server startup deadline exceeded: {name}")
