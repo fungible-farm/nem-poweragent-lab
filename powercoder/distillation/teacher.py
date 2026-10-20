@@ -30,7 +30,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 import httpx
 
@@ -170,9 +170,9 @@ if _conv:
            "max_line_loading_percent": float(net.res_line["loading_percent"].max()),
            "voltage_violations": int(((vm < 0.95) | (vm > 1.05)).sum())}
 else:
-    ans = {"converged": False, "iterations": _st["it"],
+    ans = {"converged": False, "iterations": None,
            "min_bus_voltage_pu": None, "max_bus_voltage_pu": None,
-           "max_line_loading_percent": None, "voltage_violations": 0}
+           "max_line_loading_percent": None, "voltage_violations": None}
 print(json.dumps({"answer": ans}))
 ''',
     "mcp-trajectory": '''\
@@ -186,13 +186,17 @@ CHECK_LIMITS = @@CHECK_LIMITS@@
 traj = []
 r1 = mcp.load_network(CASE)
 traj.append({"tool": "load_network", "args": {"network_id": CASE},
-             "status": r1.status.value, "result": "ok"})
+             "status": r1.status.value,
+             "result": r1.data if r1.data else {"error": r1.error},
+             "evidence": r1.evidence})
 r2 = mcp.run_power_flow(CASE, method="nr", max_iter=MAX_ITER,
                         check_limits=CHECK_LIMITS)
 traj.append({"tool": "run_power_flow",
              "args": {"network_id": CASE, "method": "nr",
                       "max_iter": MAX_ITER, "check_limits": CHECK_LIMITS},
-             "status": r2.status.value, "result": "ok"})
+             "status": r2.status.value,
+             "result": r2.data if r2.data else {"error": r2.error},
+             "evidence": r2.evidence})
 print(json.dumps({"answer": {"trajectory": traj}}))
 ''',
 }
@@ -417,7 +421,7 @@ class TeacherClient:
     def close(self) -> None:
         self.client.close()
 
-    def __enter__(self) -> "TeacherClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:

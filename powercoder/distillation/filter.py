@@ -18,7 +18,9 @@ Acceptance classes (the mission's rejected/quarantined distinction):
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -26,12 +28,12 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import pandapower as pp
 
-from powercoder.inference import powermcp as pm
 from powercoder.datasets import generate as gen
+from powercoder.inference import powermcp as pm
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -53,6 +55,13 @@ EXEC_TIMEOUT_S: float = 180.0
 VOLTAGE_FIELD_ATOL: float = 1e-3
 LOADING_FIELD_ATOL: float = 1e-3
 
+# The canonical pf-report scaffold's complete claim schema. Unknown fields
+# cannot carry unchecked conclusions alongside an otherwise correct result.
+REPORT_FIELDS: frozenset[str] = frozenset({
+    "converged", "iterations", "min_bus_voltage_pu", "max_bus_voltage_pu",
+    "max_line_loading_percent", "voltage_violations",
+})
+
 FIT_SUBFAMILIES: frozenset[str] = frozenset(
     {"pf-load-scale-fit", "pf-line-rating-fit", "pf-gen-dispatch-fit"}
 )
@@ -63,10 +72,10 @@ class FilterResult:
     """Outcome of executing + independently checking one candidate."""
 
     status: str  # accepted / rejected / quarantined
-    answer: Optional[Any]
+    answer: Any | None
     diagnostics: list[str] = field(default_factory=list)
     exec_ok: bool = False
-    exec_returncode: Optional[int] = None
+    exec_returncode: int | None = None
     exec_wall_s: float = 0.0
     exec_stdout: str = ""
     exec_stderr: str = ""
@@ -95,6 +104,7 @@ def execute_candidate(code: str) -> dict[str, Any]:
                 capture_output=True,
                 text=True,
                 timeout=EXEC_TIMEOUT_S,
+                check=False,
             )
             wall = time.monotonic() - started
             return {
@@ -121,26 +131,33 @@ def execute_candidate(code: str) -> dict[str, Any]:
             }
 
 
-def parse_answer(stdout: str) -> Optional[Any]:
-    """Find the first stdout line that parses to a JSON object with 'answer'.
+def parse_answer(stdout: str) -> Any | None:
+    """Enforce the scaffold's single JSON answer, without hidden extra claims.
 
-    The teacher is instructed to print exactly one such line; we are lenient
-    about leading/trailing noise but strict about the shape.
+    Reject duplicate keys, non-finite numbers, multiple answers, and prose
+    surrounding an answer instead of silently selecting a convenient line.
     """
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line.startswith("{"):
-            continue
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(obj, dict) and "answer" in obj:
-            return obj["answer"]
-    return None
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        """Reject ambiguous duplicate keys rather than overwriting earlier claims."""
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+    if len(lines) != 1:
+        return None
+    try:
+        obj = json.loads(lines[0], object_pairs_hook=unique_object)
+        json.dumps(obj, allow_nan=False)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return obj["answer"] if isinstance(obj, dict) and set(obj) == {"answer"} else None
 
 
-def _parse_element(element: str) -> tuple[str, int, Optional[int]]:
+def _parse_element(element: str) -> tuple[str, int, int | None]:
     """Parse 'bus <id>' / 'line <id>' / 'generator <id> (transformer <id>)'.
 
     Returns (kind, primary_id, secondary_id) where kind is one of
@@ -185,16 +202,19 @@ def _check_fit(example: dict[str, Any], answer: Any) -> tuple[bool, dict[str, An
     scale_hi = float(inputs["scale_hi"])
 
     diags: list[str] = []
-    if not isinstance(answer, dict) or "scale_factor" not in answer:
+    if not isinstance(answer, dict) or set(answer) != {"scale_factor"}:
         return False, {}, ["answer must be an object with 'scale_factor'"]
-    s = float(answer["scale_factor"])
+    value = answer["scale_factor"]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False, {}, ["scale_factor must be a finite JSON number"]
+    try:
+        s = float(value)
+    except OverflowError:
+        return False, {}, ["scale_factor exceeds finite floating-point range"]
+    if not math.isfinite(s) or not scale_lo <= s <= scale_hi:
+        return False, {}, [f"scale_factor {s} outside finite interval [{scale_lo}, {scale_hi}]"]
 
-    if not (scale_lo <= s <= scale_hi):
-        diags.append(
-            f"scale_factor {s} outside search interval [{scale_lo}, {scale_hi}]"
-        )
-
-    kind, primary, secondary = _parse_element(element)
+    _kind, primary, secondary = _parse_element(element)
     base_net = _get_base_net(case)
     if subfamily == "pf-load-scale-fit":
         modifier = gen._modifier_load_scale
@@ -212,7 +232,7 @@ def _check_fit(example: dict[str, Any], answer: Any) -> tuple[bool, dict[str, An
     except pp.LoadflowNotConverged:
         diags.append(f"power flow did not converge at scale_factor={s}")
         return False, {"scale_factor": s, "converged": False}, diags
-    except Exception as exc:  # execution failure
+    except Exception as exc:  # noqa: BLE001 -- backend failures become rejected solver outcomes
         diags.append(f"solver raised {type(exc).__name__}: {exc} at s={s}")
         return False, {"scale_factor": s, "converged": False}, diags
 
@@ -248,6 +268,14 @@ def _check_pf_report(example: dict[str, Any], answer: Any) -> tuple[bool, dict[s
     diags: list[str] = []
     if not isinstance(answer, dict):
         return False, {}, ["answer must be an object"]
+    if not isinstance(answer.get("converged"), bool):
+        return False, {}, ["converged must be an explicit JSON boolean"]
+    if set(answer) - REPORT_FIELDS:
+        return False, {}, ["report contains unsupported additional claims"]
+    try:
+        json.dumps(answer, allow_nan=False)
+    except (TypeError, ValueError, OverflowError):
+        return False, {}, ["report contains non-finite or non-JSON claims"]
 
     base_net = _get_base_net(case)
     net = copy.deepcopy(base_net)
@@ -257,12 +285,12 @@ def _check_pf_report(example: dict[str, Any], answer: Any) -> tuple[bool, dict[s
     try:
         iters, vm_min, vm_max, viol = gen._solve(net)
     except pp.LoadflowNotConverged:
-        converged, iters, vm_min, vm_max, viol = False, 0, float("nan"), float("nan"), 0
-    except Exception:
-        converged, iters, vm_min, vm_max, viol = False, 0, float("nan"), float("nan"), 0
+        converged, iters, vm_min, vm_max, viol = False, None, None, None, None
+    except Exception:  # noqa: BLE001 -- backend failures must not invent measurements
+        converged, iters, vm_min, vm_max, viol = False, None, None, None, None
     else:
         converged = True
-    max_loading = gen._max_line_loading(net) if converged else float("nan")
+    max_loading = gen._max_line_loading(net) if converged else None
 
     reference = {
         "converged": converged,
@@ -276,19 +304,19 @@ def _check_pf_report(example: dict[str, Any], answer: Any) -> tuple[bool, dict[s
     def close(key: str, atol: float) -> bool:
         ref = reference[key]
         cand = answer.get(key)
-        if cand is None:
+        if isinstance(cand, bool) or not isinstance(cand, (int, float)):
             return False
         try:
             return abs(float(cand) - float(ref)) <= atol
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return False
 
     ok = True
-    if bool(answer.get("converged")) != converged:
+    if answer["converged"] != converged:
         ok = False
         diags.append(f"converged mismatch: candidate={answer.get('converged')} reference={converged}")
     if converged:
-        if int(answer.get("iterations", -1)) != iters:
+        if isinstance(answer.get("iterations"), bool) or answer.get("iterations") != iters:
             ok = False
             diags.append(f"iterations mismatch: candidate={answer.get('iterations')} reference={iters}")
         for key, atol in (
@@ -299,61 +327,127 @@ def _check_pf_report(example: dict[str, Any], answer: Any) -> tuple[bool, dict[s
             if not close(key, atol):
                 ok = False
                 diags.append(f"{key} mismatch: candidate={answer.get(key)} reference={reference[key]}")
-        if int(answer.get("voltage_violations", -1)) != viol:
+        if isinstance(answer.get("voltage_violations"), bool) or answer.get("voltage_violations") != viol:
             ok = False
             diags.append(f"voltage_violations mismatch: candidate={answer.get('voltage_violations')} reference={viol}")
+    elif any(answer.get(key) is not None for key in reference if key != "converged"):
+        ok = False
+        diags.append("failed solve cannot support numerical measurements")
 
     evidence = {"reference": reference, "candidate": answer}
     return ok, evidence, diags
 
 
 def _check_mcp_trajectory(example: dict[str, Any], answer: Any) -> tuple[bool, dict[str, Any], list[str]]:
-    """Independently re-run the MCP tool sequence and compare the outcome."""
+    """Replay task-declared calls and validate the candidate's entire transcript.
+
+    No stored reference answer is consulted. Each claimed status, raw result,
+    and evidence record must match independent execution. This proves replay
+    coherence; a separate trusted runner trace is required to prove that the
+    candidate itself executed a solver rather than copying a known result.
+    """
     inputs = example["task"]["inputs"]
     case = inputs["case"]
-    expected_status = example["expected"]["structured"]["trajectory"][-1]["status"]
-
-    diags: list[str] = []
-    if not isinstance(answer, dict) or "trajectory" not in answer:
+    if not isinstance(answer, dict) or set(answer) != {"trajectory"}:
         return False, {}, ["answer must be an object with 'trajectory'"]
     trajectory = answer["trajectory"]
-    if not isinstance(trajectory, list) or not trajectory:
-        return False, {}, ["trajectory must be a non-empty list"]
+    calls = [
+        ("load_network", {"network_id": case}),
+        ("run_power_flow", {
+            "network_id": case, "method": "nr",
+            "max_iter": inputs["max_iter"], "check_limits": inputs["check_limits"],
+        }),
+    ]
+    if not isinstance(trajectory, list) or len(trajectory) != len(calls):
+        return False, {}, ["trajectory must contain the two task-declared calls in order"]
 
-    tools = [step.get("tool") for step in trajectory if isinstance(step, dict)]
-    if "load_network" not in tools or "run_power_flow" not in tools:
-        diags.append(f"trajectory missing required tools; got {tools}")
-        return False, {"tools": tools}, diags
+    def canonical(value: Any) -> str:
+        """Preserve JSON types so true cannot masquerade as numeric one."""
+        return json.dumps(value, sort_keys=True, allow_nan=False)
 
-    # Independent re-run through the canonical PowerMCP layer.
-    mcp = pm.PowerMCP()
+    def same_result(candidate: Any, actual: Any) -> bool:
+        """Check the raw tool schema exactly, allowing documented metric rounding."""
+        if not isinstance(candidate, dict) or set(candidate) != set(actual):
+            return False
+        tolerances = {
+            "min_bus_voltage_pu": VOLTAGE_FIELD_ATOL,
+            "max_bus_voltage_pu": VOLTAGE_FIELD_ATOL,
+            "max_line_loading_percent": LOADING_FIELD_ATOL,
+        }
+        for key, reference in actual.items():
+            value = candidate[key]
+            if key in tolerances:
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return False
+                if not math.isclose(value, reference, rel_tol=0.0, abs_tol=tolerances[key]):
+                    return False
+            elif canonical(value) != canonical(reference):
+                return False
+        return True
+
+    def same_evidence(candidate: Any, actual: Any, payload: Any) -> bool:
+        """Check input/status/validity metadata and the candidate payload's own hash."""
+        if actual is None:
+            return candidate is None
+        if not isinstance(candidate, dict) or set(candidate) != set(actual):
+            return False
+        candidate_metadata = {key: value for key, value in candidate.items() if key != "result_hash"}
+        actual_metadata = {key: value for key, value in actual.items() if key != "result_hash"}
+        digest = "sha256:" + hashlib.sha256(canonical(payload).encode()).hexdigest()
+        return candidate["result_hash"] == digest and canonical(candidate_metadata) == canonical(actual_metadata)
+
+    required_fields = {"tool", "args", "status", "result", "evidence"}
+    for step, (tool, arguments) in zip(trajectory, calls, strict=True):
+        if not isinstance(step, dict) or set(step) != required_fields:
+            return False, {}, ["each step requires tool, args, status, result, and evidence"]
+        try:
+            canonical(step)
+            valid = step["tool"] == tool and canonical(step["args"]) == canonical(arguments)
+        except (TypeError, ValueError):
+            valid = False
+        if not valid:
+            return False, {}, [f"candidate tool/arguments differ from task-declared {tool}"]
+
+    observed = []
     try:
-        mcp.load_network(case)
-        result = mcp.run_power_flow(
-            case,
-            method="nr",
-            max_iter=int(inputs.get("max_iter", 50)),
-            check_limits=bool(inputs.get("check_limits", True)),
-        )
-        actual_status = result.status.value
-    except Exception as exc:
-        diags.append(f"independent re-run raised {type(exc).__name__}: {exc}")
-        return False, {"tools": tools}, diags
-
-    matches = actual_status == expected_status
-    if not matches:
-        diags.append(
-            f"final status mismatch: candidate={expected_status} "
-            f"independent={actual_status}"
+        mcp = pm.PowerMCP()
+        for tool, arguments in calls:
+            result = mcp.execute_tool(tool, arguments)
+            observed.append({
+                "tool": tool, "args": arguments, "status": result.status.value,
+                "result": result.data if result.data else {"error": result.error},
+                "evidence": result.evidence,
+            })
+    except Exception as exc:  # noqa: BLE001 -- independent backend failure rejects the claim
+        return False, {"observed": observed}, [f"independent replay raised {type(exc).__name__}: {exc}"]
+    try:
+        serialized = canonical(observed)
+    except (TypeError, ValueError):
+        return False, {"backend_payload_json_valid": False}, ["independent replay returned non-finite or non-JSON data"]
+    diags = []
+    for index, (candidate, actual) in enumerate(zip(trajectory, observed, strict=True)):
+        try:
+            checks = {
+                "status": canonical(candidate["status"]) == canonical(actual["status"]),
+                "result": same_result(candidate["result"], actual["result"]),
+                "evidence": same_evidence(candidate["evidence"], actual["evidence"], candidate["result"]),
+            }
+        except (TypeError, ValueError, OverflowError):
+            checks = {"JSON payload": False}
+        diags.extend(
+            f"step {index + 1} {field_name} differs from independent replay"
+            for field_name, matches in checks.items() if not matches
         )
     evidence = {
-        "tools": tools,
+        "observed": observed,
         "n_steps": len(trajectory),
-        "independent_status": actual_status,
-        "expected_status": expected_status,
-        "matches": matches,
+        "independent_status": observed[-1]["status"],
+        "candidate_status": trajectory[-1]["status"],
+        "replay_sha256": hashlib.sha256(serialized.encode()).hexdigest(),
+        "matches": not diags,
+        "candidate_execution_proven": False,
     }
-    return matches, evidence, diags
+    return not diags, evidence, diags
 
 
 def filter_example(example: dict[str, Any], code: str) -> FilterResult:

@@ -41,10 +41,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import pandapower as pp
 
@@ -97,9 +98,9 @@ class PowerMCPResult:
 
     status: ExecutionStatus
     data: dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
-    execution_time_s: Optional[float] = None
-    evidence: Optional[dict[str, Any]] = None
+    error: str | None = None
+    execution_time_s: float | None = None
+    evidence: dict[str, Any] | None = None
 
 
 def _sha256_bytes(b: bytes) -> str:
@@ -116,7 +117,7 @@ def _sha256_file(path: Path) -> str:
     return "sha256:" + h.hexdigest()
 
 
-def _runpp_counted(net: pp.pandapowerNet, **kwargs: Any) -> Optional[int]:
+def _runpp_counted(net: pp.pandapowerNet, **kwargs: Any) -> int | None:
     """Run the canonical ``pp.runpp`` and capture the NR iteration count.
 
     pandapower 3.5.4's public ``runpp`` API does not expose the iteration
@@ -140,7 +141,7 @@ def _runpp_counted(net: pp.pandapowerNet, **kwargs: Any) -> Optional[int]:
     import pandapower.pf.run_newton_raphson_pf as nr
 
     original = nr.newtonpf
-    state: dict[str, Optional[int]] = {"it": None}
+    state: dict[str, int | None] = {"it": None}
 
     def counting_newtonpf(*a: Any, **kw: Any) -> Any:
         out = original(*a, **kw)
@@ -241,7 +242,7 @@ def _load_network_object(network_id: str) -> tuple[pp.pandapowerNet, str]:
             )
         import powerio
 
-        case = powerio.parse_file(str(path))
+        powerio.parse_file(str(path))
         # gridfit.load_case is the repo's canonical powerio -> pandapower
         # loader (labs/_shared/gridfit.py); reuse it rather than re-deriving.
         import sys
@@ -285,7 +286,7 @@ class PowerMCP:
             net, _input_hash = _load_network_object(network_id)
         except (ValueError, FileNotFoundError) as e:
             return PowerMCPResult(ExecutionStatus.EXECUTION_FAILURE, error=str(e))
-        except Exception as e:  # parse errors, missing powerio, etc.
+        except Exception as e:  # noqa: BLE001 -- parser/backend failures are canonical tool outcomes
             return PowerMCPResult(
                 ExecutionStatus.EXECUTION_FAILURE,
                 error=f"{type(e).__name__}: {e}",
@@ -319,7 +320,7 @@ class PowerMCP:
             network_id: Case identifier.
             method: 'nr' (Newton-Raphson; the real solver used) or 'cg'
                 (accepted, mapped to nr -- see docstring).
-            max_iter: Iteration budget passed to pandapower as ``max_it``.
+            max_iter: Positive iteration budget passed as ``max_iteration``.
             check_limits: When True (default), a converged solution with bus
                 voltages outside [VOLTAGE_LIMIT_LOW_PU, VOLTAGE_LIMIT_HIGH_PU]
                 is reported as CONSTRAINT_VIOLATION. When False, convergence
@@ -329,12 +330,22 @@ class PowerMCP:
             PowerMCPResult with one of the four canonical statuses, solver
             measurements in data, and the canonical evidence record.
         """
+        if isinstance(max_iter, bool) or not isinstance(max_iter, int) or max_iter <= 0:
+            return PowerMCPResult(
+                ExecutionStatus.EXECUTION_FAILURE,
+                error="max_iter must be a positive integer",
+            )
+        if not isinstance(method, str) or method not in {"nr", "cg"} or not isinstance(check_limits, bool):
+            return PowerMCPResult(
+                ExecutionStatus.EXECUTION_FAILURE,
+                error="method must be nr/cg and check_limits must be a boolean",
+            )
         # --- execution-failure phase: load the network ---------------------
         try:
             net, input_hash = _load_network_object(network_id)
         except (ValueError, FileNotFoundError) as e:
             return PowerMCPResult(ExecutionStatus.EXECUTION_FAILURE, error=str(e))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- parser/backend failures are canonical tool outcomes
             return PowerMCPResult(
                 ExecutionStatus.EXECUTION_FAILURE,
                 error=f"{type(e).__name__}: {e}",
@@ -342,16 +353,16 @@ class PowerMCP:
 
         # --- solver phase ---------------------------------------------------
         t0 = time.monotonic()
-        iterations: Optional[int] = None
+        iterations: int | None = None
         try:
-            iterations = _runpp_counted(net, numba=True, max_it=max_iter)
+            iterations = _runpp_counted(net, numba=True, max_iteration=max_iter)
         except pp.LoadflowNotConverged as e:
             return PowerMCPResult(
                 ExecutionStatus.NON_CONVERGENCE,
                 error=str(e),
                 execution_time_s=time.monotonic() - t0,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- numerical backend failures must retain failure status
             # Includes the FloatingPointError (divide by zero) that snem1803
             # exhibits in pandapower 3.5.4 -- a numerical breakdown of the
             # solver run, i.e. an execution failure, not a clean
@@ -466,6 +477,7 @@ class PowerMCP:
                             },
                             "max_iter": {
                                 "type": "integer",
+                                "minimum": 1,
                                 "description": "Maximum iterations",
                                 "default": 50,
                             },
