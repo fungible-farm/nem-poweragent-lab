@@ -1,7 +1,7 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **10:46 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
-Implementation HEAD: `a279d7b` (r3 driver); `8442962` ran r2.
+Snapshot: **14:30 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Implementation HEAD: `f3bab24` (r4); `a279d7b` ran r3; `8442962` ran r2.
 Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live
 pipeline that no longer runs).
 
@@ -14,9 +14,11 @@ training it on the same dataset, and evaluating/comparing its base and student.
 The detailed original request/audit is local to this host at
 `/home/brianh/.codex/attachments/573df69a-e50a-4716-b01e-1e68b2cd83bc/pasted-text-1.txt`.
 The goal record is `.pi/goals/active_goal_2026102108123965_mvh6j65n-98gogh.md`
-(revision 4: contracts rewritten to match the real output files, auto-continue off).
+(contracts match the real output files, auto-continue off).
 
-**The experiment is incomplete. r3 is running supervised** (see "Live r3 run").
+**The experiment is incomplete. r4 is running supervised** (see "Live r4 run").
+Granite training has completed (see below); no comparison exists yet. Failure
+modes found along the way are recorded in `AGENTS.md` (FM-1…FM-16).
 At 10:01 AEDT, on user
 instruction, the r2 pipeline was stopped as unsupervised: driver PID `987032`,
 Qwen base evaluator PID `954658`, its MCP child and `uv` wrappers (SIGTERM), then
@@ -78,64 +80,71 @@ Persistent proxy backends (`llama-vllm-27b`, `granite42-vllm`) are systemd units
 that `globalTTL` cannot unload; they must be stopped explicitly before
 memory-heavy PowerCoder stages.
 
-## Live r3 run — observe before taking action
+## Live r4 run — observe before taking action
 
-The r2 driver could only *adopt* an externally started base evaluator, so there
-was never one supervising owner. Fixed in `d649e3d` + `a279d7b`:
+Launched 13:51 AEDT as transient unit **`powercoder-agent-domain-r4`** from
+`f3bab24`, root `training/unsloth/out/agent-domain-r4/`. It differs from r1–r3 in
+the AGENTS.md "Fixed from r4 on" list: FM-1 unknown tool arguments rejected,
+8192-token responses, 32K context, 1800 s timeout, no wall-clock values shown to
+the model, context overflow recorded as `context_exhausted`. It also runs 8
+concurrent attempts per server, with base and student side by side, so **r4
+results are not comparable with r1–r3**.
 
-- The driver serves and evaluates the Qwen base itself (same weights snapshot,
-  image ID, budgets and evaluator command as r2).
-- Before each vLLM serve and before Granite training it waits up to an hour for
-  `MemAvailable` ≥ stage floor + 8 GiB margin (`memory_wait` / `memory_admitted`
-  / `memory_refused`); pytest `training/test_run_comparison.py`.
-- `scripts/launch_powercoder_comparison.sh` runs it as transient unit
-  **`powercoder-agent-domain-r3`**; `systemctl --user stop` stops containers
-  (ExecStop), then the driver and evaluator. No restart policy.
-- First launch (10:33) died in 0.4 s: the readiness poll got
-  `httpx.ReadError 104` from rootless port forwarding, which `serve()` did not
-  tolerate. This was latent in r2, which never reached `serve()`, and would have
-  killed it at the student stage. Evidence kept at
-  `training/unsloth/out/agent-domain-r3-attempt1-readiness-reset/`.
-- Relaunched 10:36:48. Base memory admitted with 127 GB available (the gateway's
-  flash-next had TTL-unloaded), server ready, evaluator running.
+Measured at start:
+- Memory gate: the first server waited (23.2 GB < 29.5 GB needed) while
+  llama-swap's flash-next was resident, then was admitted at 127 GB once the
+  600 s TTL unloaded it.
+- vLLM 0.31's overflow text was confirmed live on :8101 ("This model's maximum
+  context length is 32768 tokens…"), matching `tool_probe.CONTEXT_OVERFLOW`.
+- Throughput: 54–58 tok/s per server with Granite training alongside, then
+  66–70 tok/s per server (8 running each) after training: ≈ 7× r3's 19 tok/s
+  single stream.
+- **Granite training complete at 14:25** (stage exit 0): 100 steps in 713 s,
+  273 examples, 18,601 supervised tokens, `benchmark_access: false`, loss 2.19
+  (step 10) → 0.15 (step 100). Adapter SHA256 `0ba1cd6e…7f1`; reloaded and merged
+  into `training/unsloth/out/granite42-sft-r1/merged-bf16/`, with
+  `hash_manifest.json` and `preflight.json`.
+- **Qwen student degenerate loop (FM-16).** All 8 student tasks finished by
+  14:25 ended `incomplete_generation`. On turn 1 the student repeats the same few
+  reasoning lines 40–60 times, debating `run_power_flow` vs `run_study_trial`,
+  until it hits 8192 tokens; or it stops with reasoning and no content. The base
+  model answered normally (median 620 tokens per turn). This is a model result;
+  it is not patched.
 
 ```bash
-systemctl --user status powercoder-agent-domain-r3
-journalctl --user -u powercoder-agent-domain-r3 -f
-tail -3 training/unsloth/out/agent-domain-r3/pipeline.jsonl
-wc -l training/unsloth/out/agent-domain-r3/base/results.jsonl
+systemctl --user status powercoder-agent-domain-r4
+tail -3 training/unsloth/out/agent-domain-r4/pipeline.jsonl
+wc -l training/unsloth/out/agent-domain-r4/{base,student}/results.jsonl
+uv run python -m powercoder.inference.failure_modes training/unsloth/out/agent-domain-r4/base
 ```
 
-Stop only with `systemctl --user stop powercoder-agent-domain-r3`; do not kill
-PIDs by hand. Never relaunch into an existing root; the driver refuses it.
+`results.jsonl` is committed in benchmark order, so it lags the `ex_*.jsonl`
+journals while earlier tasks are still in flight. Stop only with
+`systemctl --user stop powercoder-agent-domain-r4`. Never relaunch into an
+existing root.
 
-### Reproducibility finding (r3 task 1 vs r2 task 1)
+### Earlier runs (evidence only)
 
-Same task, same weights, temperature 0: the trajectories are identical through
-the first two model turns and tool calls. They differ only in the solver
-response's wall-clock `execution_time_s` (1.2655 vs 1.1948 s), which the MCP
-tool returns to the model. That perturbs the prompt; on the next turn r2 called
-`run_study_trial` while r3 spent all 2048 response tokens reasoning
-(`finish_reason: length`), so the evaluator recorded `incomplete_generation`
-with an empty answer. Consequences, for the user to decide (not changed
-mid-run):
+- r3 (`agent-domain-r3/`, unit launched 10:35:48 from `a279d7b`): 48/306 base
+  results, then stopped by the user's decision at 13:43:57 because it was measuring
+  known harness defects. Its stop left no journal record (FM-15). The first launch
+  attempt is kept as `agent-domain-r3-attempt1-readiness-reset/` (FM-12).
+- r3 vs r2 task 1 was the reproducibility finding (FM-3): identical until the
+  solver's `execution_time_s` differed, then the trajectories diverged.
 
-- Single-attempt greedy pass@1 is **not reproducible** between runs; paired
-  base/student deltas carry this run-to-run noise on top of model differences.
-- The 2048-token response budget is binding for Qwen3.5's reasoning; this is the
-  observed mechanism behind r2's empty answers.
+## Sequence and acceptance evidence
 
-## Sequence and acceptance evidence (unchanged design)
-
-`training/run_comparison.py` requires complete, consistent 306-task outputs
+`training/run_comparison.py` (r4) requires complete, consistent 306-task outputs
 before advancing:
 
-1. Finish Qwen base, stop its owned backend, evaluate the original Unsloth merged
-   student into `student/`, then generate paired strict and numerical comparisons.
-2. Verify the pinned Granite download; train Granite for 100 steps on the same
-   273 training examples; independently reload its saved adapter and merge it.
-3. Evaluate Granite base and student into `granite-base/` and `granite-student/`,
-   then compare Granite with its base and with both Qwen variants.
+1. Verify the pinned Granite download. Serve Qwen base (:8101) and the original
+   Unsloth student (:8102) side by side, and evaluate both into `base/` and
+   `student/` while Granite trains for 100 steps on the same 273 examples and its
+   saved adapter is reloaded and merged. Then write paired strict and numerical
+   Qwen comparisons.
+2. Serve and evaluate Granite base and student side by side into `granite-base/`
+   and `granite-student/`, then compare Granite with its base and with both Qwen
+   variants.
 
 Strict comparison files: `qwen-comparison.json`, `granite-comparison.json`,
 `granite-vs-qwen-base.json`, `granite-vs-qwen-student.json`. Numerical
@@ -197,11 +206,12 @@ tool schemas, scoring criteria, or generation budgets mid-run.
   and Qwen hyperparameters: 100 steps, BF16, LoRA rank 32/alpha 64, all-linear,
   dropout 0, effective batch 4, warmup 10, learning rate 2e-5, seed 42, sequence
   length 1024, AdamW 8-bit, cosine, weight decay 0.01. All 273 native Granite
-  tokenizations passed supervision checks; maximum 281 tokens. Training has
-  **not run**. Expected output: `training/unsloth/out/granite42-sft-r1/`
-  (`granite42-8b-lora/`, `merged-bf16/`, `train_log.json`, `preflight.json`,
-  `hash_manifest.json`); the script refuses existing output and verifies source
-  shards before allocating GPU.
+  tokenizations passed supervision checks; maximum 281 tokens. **Trained in r4**
+  (2026-10-21 14:13–14:25, see "Live r4 run") into
+  `training/unsloth/out/granite42-sft-r1/` (`granite42-8b-lora/`, `merged-bf16/`,
+  `train_log.json`, `preflight.json`, `hash_manifest.json`); log
+  `agent-domain-r4/granite-training.log`. The script refuses existing output, so a
+  rerun needs a new output directory.
 - vLLM image ID
   `d53cb735dd1822378c352da65b4ef1580c9764df7aed4bc8805c6c26f6b827de`
   (`localhost/vllm-lmcache:gb10`, vLLM 0.31.0). Training image ID
@@ -253,12 +263,16 @@ uv run --offline --no-sync python -m pytest \
 ```
 
 These include a real AC solve on an explicitly named small fixture and actual MCP
-stdio transport. They validate implementation, not student improvement. Granite
-training and the full sequential pipeline have never completed an end-to-end run.
+stdio transport. They validate implementation, not student improvement. r4 added
+`powercoder/inference/test_failure_modes.py`, the ordered-concurrency test in
+`test_evaluate_agent.py`, and the parallel-stage test in
+`training/test_run_comparison.py`. The full pipeline has not yet completed end to
+end.
 
-Next action: let r3 advance and audit each completed stage from
-`pipeline.jsonl`. Raise the reproducibility finding with the user before any
-benchmark change; a change means a new run root, not editing r3. Follow `AGENTS.md`,
+Next action: let r4 advance and audit each completed stage from `pipeline.jsonl`
+and `failure_modes`. FM-16 (student repetition loop) is a measured model result to
+report, not something to patch mid-run. Any benchmark change means a new run root.
+Follow `AGENTS.md`,
 `docs/VISION.md`, and `docs/DEFINITION_OF_DONE.md`; use `uv`, preserve real
 evidence, and report exact tool/host environment mismatches without silently
 routing around them.

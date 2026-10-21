@@ -151,6 +151,7 @@ or harness failure, never an impossible task.
 | FM-7 `"None"` string arguments | Sends `"None"` instead of JSON `null` for `contingency_line` / `observation_id`, so MCP validation errors | 103 of 117 tool errors, in 24/76 attempts |
 | FM-8 `turn_budget_exhausted` | Retries the same invalid call (often FM-7) until 12 turns are used | 7/76, all fits |
 | FM-9 wrong tool for N-1 | Calls `run_power_flow` instead of `run_study_trial(operation="none")` for contingency reports; this triggers FM-1 | 49 `run_power_flow` calls vs 23 `run_study_trial` calls on reports |
+| FM-16 student repetition loop | The original Unsloth Qwen student, at greedy temperature 0, repeats the same reasoning lines 40–60 times on turn 1 (26–55 distinct of 188–403 lines), debating `run_power_flow` vs `run_study_trial`, until `max_tokens`; or it stops with reasoning and no content | r4: all first 8 finished student tasks `incomplete_generation`; base median 620 tokens/turn. Each looping turn costs a full 8192 tokens, which sets r4's pace |
 
 ### Infrastructure (GB10 host)
 
