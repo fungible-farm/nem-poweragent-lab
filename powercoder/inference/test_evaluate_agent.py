@@ -61,3 +61,35 @@ def test_truncated_correct_answer_cannot_pass(tmp_path: Path) -> None:
     result = grade(task, journal)
     assert result["numerical_pass"] and result["tool_evidence_pass"]
     assert not result["passed"]
+
+
+def test_concurrent_attempts_commit_in_benchmark_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Later tasks may finish first; results.jsonl must still follow the manifest."""
+    import argparse
+    import asyncio
+
+    from powercoder.inference import evaluate_agent
+
+    tasks = [{"example_id": f"ex_{i}", "subfamily": "pf-report", "task": {"prompt": f"p{i}"}} for i in range(5)]
+    monkeypatch.setattr(evaluate_agent, "DOMAIN_TASK_COUNT", len(tasks))
+    monkeypatch.setattr(evaluate_agent, "load_rows", lambda _path: tasks)
+    monkeypatch.setattr(evaluate_agent, "audit_rows", lambda *_args: {"clean": True})
+    flight = {"now": 0, "max": 0}
+
+    async def fake_attempt(_args: argparse.Namespace, task: dict, _grading: asyncio.Lock) -> dict:
+        flight["now"] += 1
+        flight["max"] = max(flight["max"], flight["now"])
+        await asyncio.sleep(0.01 * (5 - int(task["example_id"][-1])))  # reverse finishing order
+        flight["now"] -= 1
+        return {"example_id": task["example_id"], "passed": False}
+
+    monkeypatch.setattr(evaluate_agent, "attempt", fake_attempt)
+    tasks_file = tmp_path / "tasks.jsonl"
+    tasks_file.write_text("")
+    args = argparse.Namespace(tasks=tasks_file, exclude=tasks_file, out=tmp_path / "run",
+                              model="m", base_url="http://x", concurrency=3)
+    asyncio.run(evaluate_agent.evaluate(args))
+    order = [json.loads(line)["payload"]["example_id"] for line in (args.out / "results.jsonl").read_text().splitlines()]
+    assert order == [t["example_id"] for t in tasks]
+    assert flight["max"] == 3
+    assert json.loads((args.out / "manifest.json").read_text())["concurrency"] == 3

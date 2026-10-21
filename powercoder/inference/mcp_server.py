@@ -18,6 +18,10 @@ from mcp.types import TextContent, Tool
 
 from powercoder.inference.powermcp import PowerMCP
 
+# Wall-clock fields vary run to run; fed back to a greedy model they changed
+# its next turn, making identical attempts diverge (AGENTS.md FM-3).
+MODEL_HIDDEN_FIELDS: frozenset[str] = frozenset({"execution_time_s"})
+
 
 def create_server(study_tools: bool = False) -> Server:
     """Expose canonical schemas and real solver outcomes through SDK transport."""
@@ -51,7 +55,8 @@ def create_server(study_tools: bool = False) -> Server:
             result = run_study_trial(**arguments)
         else:
             result = backend.execute_tool(name, arguments)
-        return [TextContent(type="text", text=json.dumps(asdict(result), allow_nan=False))]
+        visible = {k: v for k, v in asdict(result).items() if k not in MODEL_HIDDEN_FIELDS}
+        return [TextContent(type="text", text=json.dumps(visible, allow_nan=False))]
 
     return server
 

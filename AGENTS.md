@@ -161,6 +161,16 @@ or harness failure, never an impossible task.
 | FM-12 readiness `ReadError` | Rootless podman port forwarding resets connections while vLLM loads; this killed r3's first launch after 0.4 s | `serve()` tolerates `httpx.TransportError`; container exit is the failure signal |
 | FM-13 conmon ignores SIGTERM | Container conmon processes sit in the unit cgroup and held a stop for the full timeout | The launcher's `ExecStop` stops containers first |
 | FM-14 misleading GPU utilisation | `nvidia-smi` reports 94% at 31 W with a single decode stream at 19 tok/s; decode is memory-bandwidth bound | Measure tokens/s and running requests in the vLLM log, not utilisation % |
+| FM-15 stop not journaled (open) | `systemctl --user stop powercoder-agent-domain-r3` at 13:43:57 left no `driver_stopped`, `stage_exit` or evaluator `controller_error`; `pipeline.jsonl` last written 10:37. Not reproduced: the same `systemd-run` + `uv run` + SIGTERM-handler shape, with and without `ExecStop`, recorded the stop | Don't rely on the journal for a stop's cause; read `journalctl --user -u <unit>` |
+
+**Fixed from r4 on** (r1–r3 ran without these fixes, so their results aren't comparable with r4's):
+- FM-1: both canonical schemas now set `additionalProperties: false`, so MCP rejects unknown arguments with a visible validation error.
+- FM-2: `MAX_TOKENS` raised to 8192.
+- FM-3: `execution_time_s` removed from model-facing MCP responses.
+- FM-5: context raised to 32768, and an overflow is recorded as the per-task terminal `context_exhausted`.
+- FM-6: `INFERENCE_TIMEOUT_S` raised to 1800.
+
+r4 also runs 8 attempts per server concurrently, with base and student side by side and Granite training alongside. Concurrent batching changes floating-point reduction order, which is one more reason (with FM-3) not to expect bitwise reproduction of an earlier run.
 
 ## Repo layout quick reference
 

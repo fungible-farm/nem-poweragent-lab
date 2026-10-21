@@ -17,16 +17,23 @@ from typing import Any, TextIO
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+import httpx
+
 from powercoder.inference.client import InferenceClient
 
 # Qualification budgets, not release benchmark parameters.
 MAX_TURNS: int = 12
 MAX_TOOL_CALLS: int = 24
-MAX_TOKENS: int = 2048
-# The cold GB10 base request exceeded the old 120-second HTTP limit while
-# generating at roughly 19 tokens/s. Permit ten minutes without changing the
-# token, turn or tool budgets. This is transport patience, not extra attempts.
-INFERENCE_TIMEOUT_S: float = 600.0
+# 2048 truncated 32 of 76 Qwen3.5-4B base attempts mid-reasoning (r2/r3,
+# finish_reason=length; AGENTS.md FM-2). Reasoning is not carried between
+# turns, so this bounds one response, not the conversation.
+MAX_TOKENS: int = 8192
+# One full response at the ~14 tok/s low end measured on GB10 takes ~585 s;
+# with concurrent requests sharing the GPU allow ~3x that. A timeout stops the
+# whole run (FM-6), so this is transport patience, not extra attempts.
+INFERENCE_TIMEOUT_S: float = 1800.0
+# vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
+CONTEXT_OVERFLOW: str = "maximum context length"
 
 
 def record(stream: TextIO, kind: str, payload: Any) -> None:
@@ -67,10 +74,19 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         ids: set[str] = set()
         with InferenceClient(args.base_url, timeout=INFERENCE_TIMEOUT_S) as client:
             for _ in range(MAX_TURNS):
-                result = await asyncio.to_thread(
-                    client.chat_completion, args.model, messages,
-                    max_tokens=MAX_TOKENS, temperature=0.0, tools=tools, tool_choice="auto",
-                )
+                try:
+                    result = await asyncio.to_thread(
+                        client.chat_completion, args.model, messages,
+                        max_tokens=MAX_TOKENS, temperature=0.0, tools=tools, tool_choice="auto",
+                    )
+                except httpx.HTTPStatusError as error:
+                    # The conversation outgrew the server's context: this
+                    # attempt's failure, not a backend fault (AGENTS.md FM-5).
+                    if error.response.status_code == 400 and CONTEXT_OVERFLOW in error.response.text:
+                        record(journal, "terminal", {"state": "context_exhausted", "actual_tool_calls": calls,
+                                                     "error": error.response.text[:500]})
+                        return 1
+                    raise
                 record(journal, "model_response", result)
                 choice = result["choices"][0]
                 message = choice["message"]

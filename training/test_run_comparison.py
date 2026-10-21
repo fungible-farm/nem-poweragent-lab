@@ -92,3 +92,16 @@ def test_serve_waits_through_connection_resets(tmp_path: Path, monkeypatch: pyte
     with journal.open("x") as stream:
         driver.serve(tmp_path, "powercoder-test-qwen-base", "powercoder-qwen-base", "qwen3", tmp_path, stream)
     assert [e["kind"] for e in events(journal)] == ["server_ready"]
+
+
+def test_parallel_runs_every_stage_before_reporting_a_failure(tmp_path: Path) -> None:
+    # A fast failure (Granite training) must not cut short a slow evaluation.
+    marker = tmp_path / "slow-finished"
+    stages = [(["sh", "-c", "exit 3"], tmp_path / "fail.log"),
+              (["sh", "-c", f"sleep 0.3 && touch {marker}"], tmp_path / "slow.log")]
+    journal = tmp_path / "pipeline.jsonl"
+    with journal.open("x") as stream, pytest.raises(RuntimeError, match="exited 3"):
+        driver.parallel(stages, stream)
+    assert marker.exists()
+    kinds = [e["kind"] for e in events(journal)]
+    assert kinds.count("stage_start") == 2 and kinds.count("stage_exit") == 2

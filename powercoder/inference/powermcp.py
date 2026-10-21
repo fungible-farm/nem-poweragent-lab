@@ -449,6 +449,7 @@ class PowerMCP:
                             }
                         },
                         "required": ["network_id"],
+                        "additionalProperties": False,
                     },
                 },
             },
@@ -491,6 +492,10 @@ class PowerMCP:
                             },
                         },
                         "required": ["network_id"],
+                        # Without this, an MCP client's contingency_line was
+                        # silently dropped and base-case results returned as if
+                        # the outage had been applied (AGENTS.md FM-1).
+                        "additionalProperties": False,
                     },
                 },
             },

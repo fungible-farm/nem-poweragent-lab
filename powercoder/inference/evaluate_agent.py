@@ -21,6 +21,9 @@ from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answ
 
 # The audited 2026-10-20 benchmark manifest has exactly 306 unique tasks.
 DOMAIN_TASK_COUNT: int = 306
+# One task at a time reproduces the r1-r3 schedule. Tasks are independent
+# (own MCP process, own journal), so concurrency changes throughput only.
+DEFAULT_CONCURRENCY: int = 1
 
 
 class TaskResult(TypedDict):
@@ -103,8 +106,39 @@ def grade(task: dict[str, Any], journal: Path) -> TaskResult:
     }
 
 
+async def attempt(args: argparse.Namespace, task: dict[str, Any], grading: asyncio.Lock) -> TaskResult:
+    """Run and grade one task's single attempt in its own prompt and journal files.
+
+    ``grading`` serialises grading: it can re-solve a power flow in this
+    process, and pandapower solves are not documented as thread-safe (each
+    takes ~1 s, so this costs little).
+    """
+    prompt = args.out / "prompts" / f"{task['example_id']}.txt"
+    prompt.write_text(task["task"]["prompt"])
+    journal = args.out / f"{task['example_id']}.jsonl"
+    options = argparse.Namespace(base_url=args.base_url, model=args.model, prompt=prompt, study_tools=True)
+    with journal.open("x") as stream:
+        try:
+            await probe(options, stream)
+        except (ValueError, KeyError, TypeError) as error:
+            # Malformed model-selected arguments are failed attempts.
+            record(stream, "model_protocol_error", {"type": type(error).__name__, "message": str(error)})
+        except Exception as error:
+            record(stream, "controller_error", {"type": type(error).__name__, "message": str(error)})
+            raise
+    # Keep the re-solve off the event loop so other attempts keep streaming.
+    async with grading:
+        return await asyncio.to_thread(grade, task, journal)
+
+
 async def evaluate(args: argparse.Namespace) -> None:
-    """Audit independence, run all tasks once, and fsync every scored outcome."""
+    """Audit independence, run all tasks once, and fsync every scored outcome.
+
+    Up to ``args.concurrency`` attempts run at once. Results are still
+    committed to ``results.jsonl`` in benchmark order (``verified_run``
+    requires it): a finished task waits for every earlier task, while its raw
+    journal is already durable.
+    """
     tasks = load_rows(args.tasks)
     audit = audit_rows(tasks, load_rows(args.exclude))
     if not audit["clean"] or len(tasks) != DOMAIN_TASK_COUNT:
@@ -116,29 +150,30 @@ async def evaluate(args: argparse.Namespace) -> None:
         "inputs": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in (args.tasks, args.exclude)},
         "max_turns": MAX_TURNS, "max_tool_calls": MAX_TOOL_CALLS, "max_tokens": MAX_TOKENS,
         "inference_timeout_s": INFERENCE_TIMEOUT_S,
-        "temperature": 0.0, "attempts_per_task": 1,
+        "temperature": 0.0, "attempts_per_task": 1, "concurrency": args.concurrency,
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (args.out / "prompts").mkdir()
+    gate = asyncio.Semaphore(args.concurrency)
+    grading = asyncio.Lock()
+
+    async def bounded(task: dict[str, Any]) -> TaskResult:
+        async with gate:
+            return await attempt(args, task, grading)
+
     results: list[TaskResult] = []
-    with (args.out / "results.jsonl").open("x") as scored:
-        for task in tasks:
-            prompt = args.out / "current-prompt.txt"
-            prompt.write_text(task["task"]["prompt"])
-            journal = args.out / f"{task['example_id']}.jsonl"
-            options = argparse.Namespace(base_url=args.base_url, model=args.model, prompt=prompt, study_tools=True)
-            with journal.open("x") as stream:
-                try:
-                    await probe(options, stream)
-                except (ValueError, KeyError, TypeError) as error:
-                    # Malformed model-selected arguments are failed attempts.
-                    record(stream, "model_protocol_error", {"type": type(error).__name__, "message": str(error)})
-                except Exception as error:
-                    record(stream, "controller_error", {"type": type(error).__name__, "message": str(error)})
-                    raise
-            result = grade(task, journal)
-            record(scored, "result", result)
-            results.append(result)
-            print(f"{args.model}: {len(results)}/{len(tasks)} pass={sum(r['passed'] for r in results)}", flush=True)
+    pending = [asyncio.create_task(bounded(task)) for task in tasks]
+    try:
+        with (args.out / "results.jsonl").open("x") as scored:
+            for future in pending:
+                result = await future
+                record(scored, "result", result)
+                results.append(result)
+                print(f"{args.model}: {len(results)}/{len(tasks)} pass={sum(r['passed'] for r in results)}", flush=True)
+    finally:
+        # A controller error stops the run visibly; don't leave attempts running.
+        for future in pending:
+            future.cancel()
     summary = {**manifest, "complete": len(results) == len(tasks), "n_tasks": len(results),
                "n_pass": sum(r["passed"] for r in results),
                "pass_at_1": sum(r["passed"] for r in results) / len(results),
@@ -155,7 +190,12 @@ def main() -> None:
     parser.add_argument("--tasks", type=Path, required=True)
     parser.add_argument("--exclude", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    asyncio.run(evaluate(parser.parse_args()))
+    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY,
+                        help="Attempts in flight at once; match the server's --max-num-seqs")
+    args = parser.parse_args()
+    if args.concurrency < 1:
+        parser.error("--concurrency must be at least 1")
+    asyncio.run(evaluate(args))
 
 
 if __name__ == "__main__":
