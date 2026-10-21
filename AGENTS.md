@@ -119,6 +119,49 @@ result on a clean checkout is.
 - **No `b00t` dependency, no commercial power-system engines on the golden path, no cloud LLM API
   keys anywhere.** See `docs/DEFINITION_OF_DONE.md` "Governance / non-goals held" for the full list.
 
+## PowerCoder agent evaluation: known failure modes
+
+Measured on 2026-10-21 from 76 Qwen3.5-4B base attempts (r2: 31, r3: 45) on the 306-task held-out
+benchmark. Re-derive with `uv run python -m powercoder.inference.failure_modes <run>/base`, which
+assigns each attempt one cause in a fixed precedence order. Don't quote these counts as results:
+the benchmark runs in subfamily order (26 report, 120 load-scale, 120 line-rating, 40 dispatch),
+so early attempts are not a representative sample. Status and live state:
+`docs/POWERCODER_HANDOFF_2026-10-21.md`.
+
+**Feasibility.** All 306 tasks are solvable within the budgets. Every reference converged; each
+report needs one `run_study_trial(operation="none")` call; the reference bisection reached each
+fit's tolerance in 2–7 trials, against a 24-call / 12-turn budget. A failure is therefore a model
+or harness failure, never an impossible task.
+
+### Benchmark and harness defects (fix only in a new run root, never mid-run)
+
+| ID | Mode | Evidence | Effect |
+|---|---|---|---|
+| FM-1 `contingency_dropped` | `run_power_flow` has no `contingency_line` property and no `additionalProperties: false`; `PowerMCP.execute_tool` silently ignores unknown arguments | 34/52 report attempts passed `contingency_line=` to it, got base-case numbers with no error, and answered them | Honest-looking wrong answers. The tool, not just the model, misleads |
+| FM-2 `response_token_cap` | `MAX_TOKENS = 2048` per response (`tool_probe.py`); reasoning is spent before the tool call or answer | 32/76 attempts; 32 turns ended with `finish_reason: length`; recorded as `incomplete_generation` with an empty answer | The leading cause of fit failures |
+| FM-3 nondeterministic prompt | Solver responses include wall-clock `execution_time_s`, which is fed back to the model | r3 vs r2: same task, temperature 0; identical until `execution_time_s` 1.2655 vs 1.1948 s, then diverged; only 14/31 shared answers identical | Single greedy pass@1 is not reproducible between runs; paired deltas carry this noise |
+| FM-4 `solver_correct_strict_rejected` | The strict report parser requires the reference's wording; Markdown or tabular answers fail | 3/76: numerically correct per `solver-verified-domain-v1` | Report both metrics (`domain_scorecard.py`), as already required |
+| FM-5 context overflow (latent) | vLLM `--max-model-len 16384` must hold prompt + `max_tokens`; an over-length request is an HTTP error, so `evaluate_agent` raises `controller_error` and **stops the whole run** rather than failing one task | Largest prompt observed 7,583 tokens. Harmless at 2048, but 8192 + 7,583 is already 15,775 | Raise context with any token-budget increase, and record overflow as a per-task failure |
+| FM-6 inference timeout (latent) | `INFERENCE_TIMEOUT_S = 600` per request at ~19 tok/s single-stream | 2048 tokens ≈ 110 s. 8192 tokens ≈ 430–585 s, at the limit | A timeout is a `controller_error`, which stops the run; scale it with the token budget |
+
+### Model behaviour (count as model failures; don't patch around them)
+
+| ID | Mode | Evidence |
+|---|---|---|
+| FM-7 `"None"` string arguments | Sends `"None"` instead of JSON `null` for `contingency_line` / `observation_id`, so MCP validation errors | 103 of 117 tool errors, in 24/76 attempts |
+| FM-8 `turn_budget_exhausted` | Retries the same invalid call (often FM-7) until 12 turns are used | 7/76, all fits |
+| FM-9 wrong tool for N-1 | Calls `run_power_flow` instead of `run_study_trial(operation="none")` for contingency reports; this triggers FM-1 | 49 `run_power_flow` calls vs 23 `run_study_trial` calls on reports |
+
+### Infrastructure (GB10 host)
+
+| ID | Mode | Evidence / mitigation |
+|---|---|---|
+| FM-10 unified-memory OOM | GB10 CPU and GPU share 121 GB. A resident llama-swap model (`qwen3.8-flash-next` ≈ 96 GB) plus benchmark vLLMs pushed the host into a global OOM kill, 2026-10-21 10:02:16 | llama-swap `globalTTL: 600`; Granite backend on demand; `run_comparison.await_memory()` before every GPU stage |
+| FM-11 unsupervised processes | r2 was detached exec sessions plus a driver that adopted a PID; nothing owned the pipeline | Launch only via `scripts/launch_powercoder_comparison.sh` (systemd `--user` unit) |
+| FM-12 readiness `ReadError` | Rootless podman port forwarding resets connections while vLLM loads; this killed r3's first launch after 0.4 s | `serve()` tolerates `httpx.TransportError`; container exit is the failure signal |
+| FM-13 conmon ignores SIGTERM | Container conmon processes sit in the unit cgroup and held a stop for the full timeout | The launcher's `ExecStop` stops containers first |
+| FM-14 misleading GPU utilisation | `nvidia-smi` reports 94% at 31 W with a single decode stream at 19 tok/s; decode is memory-bandwidth bound | Measure tokens/s and running requests in the vLLM log, not utilisation % |
+
 ## Repo layout quick reference
 
 - `docs/VISION.md` — full architecture plan and per-lab spec; the source of truth for what each
