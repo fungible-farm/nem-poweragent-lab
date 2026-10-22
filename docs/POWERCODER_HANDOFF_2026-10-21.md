@@ -103,13 +103,29 @@ peak memory separately; and consider a separate PowerAgentBench lab (Lab 10).
 | Latency | `powercoder/inference/latency_bench.py` (20 smoke first turns, 512 tokens, `ignore_eos`, concurrency 1, idle server) | Written |
 | Lab 10 | `labs/10-poweragentbench-restorebench/` | CPU steps done; agent stage runs inside r6 |
 
+**Structured generation (xgrammar, checked 22:50–22:57).** xgrammar
+(Apache-2.0, mlc-ai) is vLLM 0.31's structured-output backend here (0.2.7, with
+llguidance 1.7.6); llama.cpp uses its own GBNF engine instead, so the llama-swap
+llama.cpp server needs no xgrammar change. Measured on CPU with the vLLM image:
+xgrammar's built-in `qwen_3_5` structural tag (the Qwen XML tool-call format,
+which Granite's template also emits) accepts all 2,207 trained turns of the
+357 trajectories and rejects 70 of the 119 injected failures (every FM-7
+`"None"` and FM-1 `run_power_flow` call); the 49 line-0 calls are schema-valid,
+so only training addresses FM-18. That check forced trajectory arguments into
+schema order (`a9fe73d`). Caveat for the queued forced arm: vLLM turns
+`tool_choice="required"` into a JSON-array schema, not the model's XML format,
+so it measures forcing plus a format shift; a structural-tag arm would not.
+
 **Sorted-tool-schema defect (22:50).** Training prompts rendered the tool block
 with sorted keys (`common.write_jsonl`), unlike the served prompt (AGENTS.md
 FM-23). The v2 run was stopped at ~step 10/45 with the waiters disarmed first;
 trajectories are rebuilt with `write_in_order` and both students retrained. The
 v1 Qwen student below was trained with sorted tools too.
 
-**Live state (22:15 AEDT).** The seam-fixed Qwen student trained on the
+**Live state (22:57 AEDT, superseding 22:15).** Training relaunched on the
+schema-ordered, served-order v2 trajectories (`f89074d4…`, commit `a9fe73d`).
+
+**Earlier live state (22:15 AEDT).** The seam-fixed Qwen student trained on the
 238 plain trajectories (`training/unsloth/out/agent-sft-qwen35-4b-20261022/`,
 30 steps, 1.9 h, final loss 0.0027) passed `generation_check` 8/8: from the
 served prompt it closes `<think>` and opens a `run_study_trial` call. It is
