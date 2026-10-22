@@ -27,6 +27,18 @@ script. The gate is recorded both on the point estimate (`domain_threshold_met`)
 
 ## 2. What is running now
 
+> **Update 07:45.**
+> - **Training finished:** both students passed `generation_check` 8/8. Qwen took 2.7 h (loss
+>   0.0023); Granite took 3.4 h (loss 0.0025).
+> - **The r6 waiter never launched (FM-24):** no `uv` on the systemd unit's PATH, fixed in `d73370b`.
+> - **The manual r6 smoke stage exposed FM-25:** 8 of the 25 benchmark reports and 2 of the 3 smoke
+>   reports were unsolvable through the tool. First smoke results: Qwen student 15/20, Granite
+>   student 9/20, both including those 2 impossible reports.
+> - **The first r6 (`agent-study-r6/`) was stopped and isn't a result.** It's re-running as **r6b**,
+>   unit `powercoder-agent-study-r6b`, root `training/unsloth/out/agent-study-r6b/`, from `1259ae1`.
+>   The strict 2×2 follows via `powercoder-agent-study-r6b-strict-wait`.
+> - **The table below names the old units.** Read `r6` as `r6b` throughout.
+
 | Unit | State | Does |
 |---|---|---|
 | `powercoder-agent-sft` | running | Trains the Qwen student (46 steps, about 4 min per step, started 00:22), then Granite. Each merge must pass `generation_check`, or the unit fails |
