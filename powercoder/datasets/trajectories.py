@@ -296,6 +296,21 @@ async def build_all(jobs: list[tuple[dict[str, Any], str | None]], journals: Pat
     return await asyncio.gather(*(bounded(row, fault) for row, fault in jobs))
 
 
+def write_in_order(path: Path, rows: list[Trajectory]) -> Path:
+    """Write JSONL keeping every key in the order it was built.
+
+    ``common.write_jsonl`` sorts keys. Chat templates render tool schemas with
+    ``tojson`` in their stored order, so sorted keys gave the students a tool
+    block ({"function": {"description": ...) the evaluation never serves
+    ({"type": "function", "function": {"name": ...), for every turn of every
+    trajectory (AGENTS.md FM-23).
+    """
+    with path.open("x") as stream:
+        for row in rows:
+            stream.write(json.dumps(row, allow_nan=False) + "\n")
+    return path
+
+
 def main() -> int:
     """Build, grade and freeze trajectories with a manifest of every drop."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -314,7 +329,7 @@ def main() -> int:
     journals.mkdir(parents=True)
     outcomes = asyncio.run(build_all(jobs, journals))
     kept = [trajectory for trajectory, _ in outcomes if trajectory is not None]
-    examples = common.write_jsonl(args.out_dir / "trajectories.jsonl", kept)
+    examples = write_in_order(args.out_dir / "trajectories.jsonl", kept)
     manifest = {
         "dataset": "nem-powercoder-tool-trajectories",
         "split": str(args.split), "split_sha256": hashlib.sha256(args.split.read_bytes()).hexdigest(),

@@ -103,6 +103,12 @@ peak memory separately; and consider a separate PowerAgentBench lab (Lab 10).
 | Latency | `powercoder/inference/latency_bench.py` (20 smoke first turns, 512 tokens, `ignore_eos`, concurrency 1, idle server) | Written |
 | Lab 10 | `labs/10-poweragentbench-restorebench/` | CPU steps done; agent stage runs inside r6 |
 
+**Sorted-tool-schema defect (22:50).** Training prompts rendered the tool block
+with sorted keys (`common.write_jsonl`), unlike the served prompt (AGENTS.md
+FM-23). The v2 run was stopped at ~step 10/45 with the waiters disarmed first;
+trajectories are rebuilt with `write_in_order` and both students retrained. The
+v1 Qwen student below was trained with sorted tools too.
+
 **Live state (22:15 AEDT).** The seam-fixed Qwen student trained on the
 238 plain trajectories (`training/unsloth/out/agent-sft-qwen35-4b-20261022/`,
 30 steps, 1.9 h, final loss 0.0027) passed `generation_check` 8/8: from the
