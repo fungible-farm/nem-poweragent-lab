@@ -39,30 +39,24 @@ INFERENCE_TIMEOUT_S: float = 1800.0
 #
 # The problem: an agent that answers before calling the solver can only be
 # guessing (the first r6 Qwen student invented report numbers that way). The
-# provenance check (provenance.py) fails such answers after the fact; these
-# options make the first turn unable to be an answer at all. Later turns always
-# use "auto" so the model can still answer once it has solver results.
+# provenance check (provenance.py) fails such answers after the fact;
+# "required" makes the first turn unable to be an answer at all. Later turns
+# always use "auto" so the model can still answer once it has solver results.
 #
 # - "auto": the model decides (the r1-r6 protocol, and every r6 comparison).
-# - "structural_tag": constrained decoding. vLLM's grammar backend (xgrammar)
-#   receives grammars/forced_first_turn.structural_tag.json, a grammar that
-#   accepts only Qwen-XML tool calls whose arguments satisfy the served tool
-#   schemas (it is the format both students were trained to emit), so the first
-#   turn must be a well-formed tool call in that format. See STRUCTURAL_TAG.
-# - "required": vLLM's own tool_choice="required". vLLM implements it as a JSON
-#   array schema, a different format from the trained XML, so it changes two
-#   things at once; kept only to measure that difference.
+# - "required": OpenAI tool_choice="required" on turn 0. vLLM 0.31 builds the
+#   grammar itself, per request, from that request's own tools: its qwen3_coder
+#   tool parser asks xgrammar for the model-native structural tag (Qwen XML,
+#   which both students were trained on). Nothing is generated or stored here.
+#   Measured 2026-10-22 on the v1 Qwen student: the forced reply was
+#   "</think><tool_call>\n<function=run_study_trial>..." in the trained XML;
+#   vLLM's grammar drops the two newlines Qwen otherwise writes after </think>.
+#   Argument values are also grammar-checked when the server runs with
+#   --tool-strict-level parameter (run_agent_study's forced arm does).
 #
-# Any value other than "auto" is a separate study arm: compare_agents refuses to
-# compare it with "auto" runs unless the comparison is that arm's own.
-FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "structural_tag", "required")
-# The grammar file is generated, not hand-written: build_structural_tag.py runs
-# xgrammar (in the inference image) over SERVED_TOOLS, a snapshot of the tool
-# list the MCP server serves. The grammar embeds those schemas, so it is only
-# valid while the served tools are unchanged; ensure_structural_tag_current()
-# checks that before a run starts.
-STRUCTURAL_TAG: Path = Path(__file__).resolve().parent / "grammars/forced_first_turn.structural_tag.json"
-SERVED_TOOLS: Path = Path(__file__).resolve().parent / "grammars/served_tools.json"
+# "required" is a separate study arm: compare_agents refuses to compare it with
+# "auto" runs unless the comparison is that arm's own.
+FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "required")
 # The evaluation's system turn. Training trajectories (powercoder/datasets/
 # trajectories.py) reuse it verbatim, so students train on the prompt they are
 # evaluated with (AGENTS.md FM-19).
@@ -77,54 +71,6 @@ def record(stream: TextIO, kind: str, payload: Any) -> None:
     stream.write(json.dumps({"kind": kind, "payload": payload}, allow_nan=False) + "\n")
     stream.flush()
     os.fsync(stream.fileno())
-
-
-class StructuralTagOutOfDate(RuntimeError):
-    """The served tools differ from those the committed grammar was built from.
-
-    A RuntimeError, not a ValueError, on purpose: evaluate_agent scores a
-    ValueError raised during an attempt as that model's protocol failure, but
-    this is a harness configuration fault and must stop the run instead.
-    """
-
-
-def ensure_structural_tag_current(served: list[dict[str, Any]]) -> None:
-    """Refuse a structural-tag run whose grammar no longer matches the served tools.
-
-    Args:
-        served: The tool list exactly as sent to the model (type/function/name/
-            description/parameters, in served key order).
-
-    Raises:
-        StructuralTagOutOfDate: if ``served`` is not byte-identical, as JSON, to
-            SERVED_TOOLS; rebuild with grammars/build_structural_tag.py.
-    """
-    if json.dumps(served) != json.dumps(json.loads(SERVED_TOOLS.read_text())):
-        raise StructuralTagOutOfDate(
-            f"Served tools differ from {SERVED_TOOLS.name}; rebuild {STRUCTURAL_TAG.name} "
-            "with powercoder/inference/grammars/build_structural_tag.py")
-
-
-def structural_tag(tools: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return the extra request field that makes vLLM force a first-turn tool call.
-
-    vLLM's chat-completions endpoint accepts ``structured_outputs.structural_tag``:
-    a JSON grammar (xgrammar's structural-tag format) applied after the model's
-    reasoning block ends. Sent with ``tool_choice="auto"``, so vLLM keeps the
-    model's own tool-call parser and format, and only the grammar decides what
-    may be generated.
-
-    Args:
-        tools: The tool list being served this turn; checked against the grammar.
-
-    Returns:
-        ``{"structured_outputs": {"structural_tag": <STRUCTURAL_TAG text>}}``.
-
-    Raises:
-        StructuralTagOutOfDate: see ensure_structural_tag_current.
-    """
-    ensure_structural_tag_current(tools)
-    return {"structured_outputs": {"structural_tag": STRUCTURAL_TAG.read_text()}}
 
 
 async def probe(args: argparse.Namespace, journal: TextIO) -> int:
@@ -161,12 +107,10 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         with InferenceClient(args.base_url, timeout=INFERENCE_TIMEOUT_S) as client:
             for turn in range(MAX_TURNS):
                 try:
-                    forced = turn == 0 and first_choice != "auto"
                     result = await asyncio.to_thread(
                         client.chat_completion, args.model, messages,
                         max_tokens=MAX_TOKENS, temperature=0.0, tools=tools,
-                        tool_choice="required" if forced and first_choice == "required" else "auto",
-                        extra=structural_tag(tools) if forced and first_choice == "structural_tag" else None,
+                        tool_choice=first_choice if turn == 0 else "auto",
                     )
                 except httpx.HTTPStatusError as error:
                     # The conversation outgrew the server's context: this

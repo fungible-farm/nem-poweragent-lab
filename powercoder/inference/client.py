@@ -33,9 +33,8 @@ class InferenceClient:
         temperature: float = 0.7,
         tools: Optional[list[dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
-        extra: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        """Generate a chat completion; ``extra`` adds server-specific fields (e.g. vLLM structured_outputs)."""
+        """Generate a chat completion."""
         payload = {
             "model": model,
             "messages": messages,
@@ -46,8 +45,6 @@ class InferenceClient:
             payload["tools"] = tools
         if tool_choice is not None:
             payload["tool_choice"] = tool_choice
-        if extra:
-            payload.update(extra)
 
         start = time.time()
         resp = self.client.post(f"{self.base_url}/v1/chat/completions", json=payload)

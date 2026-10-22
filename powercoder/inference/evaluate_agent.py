@@ -17,8 +17,7 @@ from typing import Any, TypedDict
 
 from powercoder.datasets.audit import audit_rows, load_rows
 from powercoder.inference.provenance import check as provenance_check
-from powercoder.inference.mcp_server import tool_definitions
-from powercoder.inference.tool_probe import FIRST_TURN_TOOL_CHOICES, ensure_structural_tag_current, INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
+from powercoder.inference.tool_probe import FIRST_TURN_TOOL_CHOICES, INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
 from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answer
 
 # One task at a time reproduces the r1-r3 schedule. Tasks are independent
@@ -170,12 +169,6 @@ async def evaluate(args: argparse.Namespace) -> None:
     journal is already durable.
     """
     tasks = load_rows(args.tasks)
-    if args.first_turn_tool_choice == "structural_tag":
-        # Fail the run before any attempt: a stale grammar is a harness fault,
-        # and raised inside an attempt it would be scored as a model failure.
-        ensure_structural_tag_current([{"type": "function", "function": {
-            "name": t.name, "description": t.description, "parameters": t.inputSchema}}
-            for t in tool_definitions(study_tools=True)])
     audit = audit_rows(tasks, load_rows(args.exclude))
     if not audit["clean"] or len(tasks) != frozen_task_count(args.tasks):
         raise ValueError(f"Expected a complete, frozen, independent task suite: {audit}")

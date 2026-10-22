@@ -28,10 +28,14 @@ No stage is retried or truncated automatically; a failed stage stops the driver
 with its logs kept.
 
 ``--forced-arm-from <r6 root>`` is a separate study arm (never part of r6): it
-reuses r6's verified students and unforced 100-task runs, evaluates every
-model r6 evaluated with ``--first-turn-tool-choice structural_tag`` (xgrammar
-forces a tool call before any answer, in the model's own trained format), and writes one forced-vs-unforced
-comparison per model.
+reuses r6's verified students and unforced 100-task runs and evaluates every
+model r6 evaluated under strict tool calling, then writes one comparison per
+model against its own r6 run. Strict tool calling here means: each server runs
+with ``--tool-strict-level parameter`` (vLLM builds xgrammar's model-native
+grammar from each request's tools and enforces the argument schemas on every
+turn), and the first turn sends ``tool_choice="required"`` (it must be a tool
+call). The prompt is unchanged: strictness is server-side, not a ``strict``
+field in the rendered tools.
 """
 
 from __future__ import annotations
@@ -66,6 +70,9 @@ STUDENTS: dict[str, Path] = {
 # 3.9-5.6% of the 306-task benchmark (r4), so at p = 0.1, P(>= 10/20) ~ 7e-6:
 # a pass is learned behaviour, not luck. Fixed before any student was served.
 SMOKE_MIN_PASS: int = 10
+# vLLM flag for the forced arm's servers: enforce tool-call envelope and argument
+# schemas for every request (vLLM 0.31 ToolStrictLevel.PARAMETER).
+STRICT_TOOL_CALLING: tuple[str, ...] = ("--tool-strict-level", "parameter")
 # Host memory sampling period; vLLM's load and each request last seconds or more.
 MEMORY_SAMPLE_S: float = 1.0
 RESTOREBENCH_LAB: Path = Path("labs/10-poweragentbench-restorebench/restorebench_lab.py")
@@ -138,7 +145,7 @@ def evaluation(model: str, port: int, tasks: Path, out: Path,
 
 def session(label: str, tag: str, source: Path, model_path: str, fraction: float, root: Path, events: TextIO,
             suites: list[tuple[str, Path, Path]], latency: bool, restorebench: bool = False,
-            first_turn_tool_choice: str = "auto") -> None:
+            first_turn_tool_choice: str = "auto", vllm_args: tuple[str, ...] = ()) -> None:
     """Serve one model alone; optionally benchmark latency; run each suite; release it.
 
     Args:
@@ -154,7 +161,7 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
     with MemorySampler(root / f"{label}-{tag}-memory.jsonl") as memory:
         try:
             serve(source, name, model, reasoning, root, events, memory_fraction=fraction,
-                  model_path=model_path, port=port)
+                  model_path=model_path, port=port, vllm_args=vllm_args)
             loaded = memory.peak()
             record(events, "memory_after_load", {"model": label, **loaded})
             if latency:
@@ -248,14 +255,15 @@ def forced_arm(args: argparse.Namespace, events: TextIO) -> None:
         verify_evaluation(previous / label, events)
         forced = args.root / f"{label}-forced"
         session(label, "forced", *sources[label], fractions[label.split("-")[0]], args.root, events,
-                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="structural_tag")
+                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="required",
+                vllm_args=STRICT_TOOL_CALLING)
         stem = f"{label}-auto-vs-forced"
         strict = write_comparison(previous / label, forced, args.root / f"{stem}.json", events, True)
         numerical = write_numerical_comparison(previous / label, forced, args.root / f"{stem}-numerical.json",
                                                events, True)
         outcomes[label] = {"strict_delta_pp": strict["delta_percentage_points"],
                            "solver_verified_delta_pp": numerical["delta_percentage_points"]}
-    record(events, "pipeline_complete", {"arm": "forced-first-turn-structural-tag", "from": str(previous),
+    record(events, "pipeline_complete", {"arm": "strict-tool-calling-forced-first-turn", "from": str(previous),
                                          "comparisons": outcomes})
 
 

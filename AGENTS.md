@@ -197,8 +197,7 @@ lab's own register (the r00t SysML register is the long-term home).
 | ID | Requirement | Source | Checked by |
 |---|---|---|---|
 | PC-REQ-1 | Every number in a final answer comes from that attempt's tool responses or its prompt; any other number fails the attempt in both the strict and the solver-verified scores | User rule 2026-10-22 ("never guess or make up numbers"); FM-19 student | `powercoder/inference/test_provenance.py`, `test_failure_modes.py::test_an_answer_with_numbers_no_tool_produced_is_fabricated` |
-| PC-REQ-2 | A forced first turn keeps the model's trained tool-call format: the committed structural tag is sent as vLLM `structured_outputs.structural_tag` with `tool_choice="auto"`, on turn 0 only | Forced-arm decision 2026-10-22 (item 5); vLLM's `"required"` is a JSON-array format | `test_tool_probe.py::test_structural_tag_turn_sends_the_committed_grammar_with_tool_choice_auto` |
-| PC-REQ-3 | A grammar built from other tools than those served stops the run before any attempt, and is never scored as a model failure | Same; `evaluate_agent.attempt` scores ValueError as a protocol failure | `test_tool_probe.py::test_a_grammar_built_from_other_tools_stops_the_run_not_the_attempt` |
+| PC-REQ-2 | In the strict-tool-calling arm only the first turn is forced to be a tool call (`tool_choice="required"`), in the model's trained tool-call format, with no grammar stored in this repo: vLLM builds it per request from the request's own tools, and the arm's servers enforce argument schemas with `--tool-strict-level parameter` | Forced-arm decision 2026-10-22 (item 5); measured live: the forced reply was native Qwen XML (vLLM drops the two newlines Qwen writes after `</think>`) | `test_tool_probe.py::test_required_tool_choice_applies_to_the_first_turn_only`, `training/test_run_agent_study.py::test_forced_arm_reuses_r6_and_compares_each_model_with_itself` |
 
 ## Repo layout quick reference
 

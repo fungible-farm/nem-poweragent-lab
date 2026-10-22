@@ -154,11 +154,14 @@ def parallel(stages: list[tuple[list[str], Path]], events: TextIO) -> None:
 
 
 def serve(source: Path, name: str, model: str, reasoning: str, root: Path, events: TextIO,
-          memory_fraction: float = GPU_MEMORY_FRACTION, model_path: str = "", port: int = PORTS[0]) -> None:
+          memory_fraction: float = GPU_MEMORY_FRACTION, model_path: str = "", port: int = PORTS[0],
+          vllm_args: tuple[str, ...] = ()) -> None:
     """Start a pinned, local-only model endpoint and wait for actual readiness.
 
     ``source`` is mounted read-only at /student; ``model_path`` selects a
     directory inside it (the Hugging Face hub layout needs its whole tree).
+    ``vllm_args`` are appended to the vLLM command (recorded in the serving
+    JSON), e.g. a study arm's ``--tool-strict-level parameter``.
     """
     # vLLM preallocates this fraction of total memory, so that is the floor.
     await_memory(name, int(memory_fraction * meminfo_bytes("MemTotal")), events)
@@ -171,7 +174,7 @@ def serve(source: Path, name: str, model: str, reasoning: str, root: Path, event
             "--host", "0.0.0.0", "--port", "8000", "--dtype", "bfloat16", "--max-model-len", str(CONTEXT_TOKENS),
             "--max-num-seqs", str(CONCURRENCY), "--gpu-memory-utilization", str(memory_fraction), "--enforce-eager",
             "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_coder", "--reasoning-parser", reasoning,
-            "--generation-config", "vllm", "--limit-mm-per-prompt", '{"image":0,"video":0}']
+            "--generation-config", "vllm", "--limit-mm-per-prompt", '{"image":0,"video":0}', *vllm_args]
     command(args, root / f"{name}-start.log", events)
     info = container_info(name)
     (root / f"{name}-serving.json").write_text(json.dumps(info, indent=2) + "\n")

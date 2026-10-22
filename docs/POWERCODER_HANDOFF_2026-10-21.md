@@ -112,16 +112,15 @@ which Granite's template also emits) accepts all 2,207 trained turns of the
 357 trajectories and rejects 70 of the 119 injected failures (every FM-7
 `"None"` and FM-1 `run_power_flow` call); the 49 line-0 calls are schema-valid,
 so only training addresses FM-18. That check forced trajectory arguments into
-schema order (`a9fe73d`). vLLM turns `tool_choice="required"` into a
-JSON-array schema, not the models' XML format, so the forced arm now uses
-`--first-turn-tool-choice structural_tag`: the committed
-`powercoder/inference/grammars/forced_first_turn.structural_tag.json` (built by
-`build_structural_tag.py` in the inference image from `served_tools.json`; the
-probe refuses to run if the served tools drift) sent as vLLM
-`structured_outputs.structural_tag` with `tool_choice="auto"`. Verified live
-23:10 on the v1 Qwen student: vLLM accepted the tag, all 3 first turns were
-`run_study_trial` calls, and all 3 validation fits passed grade() (numerical,
-evidence, provenance).
+schema order (`a9fe73d`). The forced arm needs no grammar of its own (an
+earlier committed grammar file, tool snapshot and drift check were removed as
+tech debt): vLLM 0.31's unified parser builds xgrammar's model-native
+structural tag per request from that request's tools. Measured live on the v1
+Qwen student: `tool_choice="required"` produced native Qwen XML (vLLM's grammar
+drops the two newlines after `</think>`), and a server started with
+`--tool-strict-level parameter` accepted the flag and did the same with the
+tools unchanged. The forced arm runs that way: strict servers, turn 0
+`required`, later turns `auto`, prompt unchanged.
 
 **Sorted-tool-schema defect (22:50).** Training prompts rendered the tool block
 with sorted keys (`common.write_jsonl`), unlike the served prompt (AGENTS.md
