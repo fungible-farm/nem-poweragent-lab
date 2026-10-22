@@ -141,13 +141,27 @@ def encode(prompt: str, target: str, tokenizer: Any, seq_len: int) -> Features:
             "labels": [IGNORE_LABEL] * len(prompt_ids) + target_ids}
 
 
+def supervised_segments(row: dict[str, Any], render: Render) -> list[tuple[str, str]]:
+    """The (prompt, target) turns to train on: every assistant turn except an injected mistake.
+
+    A recovery variant (``row["fault"]`` set, powercoder/datasets/trajectories.py)
+    opens with a deliberately wrong call. Supervising it would train the student to
+    make that mistake on 119 first-turn prompts; it stays in the history of every
+    later turn, so the student still learns to read the real error and correct it.
+    """
+    segments = turn_segments(normalise(row["messages"]), render)
+    return segments[1:] if row.get("fault") else segments
+
+
 def generation_check(model: Any, tokenizer: Any, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Greedily generate trained first turns from their served prompts (see module docstring)."""
     import torch
 
     chosen: list[dict[str, Any]] = []
     for subfamily in sorted({row["subfamily"] for row in rows}):
-        chosen += [row for row in rows if row["subfamily"] == subfamily][:GENERATION_CHECKS_PER_SUBFAMILY]
+        # Plain trajectories only: a recovery variant's first turn is the mistake.
+        chosen += [row for row in rows if row["subfamily"] == subfamily
+                   and row.get("fault") is None][:GENERATION_CHECKS_PER_SUBFAMILY]
     results = []
     for row in chosen:
         def render(messages: list[dict[str, Any]], generation: bool, tools: list = row["tools"]) -> str:
@@ -226,7 +240,7 @@ def train(config_path: Path, preflight: bool = False) -> None:
             return tokenizer.apply_chat_template(messages, tools=tools, tokenize=False,
                                                  add_generation_prompt=generation)
         features += [encode(prompt, target, tokenizer, settings["seq_len"])
-                     for prompt, target in turn_segments(normalise(row["messages"]), render)]
+                     for prompt, target in supervised_segments(row, render)]
     loader = AutoModelForImageTextToText if model_cfg["loader"] == "image-text-to-text" else AutoModelForCausalLM
     with torch.device("meta"):
         skeleton = loader.from_config(AutoConfig.from_pretrained(model_cfg["name"], local_files_only=True))

@@ -29,7 +29,8 @@ training:
   # short rows). One epoch: the first r6 Qwen run's training loss was 0.0016 by
   # step 20 of 60 (epoch 0.67), so a second epoch repeated memorised targets.
   epochs: 1
-  # 8 conversations per optimizer step: 357 trajectories, one epoch -> 45 steps
+  # 8 conversations per optimizer step: 357 trajectories (2,207 supervised turns;
+  # injected mistakes are context only), one epoch -> 46 steps
   # for both students.
   conversations_per_step: 8
   warmup_fraction: 0.05

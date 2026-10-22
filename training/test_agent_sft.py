@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from training.agent_sft import encode, schedule, turn_segments
+from training.agent_sft import encode, schedule, supervised_segments, turn_segments
 
 MESSAGES: list[dict[str, Any]] = [
     {"role": "system", "content": "S"}, {"role": "user", "content": "U"},
@@ -72,3 +72,15 @@ def test_prompt_and_target_are_tokenised_separately() -> None:
 def test_schedule_gives_30_steps_for_one_epoch() -> None:
     """r6 numbers: 238 conversations as 1,457 turn sequences, 8 conversations a step."""
     assert schedule(238, 1457, 8, 1) == (49, 30)
+
+
+def test_an_injected_mistake_is_context_never_a_target() -> None:
+    """Recovery variants train the correction, not the mistake that precedes it."""
+    # Stored trajectories carry tool-call arguments as JSON strings.
+    stored = [{**m, "tool_calls": [{"function": {"name": "t", "arguments": "{}"}}]} if m.get("tool_calls") else m
+              for m in MESSAGES]
+    plain = {"fault": None, "messages": stored}
+    faulty = {"fault": "none_string", "messages": stored}
+    assert len(supervised_segments(plain, qwen_like)) == 2
+    [(prompt, target)] = supervised_segments(faulty, qwen_like)
+    assert target == "\n</think>A|" and "<call>" in prompt
