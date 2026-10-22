@@ -13,7 +13,8 @@ every model the same requests, one at a time, on an otherwise idle server:
 
 Reported per request: time to first streamed token (content, reasoning or tool
 call), decode rate over the tokens after the first, and wall time; the summary
-gives medians and the 90th percentile. Memory is not measured here: the driver
+gives medians and the 90th percentile. Decode rates are per tokenizer, so
+Qwen and Granite tokens/s are not directly comparable; wall time is. Memory is not measured here: the driver
 samples host MemAvailable around the server's whole life (unified memory makes
 that the only complete measure on GB10).
 """
@@ -82,7 +83,10 @@ def measure(client: httpx.Client, base_url: str, model: str, prompt: str,
     end = time.monotonic()
     if first is None or last <= first or usage.get("completion_tokens") != DECODE_TOKENS:
         raise RuntimeError(f"Expected {DECODE_TOKENS} streamed tokens, got {usage}")
-    decode = (DECODE_TOKENS - 1) / (last - first)
+    # Measured to the end of the stream, not the last streamed delta: a tool-call
+    # parser may buffer tokens after a completed call, which would end the
+    # measured window early and overstate the rate (merit review 2026-10-23, B7).
+    decode = (DECODE_TOKENS - 1) / (end - first)
     return usage["prompt_tokens"], usage["completion_tokens"], first - start, decode, end - start
 
 

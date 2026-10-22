@@ -468,6 +468,12 @@ what auditing the actually-committed code found, once all 5 labs were already ma
 [`docs/backlog/README.md`](backlog/README.md); this section is the pointer, kept current as items
 open/close.
 
+**PowerCoder (2026-10-23):** items 0008–0014 come from an independent merit review of the r6
+agent study. The first is 0008: the current benchmark cannot measure agent value over a scripted
+policy, so any r6 gain has to be read as "a LoRA learned the tool protocol". 0009 records a
+recovery-training defect that is fixed. 0010–0013 are provenance, strict-arm, answer-by-reference
+and numerics-tool work, and 0014 is the grammar-engine decision.
+
 **Original state (as of the audit that opened these items): visualization was essentially absent.**
 `matplotlib` was a hard dependency imported in exactly one of roughly fifteen lab/script files
 (`labs/05-spartan-chaosnet-transient-stream/verify_stream.py`, one fault-transient waveform plot).

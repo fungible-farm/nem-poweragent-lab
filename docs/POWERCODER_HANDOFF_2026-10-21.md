@@ -86,6 +86,14 @@ memory-heavy PowerCoder stages.
 
 ## r6 — fixed tools, retrained students, stratified sample (in progress)
 
+> **Read before quoting any r6 number (docs/backlog/0008).** The benchmark uses one network and one
+> fit interval; 36 of 69 task keys also occur in training; and every task is solved by the ~30-line
+> policy the students imitate. A gain shows the LoRA learned the tool protocol, not agent value.
+> Gates: `domain_threshold_met` (point estimate) and `domain_threshold_met_ci_lower` (paired 95%
+> lower bound). The strict-tool-calling arm is disarmed pending its 2×2 redesign (0011). Lab 10 runs
+> as a 5-scenario pilot. Recovery training no longer supervises the injected mistake (`8314e14`,
+> 0009); training restarted 00:22 on 2026-10-23.
+
 Goal set 2026-10-22: (1) fix FM-17/FM-18; (2) mixed, stratified task order;
 (3) retrain both students on tool-call examples behind a 20-task smoke gate;
 (4) evaluate all four models on ~100 stratified tasks; (5) measure latency and

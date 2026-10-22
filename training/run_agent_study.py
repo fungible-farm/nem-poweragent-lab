@@ -19,7 +19,7 @@ Stages, every one owned by this driver and journaled to ``pipeline.jsonl``:
    (``powercoder/inference/latency_bench.py``), then the 100-task evaluation.
    Host MemAvailable is sampled for the server's whole life.
 3. The strict and solver-verified comparisons for every pair.
-4. Lab 10: RestoreBench's single tool-using agent on all 46 IEEE 118 scenarios,
+4. Lab 10: RestoreBench's single tool-using agent on a 5-scenario IEEE 118 pilot,
    each evaluated model served again on its own. This runs after the
    comparisons are written, so the external benchmark cannot cost the study its
    results (labs/10-poweragentbench-restorebench/README.md).
@@ -76,10 +76,12 @@ STRICT_TOOL_CALLING: tuple[str, ...] = ("--tool-strict-level", "parameter")
 # Host memory sampling period; vLLM's load and each request last seconds or more.
 MEMORY_SAMPLE_S: float = 1.0
 RESTOREBENCH_LAB: Path = Path("labs/10-poweragentbench-restorebench/restorebench_lab.py")
-# Every scenario of the IEEE 118 corpus. RestoreBench caps an episode at 1,200 s
-# (OrchestratorConfig.MAX_RUNTIME_SECONDS), so 46 at 8 in flight is bounded at ~2 h.
+# A pilot, not a benchmark result: the first 5 IEEE 118 scenarios per model, as a
+# transfer/regression check (merit review 2026-10-23, idea 7). RestoreBench caps
+# an episode at 1,200 s, so 5 at 8 in flight is bounded at ~20 min per model;
+# all 46 would add ~7 h across four models for a signal the study does not gate on.
 RESTOREBENCH_CORPUS: str = "ieee118"
-RESTOREBENCH_SCENARIOS: int = 46
+RESTOREBENCH_SCENARIOS: int = 5
 
 
 class MemorySampler:

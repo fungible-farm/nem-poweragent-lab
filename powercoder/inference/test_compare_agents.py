@@ -100,3 +100,11 @@ def test_a_forced_tool_choice_run_is_compared_only_when_asked(paired_runs: tuple
         comparator.compare(base, student)
     result = comparator.compare(base, student, allow_tool_choice_difference=True)
     assert result["first_turn_tool_choice"] == {"base": "auto", "student": "required"}
+
+
+def test_the_interval_gate_is_recorded_beside_the_point_estimate(paired_runs: tuple[Path, Path]) -> None:
+    """Two tasks clear 10 pp on the point estimate but not on the interval's lower bound."""
+    result = comparator.compare(*paired_runs)
+    assert result["domain_threshold_met"]
+    assert result["domain_threshold_met_ci_lower"] == (result["uncertainty"]["delta"][0] >= 0.10)
+    assert not result["domain_threshold_met_ci_lower"]

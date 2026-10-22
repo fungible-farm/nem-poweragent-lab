@@ -60,12 +60,16 @@ def compare(base_dir: Path, student_dir: Path, allow_tool_choice_difference: boo
     base_rate = sum(r["passed"] for r in first) / len(first)
     student_rate = sum(r["passed"] for r in second) / len(second)
     delta = student_rate - base_rate
+    interval = uncertainty(first_paired, second_paired)
     return {"n_tasks": len(first), "base_model": base["model"], "student_model": student["model"],
             "first_turn_tool_choice": {"base": choices[0], "student": choices[1]},
             "base_pass_at_1": base_rate, "student_pass_at_1": student_rate,
             "delta_pass_at_1": delta, "delta_percentage_points": delta * 100,
             "domain_threshold_met": delta >= DOMAIN_IMPROVEMENT_THRESHOLD,
-            "uncertainty": uncertainty(first_paired, second_paired),
+            # The point estimate alone can clear 10 pp by noise on 100 tasks; this
+            # requires the paired 95% interval's lower bound to clear it.
+            "domain_threshold_met_ci_lower": interval["delta"][0] >= DOMAIN_IMPROVEMENT_THRESHOLD,
+            "uncertainty": interval,
             "by_subfamily": {family: {
                 "n_tasks": sum(r["subfamily"] == family for r in first),
                 "base_pass": sum(r["passed"] for r in first if r["subfamily"] == family),
