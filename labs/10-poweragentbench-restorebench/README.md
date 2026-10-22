@@ -33,8 +33,8 @@ to 0.988 pu). After that maneuver the scenario still fails to converge within th
 `max_iteration=30`, and this was reproduced on repeated runs. The cause has not been established.
 A near-singular case that is sensitive to aarch64 floating-point differences is the likeliest
 explanation, but that is a hypothesis, not a measurement. The fixture `expected_witness_summary.json`
-records the result as measured, so `--step check` fails if it changes. It has not been reported
-upstream yet.
+records the result as measured, so `--step check` fails if it changes. Reported upstream as
+[PowerAgentBench#13](https://github.com/Power-Agent/PowerAgentBench/issues/13).
 
 Model results from `--step agent` are written to `results/agent-<model>/summary.json`. The r6
 PowerCoder driver will run all four models on the same corpus; see
@@ -60,6 +60,7 @@ PowerCoder driver will run all four models on the same corpus; see
   `score_attempt`. The `restorebench-score --batch` command can't be used here, for two reasons: it
   has no data-directory option, so it always scores against IEEE 118, and it writes only an
   aggregate report. Run against the PEGASE 89 witnesses, it fails while loading the IEEE 118 files.
+  Reported as [PowerAgentBench#14](https://github.com/Power-Agent/PowerAgentBench/issues/14).
 
 ## Sandbox notes (named stand-ins)
 

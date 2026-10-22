@@ -111,7 +111,10 @@ kept as the plain-procedure baseline. On user direction both students are now
 retrained on `trajectories-20261022-v2` (238 plain + 119 failure-mode recovery
 variants: 61 `"None"`, 49 line-0, 9 `run_power_flow`; all pass `grade()`
 including provenance) into `agent-sft-*-20261022-v2/`, which r6 evaluates.
-`powercoder-agent-study-r6-wait` launches r6 when that training succeeds.
+`powercoder-agent-study-r6-wait` launches r6 when that training succeeds. When r6 records
+`pipeline_complete`, `powercoder-agent-study-r6-forced-wait` launches the
+separate forced first-turn tool-call arm (`training/unsloth/out/agent-study-r6-forced`,
+`run_agent_study --forced-arm-from`), which compares each model with itself.
 Watch with:
 
 ```bash
@@ -158,7 +161,8 @@ during GPU stages.
 
 Lab 10 result: RestoreBench witnesses on this aarch64 node score IEEE 118
 45/46 (S0081 `BUDGET_EXHAUSTED`, reproduced) and PEGASE 89 46/46; its own
-verifier agrees. Not yet reported upstream.
+verifier agrees. Reported as PowerAgentBench#13; the batch scorer's fixed IEEE 118 data
+directory as #14.
 
 ## r5 run — stopped deliberately 2026-10-22 17:46 AEDT
 
