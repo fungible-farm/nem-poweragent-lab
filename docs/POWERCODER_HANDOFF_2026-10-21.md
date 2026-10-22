@@ -90,7 +90,7 @@ memory-heavy PowerCoder stages.
 > fit interval; 36 of 69 task keys also occur in training; and every task is solved by the ~30-line
 > policy the students imitate. A gain shows the LoRA learned the tool protocol, not agent value.
 > Gates: `domain_threshold_met` (point estimate) and `domain_threshold_met_ci_lower` (paired 95%
-> lower bound). The strict-tool-calling arm is disarmed pending its 2×2 redesign (0011). Lab 10 runs
+> lower bound). The strict-tool-calling arm runs as a 2×2 on the smoke suite after r6 (0011). Lab 10 runs
 > as a 5-scenario pilot. Recovery training no longer supervises the injected mistake (`8314e14`,
 > 0009); training restarted 00:22 on 2026-10-23.
 

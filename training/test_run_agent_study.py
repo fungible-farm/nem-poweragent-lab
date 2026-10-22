@@ -17,9 +17,10 @@ def test_a_student_failing_its_smoke_gate_is_neither_evaluated_nor_compared(
     sessions: list[tuple[str, str, bool]] = []
 
     def fake_session(label: str, tag: str, _source: Path, _path: str, _fraction: float, root: Path,
-                     _events: object, suites: list, latency: bool, restorebench: bool = False) -> None:
+                     _events: object, suites: list, latency: bool, restorebench: bool = False,
+                     strict_level: str = "auto") -> None:
         sessions.append((label, tag, latency))
-        for _stage, _tasks, out in suites:
+        for _stage, _tasks, out, *_choice in suites:
             out.mkdir()
             if tag == "smoke":
                 (out / "summary.json").write_text(json.dumps({"n_pass": smoke_passes[label], "n_tasks": 20}))
@@ -58,24 +59,26 @@ def test_memory_peak_is_the_drop_from_the_pre_start_baseline(tmp_path: Path, mon
     assert sampler.peak(since=3.0)["peak_used"] == 20
 
 
-def test_forced_arm_reuses_r6_and_compares_each_model_with_itself(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every model r6 evaluated is re-run with a required first-turn tool call."""
-    previous = tmp_path / "r6"
-    previous.mkdir()
-    (previous / "pipeline.jsonl").write_text(json.dumps({"kind": "pipeline_complete", "payload": {
-        "evaluated": ["qwen-base", "qwen-student"]}}) + "\n")
+def test_strict_arm_is_a_2x2_per_model_compared_with_its_own_baseline(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backlog 0011: one server per strict level, both first-turn choices on each,
+    and each comparison names exactly the conditions it spans."""
     sessions, compared = [], []
     monkeypatch.setattr(driver, "verify_student", lambda directory, _events: directory / "merged-bf16")
-    monkeypatch.setattr(driver, "verify_evaluation", lambda directory, _events: None)
-    monkeypatch.setattr(driver, "session", lambda label, tag, *_a, first_turn_tool_choice="auto", vllm_args=(), **_k:
-                        sessions.append((label, tag, first_turn_tool_choice, vllm_args)))
-    monkeypatch.setattr(driver, "write_comparison", lambda first, second, _dest, _events, allow:
-                        compared.append((first.name, second.name, allow)) or {"delta_percentage_points": 1.0})
-    monkeypatch.setattr(driver, "write_numerical_comparison", lambda *_a: {"delta_percentage_points": 2.0})
-    root = tmp_path / "forced"
+    monkeypatch.setattr(driver, "session", lambda label, tag, *_a, strict_level="auto", **_k:
+                        sessions.append((label, tag, strict_level, [suite[3] for suite in _a[5]])))
+    monkeypatch.setattr(driver, "write_comparison", lambda first, second, _dest, _events, spans:
+                        compared.append((second.name, spans)) or {"delta_percentage_points": 0.0})
+    monkeypatch.setattr(driver, "write_numerical_comparison", lambda *_a: {"delta_percentage_points": 0.0})
+    root = tmp_path / "strict"
     root.mkdir()
     with (tmp_path / "events.jsonl").open("x") as stream:
-        driver.forced_arm(driver.argparse.Namespace(root=root, forced_arm_from=previous), stream)
-    strict = ("--tool-strict-level", "parameter")
-    assert sessions == [("qwen-base", "forced", "required", strict), ("qwen-student", "forced", "required", strict)]
-    assert compared == [("qwen-base", "qwen-base-forced", True), ("qwen-student", "qwen-student-forced", True)]
+        driver.strict_arm(driver.argparse.Namespace(root=root), stream)
+    assert sessions[:2] == [("qwen-base", "strict-auto", "auto", ["auto", "required"]),
+                            ("qwen-base", "strict-parameter", "parameter", ["auto", "required"])]
+    assert len(sessions) == 8
+    assert compared[:3] == [
+        ("qwen-base-strict-auto-first-required", frozenset({"first_turn_tool_choice"})),
+        ("qwen-base-strict-parameter-first-auto", frozenset({"server_tool_strict_level"})),
+        ("qwen-base-strict-parameter-first-required",
+         frozenset({"server_tool_strict_level", "first_turn_tool_choice"}))]

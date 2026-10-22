@@ -193,10 +193,11 @@ def rescore_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return summary, results
 
 
-def compare_domain(base_dir: Path, student_dir: Path, allow_tool_choice_difference: bool = False) -> dict[str, Any]:
+def compare_domain(base_dir: Path, student_dir: Path,
+                   allowed_differences: frozenset[str] = frozenset()) -> dict[str, Any]:
     """Report M09's numerical metric and retain the original evidence-gated metric."""
     # Also verifies equal generation conditions (see compare for the one exception).
-    strict = compare(base_dir, student_dir, allow_tool_choice_difference)
+    strict = compare(base_dir, student_dir, allowed_differences)
     base, first = rescore_run(base_dir)
     student, second = rescore_run(student_dir)
     first_rate = sum(r["pass"] for r in first) / len(first)

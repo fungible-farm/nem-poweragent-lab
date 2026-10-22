@@ -1,6 +1,6 @@
 # 0011 — Strict-tool-calling arm: redesign as a 2×2 before running it
 
-- **Status:** open. Arm disarmed: `powercoder-agent-study-r6-forced-wait` stopped 2026-10-23 and not re-armed. Review idea 1 (merit 3) and B2 ([review](reviews/2026-10-23-r6-merit-review.md)).
+- **Status:** implemented 2026-10-23 (`run_agent_study --strict-arm`). Queued to run after r6 completes, through `powercoder-agent-study-r6-strict-wait`. The confounded single arm was never run. Review idea 1 (merit 3) and B2 ([review](reviews/2026-10-23-r6-merit-review.md)).
 
 ## Problem
 As built, the arm changes two things at once: `tool_choice="required"` on turn 0, and `--tool-strict-level parameter` on every turn. `compare` records only the first. Strict schemas also block exactly the `"None"` strings that B1 (0009) trained in, so a gain could not be credited to forcing. Backlog 0007 measured that grammar-constrained decoding can be semantically evasive: a forced call could be well formed and useless.

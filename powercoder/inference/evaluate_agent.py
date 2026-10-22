@@ -20,6 +20,10 @@ from powercoder.inference.provenance import check as provenance_check
 from powercoder.inference.tool_probe import FIRST_TURN_TOOL_CHOICES, INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
 from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answer
 
+# vLLM 0.31 --tool-strict-level values: "auto" constrains tool calls only when the
+# request asks (tool_choice / per-tool strict); "function" always constrains the
+# call envelope; "parameter" also enforces each argument's schema.
+TOOL_STRICT_LEVELS: tuple[str, ...] = ("auto", "function", "parameter")
 # One task at a time reproduces the r1-r3 schedule. Tasks are independent
 # (own MCP process, own journal), so concurrency changes throughput only.
 DEFAULT_CONCURRENCY: int = 1
@@ -181,6 +185,9 @@ async def evaluate(args: argparse.Namespace) -> None:
         "inference_timeout_s": INFERENCE_TIMEOUT_S,
         "temperature": 0.0, "attempts_per_task": 1, "concurrency": args.concurrency,
         "first_turn_tool_choice": args.first_turn_tool_choice,
+        # The serving side of the condition, as the caller started the server
+        # (vLLM --tool-strict-level); recorded so compare_agents can refuse mixes.
+        "server_tool_strict_level": args.server_tool_strict_level,
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (args.out / "prompts").mkdir()
@@ -222,6 +229,8 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--first-turn-tool-choice", choices=FIRST_TURN_TOOL_CHOICES, default="auto",
                         help="'required' forces a tool call on the first turn (a separate study arm)")
+    parser.add_argument("--server-tool-strict-level", choices=TOOL_STRICT_LEVELS, default="auto",
+                        help="The vLLM --tool-strict-level the server was started with (recorded, not applied)")
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY,
                         help="Attempts in flight at once; match the server's --max-num-seqs")
     args = parser.parse_args()

@@ -10,8 +10,8 @@
 #
 # Usage:
 #   ./scripts/launch_agent_study.sh training/unsloth/out/agent-study-r6
-#   ./scripts/launch_agent_study.sh training/unsloth/out/agent-study-r6-forced \
-#       --forced-arm-from training/unsloth/out/agent-study-r6   # forced-tool-call arm
+#   ./scripts/launch_agent_study.sh training/unsloth/out/agent-study-r6-strict --strict-arm
+#       # strict-tool-calling 2x2 on the smoke suite (backlog 0011)
 #
 # Arguments after the root pass through to training/run_agent_study.py.
 

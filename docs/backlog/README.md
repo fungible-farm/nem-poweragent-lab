@@ -23,7 +23,7 @@ research notes.
 | [0008](0008-powercoder-benchmark-cannot-measure-agent-value.md) | PowerCoder benchmark cannot measure agent value (one network, fixed interval, 36/69 keys shared with training, scripted policy); add baselines and judgement tasks | open — priority 1 |
 | [0009](0009-recovery-training-supervised-the-injected-mistake.md) | Recovery training supervised the injected mistake | fixed `8314e14`; journal verification pending |
 | [0010](0010-provenance-check-hardening.md) | Provenance check (PC-REQ-1) is weaker than its requirement | open |
-| [0011](0011-strict-tool-calling-arm-redesign.md) | Strict-tool-calling arm: redesign as a 2×2 before running it | open; arm disarmed |
+| [0011](0011-strict-tool-calling-arm-redesign.md) | Strict-tool-calling arm: redesign as a 2×2 before running it | implemented; queued after r6 |
 | [0012](0012-answer-by-reference.md) | Idea: answer by reference (numbers rendered from cited tool output) | idea |
 | [0013](0013-sensitivity-newton-tool.md) | Idea: sensitivity/Newton tool with certificates; PCA and the one-interface generator dropped | idea |
 | [0014](0014-grammar-engines-xgrammar-llguidance-gbnf.md) | Grammar engines: xgrammar kept in sync for vLLM; GBNF/llguidance for llama.cpp | decided |

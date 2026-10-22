@@ -27,15 +27,12 @@ Stages, every one owned by this driver and journaled to ``pipeline.jsonl``:
 No stage is retried or truncated automatically; a failed stage stops the driver
 with its logs kept.
 
-``--forced-arm-from <r6 root>`` is a separate study arm (never part of r6): it
-reuses r6's verified students and unforced 100-task runs and evaluates every
-model r6 evaluated under strict tool calling, then writes one comparison per
-model against its own r6 run. Strict tool calling here means: each server runs
-with ``--tool-strict-level parameter`` (vLLM builds xgrammar's model-native
-grammar from each request's tools and enforces the argument schemas on every
-turn), and the first turn sends ``tool_choice="required"`` (it must be a tool
-call). The prompt is unchanged: strictness is server-side, not a ``strict``
-field in the rendered tools.
+``--strict-arm`` is a separate study arm (never part of r6, backlog 0011):
+strict tool calling as a 2x2 on the 20 smoke tasks for every model, server
+``--tool-strict-level`` {auto, parameter} x first turn {auto, required}. vLLM
+builds xgrammar's model-native tool grammar per request from the request's own
+tools, so nothing is stored here, and the prompt is unchanged (strictness is
+server-side). See strict_arm.
 """
 
 from __future__ import annotations
@@ -70,9 +67,11 @@ STUDENTS: dict[str, Path] = {
 # 3.9-5.6% of the 306-task benchmark (r4), so at p = 0.1, P(>= 10/20) ~ 7e-6:
 # a pass is learned behaviour, not luck. Fixed before any student was served.
 SMOKE_MIN_PASS: int = 10
-# vLLM flag for the forced arm's servers: enforce tool-call envelope and argument
-# schemas for every request (vLLM 0.31 ToolStrictLevel.PARAMETER).
-STRICT_TOOL_CALLING: tuple[str, ...] = ("--tool-strict-level", "parameter")
+# The strict-tool-calling arm's two factors (backlog 0011): the server's vLLM
+# --tool-strict-level ("parameter" enforces each argument's schema on every turn)
+# and the first turn's tool_choice ("required" forces a tool call).
+STRICT_LEVELS: tuple[str, ...] = ("auto", "parameter")
+FIRST_TURN_CHOICES: tuple[str, ...] = ("auto", "required")
 # Host memory sampling period; vLLM's load and each request last seconds or more.
 MEMORY_SAMPLE_S: float = 1.0
 RESTOREBENCH_LAB: Path = Path("labs/10-poweragentbench-restorebench/restorebench_lab.py")
@@ -136,26 +135,33 @@ def verify_student(directory: Path, events: TextIO) -> Path:
     return directory / "merged-bf16"
 
 
-def evaluation(model: str, port: int, tasks: Path, out: Path,
-               first_turn_tool_choice: str = "auto") -> tuple[list[str], Path]:
-    """The evaluate_agent command for one suite, at the shared concurrency and budgets."""
+def evaluation(model: str, port: int, tasks: Path, out: Path, first_turn_tool_choice: str = "auto",
+               strict_level: str = "auto") -> tuple[list[str], Path]:
+    """The evaluate_agent command for one suite, at the shared concurrency and budgets.
+
+    ``strict_level`` must be the --tool-strict-level the server was started with;
+    it is recorded in the run manifest as a comparison condition.
+    """
     return ([sys.executable, "-m", "powercoder.inference.evaluate_agent", "--base-url", f"http://127.0.0.1:{port}",
              "--model", model, "--tasks", str(tasks), "--exclude", str(TRAIN_SPLIT), "--out", str(out),
-             "--concurrency", str(CONCURRENCY), "--first-turn-tool-choice", first_turn_tool_choice],
+             "--concurrency", str(CONCURRENCY), "--first-turn-tool-choice", first_turn_tool_choice,
+             "--server-tool-strict-level", strict_level],
             out.parent / f"{out.name}.log")
 
 
 def session(label: str, tag: str, source: Path, model_path: str, fraction: float, root: Path, events: TextIO,
-            suites: list[tuple[str, Path, Path]], latency: bool, restorebench: bool = False,
-            first_turn_tool_choice: str = "auto", vllm_args: tuple[str, ...] = ()) -> None:
+            suites: list[tuple[str, Path, Path]] | list[tuple[str, Path, Path, str]], latency: bool,
+            restorebench: bool = False, strict_level: str = "auto") -> None:
     """Serve one model alone; optionally benchmark latency; run each suite; release it.
 
     Args:
         tag: Distinguishes this session's container and files: a student is
             served once for its smoke gate and again for the benchmark.
-        suites: (stage, tasks, out_dir) evaluations to run in order.
+        suites: (stage, tasks, out_dir[, first_turn_tool_choice]) evaluations to run in
+            order on this one server; the choice defaults to "auto".
         latency: Run the latency benchmark on the idle server before any suite.
         restorebench: Run Lab 10's RestoreBench agent stage instead of or after the suites.
+        strict_level: The server's vLLM --tool-strict-level ("auto" adds no flag).
     """
     name, model = f"powercoder-{root.name}-{label}-{tag}", f"powercoder-{label}"
     reasoning = "nemotron_v3" if label.startswith("granite") else "qwen3"
@@ -163,7 +169,8 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
     with MemorySampler(root / f"{label}-{tag}-memory.jsonl") as memory:
         try:
             serve(source, name, model, reasoning, root, events, memory_fraction=fraction,
-                  model_path=model_path, port=port, vllm_args=vllm_args)
+                  model_path=model_path, port=port,
+                  vllm_args=() if strict_level == "auto" else ("--tool-strict-level", strict_level))
             loaded = memory.peak()
             record(events, "memory_after_load", {"model": label, **loaded})
             if latency:
@@ -173,9 +180,9 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
                          "--out", str(root / f"{label}-latency.json")], root / f"{label}-latency.log", events)
                 record(events, "latency_complete", {"model": label, "path": str(root / f"{label}-latency.json"),
                                                      "memory": memory.peak(start)})
-            for stage, tasks, out in suites:
+            for stage, tasks, out, *choice in suites:
                 start = time.time()
-                command(*evaluation(model, port, tasks, out, first_turn_tool_choice), events)
+                command(*evaluation(model, port, tasks, out, choice[0] if choice else "auto", strict_level), events)
                 verify_evaluation(out, events)
                 record(events, "suite_memory", {"model": label, "stage": stage, "memory": memory.peak(start)})
             if restorebench:
@@ -241,31 +248,43 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
     record(events, "pipeline_complete", {"smoke": passed, "evaluated": evaluated, "comparisons": outcomes})
 
 
-def forced_arm(args: argparse.Namespace, events: TextIO) -> None:
-    """Re-evaluate r6's models with a forced first-turn tool call; compare each with itself."""
-    previous = args.forced_arm_from
-    summary = [json.loads(line) for line in (previous / "pipeline.jsonl").read_text().splitlines()][-1]
-    if summary["kind"] != "pipeline_complete":
-        raise RuntimeError(f"{previous} has not completed r6")
-    evaluated = summary["payload"]["evaluated"]
+def strict_arm(args: argparse.Namespace, events: TextIO) -> None:
+    """Strict tool calling as a 2x2 on the smoke suite, for every model (backlog 0011).
+
+    Server --tool-strict-level {auto, parameter} x first turn {auto, required}:
+    each model is served once per strict level and runs both first-turn
+    choices there. Each of the three non-baseline cells is compared with the
+    model's own (auto, auto) cell, the comparison naming exactly the
+    conditions it spans, so the effect of forcing is not credited to schema
+    enforcement or the reverse. 20 tasks per cell: a direction-finding pilot,
+    not a gate.
+    """
     students = {label: verify_student(directory, events) for label, directory in STUDENTS.items()}
     sources = {"qwen-base": (HF_HUB, QWEN_BASE_SNAPSHOT), "qwen-student": (students["qwen-student"], ""),
                "granite-base": (GRANITE_BASE, ""), "granite-student": (students["granite-student"], "")}
     fractions = {"qwen": GPU_MEMORY_FRACTION, "granite": GRANITE_GPU_MEMORY_FRACTION}
-    outcomes = {}
-    for label in evaluated:
-        verify_evaluation(previous / label, events)
-        forced = args.root / f"{label}-forced"
-        session(label, "forced", *sources[label], fractions[label.split("-")[0]], args.root, events,
-                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="required",
-                vllm_args=STRICT_TOOL_CALLING)
-        stem = f"{label}-auto-vs-forced"
-        strict = write_comparison(previous / label, forced, args.root / f"{stem}.json", events, True)
-        numerical = write_numerical_comparison(previous / label, forced, args.root / f"{stem}-numerical.json",
-                                               events, True)
-        outcomes[label] = {"strict_delta_pp": strict["delta_percentage_points"],
-                           "solver_verified_delta_pp": numerical["delta_percentage_points"]}
-    record(events, "pipeline_complete", {"arm": "strict-tool-calling-forced-first-turn", "from": str(previous),
+    cell = lambda label, level, choice: args.root / f"{label}-strict-{level}-first-{choice}"
+    outcomes: dict[str, dict[str, Any]] = {}
+    for label, (source, model_path) in sources.items():
+        for level in STRICT_LEVELS:
+            session(label, f"strict-{level}", source, model_path, fractions[label.split("-")[0]], args.root, events,
+                    [(f"smoke-strict-{level}-first-{choice}", SMOKE, cell(label, level, choice), choice)
+                     for choice in FIRST_TURN_CHOICES], latency=False, strict_level=level)
+        baseline = cell(label, "auto", "auto")
+        for level in STRICT_LEVELS:
+            for choice in FIRST_TURN_CHOICES:
+                if (level, choice) == ("auto", "auto"):
+                    continue
+                spans = frozenset(name for name, differs in (("server_tool_strict_level", level != "auto"),
+                                                              ("first_turn_tool_choice", choice != "auto")) if differs)
+                stem = f"{label}-strict-{level}-first-{choice}-vs-baseline"
+                strict = write_comparison(baseline, cell(label, level, choice), args.root / f"{stem}.json", events, spans)
+                numerical = write_numerical_comparison(baseline, cell(label, level, choice),
+                                                       args.root / f"{stem}-numerical.json", events, spans)
+                outcomes.setdefault(label, {})[f"strict-{level}/first-{choice}"] = {
+                    "strict_delta_pp": strict["delta_percentage_points"],
+                    "solver_verified_delta_pp": numerical["delta_percentage_points"]}
+    record(events, "pipeline_complete", {"arm": "strict-tool-calling-2x2", "tasks": str(SMOKE),
                                          "comparisons": outcomes})
 
 
@@ -273,8 +292,8 @@ def main() -> None:
     """Create a fresh run root and durable journal; refuse automatic re-execution."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
-    parser.add_argument("--forced-arm-from", type=Path,
-                        help="Completed r6 root: run only the forced-first-turn-tool-call arm against it")
+    parser.add_argument("--strict-arm", action="store_true",
+                        help="Run only the strict-tool-calling 2x2 on the smoke suite (backlog 0011)")
     args = parser.parse_args()
     args.root.mkdir()
     # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.
@@ -285,7 +304,7 @@ def main() -> None:
                               for parent in (REPO / "powercoder/inference", REPO / "powercoder/datasets", REPO / "training")
                               for p in parent.glob("*.py")}})
         try:
-            (forced_arm if args.forced_arm_from else run)(args, events)
+            (strict_arm if args.strict_arm else run)(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
             raise

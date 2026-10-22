@@ -40,21 +40,28 @@ def verified_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]
     return summary, results
 
 
-def compare(base_dir: Path, student_dir: Path, allow_tool_choice_difference: bool = False) -> dict[str, Any]:
+# Evaluation conditions a run records beside its budgets; runs from before a field
+# existed used its default. A comparison spanning a difference must name it.
+CONDITIONS: dict[str, str] = {"first_turn_tool_choice": "auto", "server_tool_strict_level": "auto"}
+
+
+def compare(base_dir: Path, student_dir: Path, allowed_differences: frozenset[str] = frozenset()) -> dict[str, Any]:
     """Measure the actual delta, refusing incomplete or unequal conditions.
 
-    ``allow_tool_choice_difference`` admits exactly one difference, the first
-    turn's tool choice, for the forced-tool-call arm's own comparison.
+    ``allowed_differences`` names the CONDITIONS this comparison deliberately
+    spans (the strict-tool-calling arm's own comparisons); any other difference,
+    and any difference in budgets or inputs, is refused.
     """
     base, first = verified_run(base_dir)
     student, second = verified_run(student_dir)
     for field in ("inputs", "max_turns", "max_tool_calls", "max_tokens", "temperature", "attempts_per_task", "inference_timeout_s"):
         if base[field] != student[field]:
             raise ValueError(f"Unequal evaluation conditions: {field}")
-    # Runs before the option existed were all "auto".
-    choices = [run.get("first_turn_tool_choice", "auto") for run in (base, student)]
-    if choices[0] != choices[1] and not allow_tool_choice_difference:
-        raise ValueError("Unequal evaluation conditions: first_turn_tool_choice")
+    conditions = {field: {"base": base.get(field, default), "student": student.get(field, default)}
+                  for field, default in CONDITIONS.items()}
+    for field, values in conditions.items():
+        if values["base"] != values["student"] and field not in allowed_differences:
+            raise ValueError(f"Unequal evaluation conditions: {field}")
     first_paired = [{"example_id": r["example_id"], "pass": r["passed"]} for r in first]
     second_paired = [{"example_id": r["example_id"], "pass": r["passed"]} for r in second]
     base_rate = sum(r["passed"] for r in first) / len(first)
@@ -62,7 +69,8 @@ def compare(base_dir: Path, student_dir: Path, allow_tool_choice_difference: boo
     delta = student_rate - base_rate
     interval = uncertainty(first_paired, second_paired)
     return {"n_tasks": len(first), "base_model": base["model"], "student_model": student["model"],
-            "first_turn_tool_choice": {"base": choices[0], "student": choices[1]},
+            "conditions": conditions,
+            "first_turn_tool_choice": conditions["first_turn_tool_choice"],
             "base_pass_at_1": base_rate, "student_pass_at_1": student_rate,
             "delta_pass_at_1": delta, "delta_percentage_points": delta * 100,
             "domain_threshold_met": delta >= DOMAIN_IMPROVEMENT_THRESHOLD,

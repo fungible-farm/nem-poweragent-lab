@@ -98,8 +98,20 @@ def test_a_forced_tool_choice_run_is_compared_only_when_asked(paired_runs: tuple
     (student / "summary.json").write_text(json.dumps({**summary, "first_turn_tool_choice": "required"}))
     with pytest.raises(ValueError, match="first_turn_tool_choice"):
         comparator.compare(base, student)
-    result = comparator.compare(base, student, allow_tool_choice_difference=True)
+    result = comparator.compare(base, student, frozenset({"first_turn_tool_choice"}))
     assert result["first_turn_tool_choice"] == {"base": "auto", "student": "required"}
+
+
+def test_a_different_server_strict_level_must_be_named(paired_runs: tuple[Path, Path]) -> None:
+    """Allowing the tool-choice difference does not admit a strict-level difference too (0011)."""
+    base, student = paired_runs
+    summary = json.loads((student / "summary.json").read_text())
+    (student / "summary.json").write_text(json.dumps({**summary, "first_turn_tool_choice": "required",
+                                                      "server_tool_strict_level": "parameter"}))
+    with pytest.raises(ValueError, match="server_tool_strict_level"):
+        comparator.compare(base, student, frozenset({"first_turn_tool_choice"}))
+    both = comparator.compare(base, student, frozenset({"first_turn_tool_choice", "server_tool_strict_level"}))
+    assert both["conditions"]["server_tool_strict_level"] == {"base": "auto", "student": "parameter"}
 
 
 def test_the_interval_gate_is_recorded_beside_the_point_estimate(paired_runs: tuple[Path, Path]) -> None:
