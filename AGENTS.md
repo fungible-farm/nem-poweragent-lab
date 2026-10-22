@@ -189,6 +189,17 @@ or harness failure, never an impossible task.
 
 r4 also runs 8 attempts per server concurrently, with base and student side by side and Granite training alongside. Concurrent batching changes floating-point reduction order, which is one more reason (with FM-3) not to expect bitwise reproduction of an earlier run.
 
+### PowerCoder evaluation requirements
+
+Each requirement names its source and the test that checks it. These are the
+lab's own register (the r00t SysML register is the long-term home).
+
+| ID | Requirement | Source | Checked by |
+|---|---|---|---|
+| PC-REQ-1 | Every number in a final answer comes from that attempt's tool responses or its prompt; any other number fails the attempt in both the strict and the solver-verified scores | User rule 2026-10-22 ("never guess or make up numbers"); FM-19 student | `powercoder/inference/test_provenance.py`, `test_failure_modes.py::test_an_answer_with_numbers_no_tool_produced_is_fabricated` |
+| PC-REQ-2 | A forced first turn keeps the model's trained tool-call format: the committed structural tag is sent as vLLM `structured_outputs.structural_tag` with `tool_choice="auto"`, on turn 0 only | Forced-arm decision 2026-10-22 (item 5); vLLM's `"required"` is a JSON-array format | `test_tool_probe.py::test_structural_tag_turn_sends_the_committed_grammar_with_tool_choice_auto` |
+| PC-REQ-3 | A grammar built from other tools than those served stops the run before any attempt, and is never scored as a model failure | Same; `evaluate_agent.attempt` scores ValueError as a protocol failure | `test_tool_probe.py::test_a_grammar_built_from_other_tools_stops_the_run_not_the_attempt` |
+
 ## Repo layout quick reference
 
 - `docs/VISION.md` — full architecture plan and per-lab spec; the source of truth for what each

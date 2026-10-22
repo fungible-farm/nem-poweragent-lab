@@ -35,19 +35,37 @@ MAX_TOKENS: int = 8192
 # aborted the whole stage. Every compared run records this value, and
 # compare_agents refuses runs whose values differ.
 INFERENCE_TIMEOUT_S: float = 1800.0
+# How the first turn may choose to call a tool (``--first-turn-tool-choice``).
+#
+# The problem: an agent that answers before calling the solver can only be
+# guessing (the first r6 Qwen student invented report numbers that way). The
+# provenance check (provenance.py) fails such answers after the fact; these
+# options make the first turn unable to be an answer at all. Later turns always
+# use "auto" so the model can still answer once it has solver results.
+#
+# - "auto": the model decides (the r1-r6 protocol, and every r6 comparison).
+# - "structural_tag": constrained decoding. vLLM's grammar backend (xgrammar)
+#   receives grammars/forced_first_turn.structural_tag.json, a grammar that
+#   accepts only Qwen-XML tool calls whose arguments satisfy the served tool
+#   schemas (it is the format both students were trained to emit), so the first
+#   turn must be a well-formed tool call in that format. See STRUCTURAL_TAG.
+# - "required": vLLM's own tool_choice="required". vLLM implements it as a JSON
+#   array schema, a different format from the trained XML, so it changes two
+#   things at once; kept only to measure that difference.
+#
+# Any value other than "auto" is a separate study arm: compare_agents refuses to
+# compare it with "auto" runs unless the comparison is that arm's own.
+FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "structural_tag", "required")
+# The grammar file is generated, not hand-written: build_structural_tag.py runs
+# xgrammar (in the inference image) over SERVED_TOOLS, a snapshot of the tool
+# list the MCP server serves. The grammar embeds those schemas, so it is only
+# valid while the served tools are unchanged; ensure_structural_tag_current()
+# checks that before a run starts.
+STRUCTURAL_TAG: Path = Path(__file__).resolve().parent / "grammars/forced_first_turn.structural_tag.json"
+SERVED_TOOLS: Path = Path(__file__).resolve().parent / "grammars/served_tools.json"
 # The evaluation's system turn. Training trajectories (powercoder/datasets/
 # trajectories.py) reuse it verbatim, so students train on the prompt they are
 # evaluated with (AGENTS.md FM-19).
-# "auto" is the r1-r6 protocol. The other two force a tool call on the first turn
-# only (later turns are "auto" so the model can still answer), as a separate study
-# arm never mixed with "auto" runs (compare_agents treats it as a condition):
-# - "structural_tag": xgrammar's structural tag in the model's own XML tool-call
-#   format (grammars/build_structural_tag.py), so the trained format is kept;
-# - "required": vLLM's tool_choice="required", which it turns into a JSON-array
-#   schema, a different format from the one the models were trained on.
-FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "structural_tag", "required")
-STRUCTURAL_TAG: Path = Path(__file__).resolve().parent / "grammars/forced_first_turn.structural_tag.json"
-SERVED_TOOLS: Path = Path(__file__).resolve().parent / "grammars/served_tools.json"
 SYSTEM_PROMPT: str = ("Use the available tools to solve the task. Report only results supported by actual "
                       "tool responses. Convergence and physical validity are different.")
 # vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
@@ -61,14 +79,51 @@ def record(stream: TextIO, kind: str, payload: Any) -> None:
     os.fsync(stream.fileno())
 
 
-def structural_tag(tools: list[dict[str, Any]]) -> dict[str, Any]:
-    """vLLM's ``structured_outputs`` field carrying the committed structural tag.
+class StructuralTagOutOfDate(RuntimeError):
+    """The served tools differ from those the committed grammar was built from.
+
+    A RuntimeError, not a ValueError, on purpose: evaluate_agent scores a
+    ValueError raised during an attempt as that model's protocol failure, but
+    this is a harness configuration fault and must stop the run instead.
+    """
+
+
+def ensure_structural_tag_current(served: list[dict[str, Any]]) -> None:
+    """Refuse a structural-tag run whose grammar no longer matches the served tools.
+
+    Args:
+        served: The tool list exactly as sent to the model (type/function/name/
+            description/parameters, in served key order).
 
     Raises:
-        ValueError: if the tools the tag was built from are not the served tools.
+        StructuralTagOutOfDate: if ``served`` is not byte-identical, as JSON, to
+            SERVED_TOOLS; rebuild with grammars/build_structural_tag.py.
     """
-    if json.dumps(tools) != json.dumps(json.loads(SERVED_TOOLS.read_text())):
-        raise ValueError("Served tools differ from grammars/served_tools.json; rebuild the structural tag")
+    if json.dumps(served) != json.dumps(json.loads(SERVED_TOOLS.read_text())):
+        raise StructuralTagOutOfDate(
+            f"Served tools differ from {SERVED_TOOLS.name}; rebuild {STRUCTURAL_TAG.name} "
+            "with powercoder/inference/grammars/build_structural_tag.py")
+
+
+def structural_tag(tools: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the extra request field that makes vLLM force a first-turn tool call.
+
+    vLLM's chat-completions endpoint accepts ``structured_outputs.structural_tag``:
+    a JSON grammar (xgrammar's structural-tag format) applied after the model's
+    reasoning block ends. Sent with ``tool_choice="auto"``, so vLLM keeps the
+    model's own tool-call parser and format, and only the grammar decides what
+    may be generated.
+
+    Args:
+        tools: The tool list being served this turn; checked against the grammar.
+
+    Returns:
+        ``{"structured_outputs": {"structural_tag": <STRUCTURAL_TAG text>}}``.
+
+    Raises:
+        StructuralTagOutOfDate: see ensure_structural_tag_current.
+    """
+    ensure_structural_tag_current(tools)
     return {"structured_outputs": {"structural_tag": STRUCTURAL_TAG.read_text()}}
 
 
