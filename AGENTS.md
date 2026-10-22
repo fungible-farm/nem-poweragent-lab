@@ -128,10 +128,13 @@ the benchmark runs in subfamily order (26 report, 120 load-scale, 120 line-ratin
 so early attempts are not a representative sample. Status and live state:
 `docs/POWERCODER_HANDOFF_2026-10-23.md`.
 
-**Feasibility.** All 306 tasks are solvable within the budgets. Every reference converged; each
-report needs one `run_study_trial(operation="none")` call; the reference bisection reached each
-fit's tolerance in 2–7 trials, against a 24-call / 12-turn budget. A failure is therefore a model
-or harness failure, never an impossible task.
+**Feasibility.** Every reference converged; each report needs one
+`run_study_trial(operation="none")` call; the reference bisection reached each fit's tolerance in
+2–7 trials, against a 24-call / 12-turn budget. **Correction 2026-10-23 (FM-25):** that was
+checked against the reference solver, not the tool. Until `run_study_trial` accepted outages that
+isolate buses, 8 of the 306 benchmark's 26 reports (8 of 25 in the 100-task sample, 2 of 3 in the
+smoke set) were unsolvable through it. Since FM-25 every task is solvable through the tool, and the
+tool's report fields match the reference exactly on all 71 report tasks checked.
 
 ### Benchmark and harness defects (fix only in a new run root, never mid-run)
 
@@ -150,6 +153,7 @@ or harness failure, never an impossible task.
 | FM-21 validation/test splits leak training tasks | `powercoder/datasets/split.py` splits rows, not tasks: report tasks repeat (one base case per network, N-1 lines drawn twice), so identical tasks land on both sides | `audit_rows` against the training split: validation 6 overlapping + 5 duplicate prompts (all `pf-report`), test 2 + 1. The 306/100-task benchmarks are clean | The r6 smoke set is drawn with `sample_benchmark.py --exclude <train split>`, which drops overlaps and duplicates and requires a clean audit (3 independent reports remain) |
 | FM-22 prompt/target seam tokens | Tokenising served prompt + target as one string lets BPE merge across the seam: Qwen's `<think>\n` + `\n</think>` becomes one `\n\n` token, so the served prompt's last token never appears in training | First r6 Qwen student: teacher-forced loss 0.0006, but from the served prompt it answered without tools (0/8 on the post-merge greedy check) | `training/agent_sft.encode` tokenises prompt and target separately; `generation_check` gates every merge. Don't judge a student by training loss alone |
 | FM-23 sorted tool schemas in training prompts | `common.write_jsonl` sorts keys, and chat templates render tools with `tojson` in stored order, so every training prompt's tool block read `{"function": {"description": …` while the evaluation serves `{"type": "function", "function": {"name": …` | Found 2026-10-22 22:50: same length (4,206 chars), different text; the 8/8 `generation_check` rendered from the same sorted rows and could not see it. Applies to the seam-fixed v1 Qwen student and the stopped v2 run | `trajectories.write_in_order` keeps build order; `test_trajectories.py` asserts the stored tools serialise exactly like the served list |
+| FM-25 isolating outages refused by the tool | `run_study_trial` raised "Unsolved or nonfinite voltage on an in-service bus" whenever an outage left buses de-energized (pandapower NaN), while the reference solver skips NaN and reports the contingency as converged | r6 smoke 2026-10-23: both of the Qwen student's "fabricated" reports were these (12 identical failing calls); 8/25 benchmark reports and 2/3 smoke reports affected; training reports 0/43, so no trajectory changed (rebuilt hash identical) | De-energized buses are skipped and listed (`de_energized_buses`, present only when non-zero); a NaN on the intact network still fails. The first r6 attempt (`agent-study-r6/`) was stopped after its smoke stage and is not a result |
 
 ### Model behaviour (count as model failures; don't patch around them)
 

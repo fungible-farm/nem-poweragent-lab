@@ -22,6 +22,9 @@ from powercoder.inference import powermcp as pm
 SCALE_MIN: float = 0.9
 SCALE_MAX: float = 1.1
 MAX_ITERATIONS: int = 100
+# How many de-energized bus ids a response lists (the count is always given);
+# matches run_power_flow's violating_bus_ids cap.
+DE_ENERGIZED_IDS_SHOWN: int = 10
 # Nameplate loading screening, in percent; not a full operational safety study.
 THERMAL_LIMIT_PERCENT: float = 100.0
 
@@ -133,26 +136,41 @@ def run_study_trial(
             net.line.loc[contingency_line, "in_service"] = False
         iterations = pm._runpp_counted(net, numba=True, max_iteration=max_iter)
         vm = net.res_bus.vm_pu
-        if not all(math.isfinite(float(value)) for value in vm[net.bus.in_service]):
+        # An outage can isolate buses: pandapower leaves them NaN (de-energized).
+        # The reference solver (datasets.generate._solve) skips NaN in min/max and
+        # violation counts, so this does too, and lists them. Refusing the whole
+        # study made 8 of the 25 reports in the 100-task benchmark unsolvable
+        # (AGENTS.md FM-25). The intact network has no isolated bus, so a NaN
+        # there is still a solver failure.
+        de_energized = [int(bus) for bus in net.bus.index[net.bus.in_service & ~vm.apply(
+            lambda value: math.isfinite(float(value)))]]
+        if de_energized and contingency_line is None:
             raise ValueError("Unsolved or nonfinite voltage on an in-service bus")
         voltage_violations = int(((vm < pm.VOLTAGE_LIMIT_LOW_PU) | (vm > pm.VOLTAGE_LIMIT_HIGH_PU)).sum())
         line_loading = float(net.res_line.loading_percent.max()) if len(net.line) else 0.0
         trafo_loading = float(net.res_trafo.loading_percent.max()) if len(net.trafo) else 0.0
+        observed = float(net[table].loc[observation_id, column])
         data = {
             "study": arguments, "converged": True, "iterations": iterations,
-            "metric": float(net[table].loc[observation_id, column]),
+            # None when the observed element is itself de-energized by the outage.
+            "metric": observed if math.isfinite(observed) else None,
             "metric_unit": "pu" if observation == "bus_voltage" else "percent",
             "min_bus_voltage_pu": float(vm.min()), "max_bus_voltage_pu": float(vm.max()),
             "voltage_violations": voltage_violations,
             "base_case_voltage_violations": base_case_voltage_violations(network_id),
-            "metric_valid": True,
+            "metric_valid": math.isfinite(observed),
             "contingency": f"line {contingency_line} out of service" if contingency_line is not None else "none (intact network)",
             "max_line_loading_percent": line_loading, "max_trafo_loading_percent": trafo_loading,
             "voltage_limit_pu": [pm.VOLTAGE_LIMIT_LOW_PU, pm.VOLTAGE_LIMIT_HIGH_PU],
             "thermal_limit_percent": THERMAL_LIMIT_PERCENT,
             "physical_scope": "bus voltage band and line/transformer nameplate loading only",
         }
-        for value in (data["metric"], data["min_bus_voltage_pu"], data["max_bus_voltage_pu"], line_loading, trafo_loading):
+        if de_energized:
+            # Only when an outage isolates buses, so every other response stays
+            # byte-identical to the ones the students were trained on.
+            data["de_energized_buses"] = len(de_energized)
+            data["de_energized_bus_ids"] = de_energized[:DE_ENERGIZED_IDS_SHOWN]
+        for value in (data["min_bus_voltage_pu"], data["max_bus_voltage_pu"], line_loading, trafo_loading):
             if not math.isfinite(value):
                 raise ValueError("Nonfinite solver measurement")
         valid = not voltage_violations and max(line_loading, trafo_loading) <= THERMAL_LIMIT_PERCENT
