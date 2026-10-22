@@ -35,6 +35,7 @@ research notes.
 | [0020](0020-g6-autonomous-engineering-investigations.md) | PRD-0010 G6: autonomous engineering investigations | open |
 | [0021](0021-g7-probabilistic-forecasting.md) | PRD-0010 G7: probabilistic forecasting and leakage-free hindcasting | open (real data blocked by G5) |
 | [0022](0022-g8-independent-superiority-assessment.md) | PRD-0010 G8: independent superiority assessment (benchmarks, blind expert comparison) | open |
+| [0023](0023-snemsa-case-lacks-ratings-costs-and-distributed-slack.md) | snemSA has no real branch ratings, one generator cost, and a single slack: OPF and thermal tasks carry no signal | open |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
