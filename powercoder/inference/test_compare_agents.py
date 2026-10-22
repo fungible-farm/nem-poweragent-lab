@@ -89,3 +89,14 @@ def test_inflated_summary_rejected(paired_runs: tuple[Path, Path]) -> None:
     path.write_text(json.dumps(summary))
     with pytest.raises(ValueError, match="Summary disagrees"):
         comparator.compare(base, student)
+
+
+def test_a_forced_tool_choice_run_is_compared_only_when_asked(paired_runs: tuple[Path, Path]) -> None:
+    """Forced-first-turn runs are a separate arm, never silently mixed with auto runs."""
+    base, student = paired_runs
+    summary = json.loads((student / "summary.json").read_text())
+    (student / "summary.json").write_text(json.dumps({**summary, "first_turn_tool_choice": "required"}))
+    with pytest.raises(ValueError, match="first_turn_tool_choice"):
+        comparator.compare(base, student)
+    result = comparator.compare(base, student, allow_tool_choice_difference=True)
+    assert result["first_turn_tool_choice"] == {"base": "auto", "student": "required"}

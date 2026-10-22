@@ -26,6 +26,12 @@ Stages, every one owned by this driver and journaled to ``pipeline.jsonl``:
 
 No stage is retried or truncated automatically; a failed stage stops the driver
 with its logs kept.
+
+``--forced-arm-from <r6 root>`` is a separate study arm (never part of r6): it
+reuses r6's verified students and unforced 100-task runs, evaluates every
+model r6 evaluated with ``--first-turn-tool-choice required`` (vLLM's grammar
+forces a tool call before any answer), and writes one forced-vs-unforced
+comparison per model.
 """
 
 from __future__ import annotations
@@ -121,15 +127,18 @@ def verify_student(directory: Path, events: TextIO) -> Path:
     return directory / "merged-bf16"
 
 
-def evaluation(model: str, port: int, tasks: Path, out: Path) -> tuple[list[str], Path]:
+def evaluation(model: str, port: int, tasks: Path, out: Path,
+               first_turn_tool_choice: str = "auto") -> tuple[list[str], Path]:
     """The evaluate_agent command for one suite, at the shared concurrency and budgets."""
     return ([sys.executable, "-m", "powercoder.inference.evaluate_agent", "--base-url", f"http://127.0.0.1:{port}",
              "--model", model, "--tasks", str(tasks), "--exclude", str(TRAIN_SPLIT), "--out", str(out),
-             "--concurrency", str(CONCURRENCY)], out.parent / f"{out.name}.log")
+             "--concurrency", str(CONCURRENCY), "--first-turn-tool-choice", first_turn_tool_choice],
+            out.parent / f"{out.name}.log")
 
 
 def session(label: str, tag: str, source: Path, model_path: str, fraction: float, root: Path, events: TextIO,
-            suites: list[tuple[str, Path, Path]], latency: bool, restorebench: bool = False) -> None:
+            suites: list[tuple[str, Path, Path]], latency: bool, restorebench: bool = False,
+            first_turn_tool_choice: str = "auto") -> None:
     """Serve one model alone; optionally benchmark latency; run each suite; release it.
 
     Args:
@@ -157,7 +166,7 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
                                                      "memory": memory.peak(start)})
             for stage, tasks, out in suites:
                 start = time.time()
-                command(*evaluation(model, port, tasks, out), events)
+                command(*evaluation(model, port, tasks, out, first_turn_tool_choice), events)
                 verify_evaluation(out, events)
                 record(events, "suite_memory", {"model": label, "stage": stage, "memory": memory.peak(start)})
             if restorebench:
@@ -223,10 +232,39 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
     record(events, "pipeline_complete", {"smoke": passed, "evaluated": evaluated, "comparisons": outcomes})
 
 
+def forced_arm(args: argparse.Namespace, events: TextIO) -> None:
+    """Re-evaluate r6's models with a forced first-turn tool call; compare each with itself."""
+    previous = args.forced_arm_from
+    summary = [json.loads(line) for line in (previous / "pipeline.jsonl").read_text().splitlines()][-1]
+    if summary["kind"] != "pipeline_complete":
+        raise RuntimeError(f"{previous} has not completed r6")
+    evaluated = summary["payload"]["evaluated"]
+    students = {label: verify_student(directory, events) for label, directory in STUDENTS.items()}
+    sources = {"qwen-base": (HF_HUB, QWEN_BASE_SNAPSHOT), "qwen-student": (students["qwen-student"], ""),
+               "granite-base": (GRANITE_BASE, ""), "granite-student": (students["granite-student"], "")}
+    fractions = {"qwen": GPU_MEMORY_FRACTION, "granite": GRANITE_GPU_MEMORY_FRACTION}
+    outcomes = {}
+    for label in evaluated:
+        verify_evaluation(previous / label, events)
+        forced = args.root / f"{label}-forced"
+        session(label, "forced", *sources[label], fractions[label.split("-")[0]], args.root, events,
+                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="required")
+        stem = f"{label}-auto-vs-forced"
+        strict = write_comparison(previous / label, forced, args.root / f"{stem}.json", events, True)
+        numerical = write_numerical_comparison(previous / label, forced, args.root / f"{stem}-numerical.json",
+                                               events, True)
+        outcomes[label] = {"strict_delta_pp": strict["delta_percentage_points"],
+                           "solver_verified_delta_pp": numerical["delta_percentage_points"]}
+    record(events, "pipeline_complete", {"arm": "forced-first-turn-tool-call", "from": str(previous),
+                                         "comparisons": outcomes})
+
+
 def main() -> None:
     """Create a fresh run root and durable journal; refuse automatic re-execution."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
+    parser.add_argument("--forced-arm-from", type=Path,
+                        help="Completed r6 root: run only the forced-first-turn-tool-call arm against it")
     args = parser.parse_args()
     args.root.mkdir()
     # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.
@@ -237,7 +275,7 @@ def main() -> None:
                               for parent in (REPO / "powercoder/inference", REPO / "powercoder/datasets", REPO / "training")
                               for p in parent.glob("*.py")}})
         try:
-            run(args, events)
+            (forced_arm if args.forced_arm_from else run)(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
             raise

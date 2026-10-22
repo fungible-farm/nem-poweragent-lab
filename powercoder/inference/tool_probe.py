@@ -38,6 +38,11 @@ INFERENCE_TIMEOUT_S: float = 1800.0
 # The evaluation's system turn. Training trajectories (powercoder/datasets/
 # trajectories.py) reuse it verbatim, so students train on the prompt they are
 # evaluated with (AGENTS.md FM-19).
+# "auto" is the r1-r6 protocol. "required" makes vLLM's grammar force a tool call
+# on the first turn only, so no number can precede a solver run; later turns are
+# "auto" so the model can still answer. A separate study arm, never mixed with
+# "auto" runs (compare_agents treats it as an evaluation condition).
+FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "required")
 SYSTEM_PROMPT: str = ("Use the available tools to solve the task. Report only results supported by actual "
                       "tool responses. Convergence and physical validity are different.")
 # vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
@@ -57,6 +62,7 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         command=sys.executable, args=["-m", "powercoder.inference.mcp_server"] + (["--study-tools"] if args.study_tools else []),
         cwd=str(Path(__file__).resolve().parents[2]),
     )
+    first_choice = getattr(args, "first_turn_tool_choice", "auto")
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": args.prompt.read_text()},
@@ -66,6 +72,7 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         "max_tokens": MAX_TOKENS, "temperature": 0.0,
         "max_turns": MAX_TURNS, "max_tool_calls": MAX_TOOL_CALLS,
         "inference_timeout_s": INFERENCE_TIMEOUT_S,
+        "first_turn_tool_choice": first_choice,
         "benchmark_claim": False,
     })
     async with (
@@ -81,11 +88,12 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         calls = 0
         ids: set[str] = set()
         with InferenceClient(args.base_url, timeout=INFERENCE_TIMEOUT_S) as client:
-            for _ in range(MAX_TURNS):
+            for turn in range(MAX_TURNS):
                 try:
                     result = await asyncio.to_thread(
                         client.chat_completion, args.model, messages,
-                        max_tokens=MAX_TOKENS, temperature=0.0, tools=tools, tool_choice="auto",
+                        max_tokens=MAX_TOKENS, temperature=0.0, tools=tools,
+                        tool_choice=first_choice if turn == 0 else "auto",
                     )
                 except httpx.HTTPStatusError as error:
                     # The conversation outgrew the server's context: this

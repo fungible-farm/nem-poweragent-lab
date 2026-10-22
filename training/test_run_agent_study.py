@@ -56,3 +56,25 @@ def test_memory_peak_is_the_drop_from_the_pre_start_baseline(tmp_path: Path, mon
                                     for t, a in ((1.0, 90), (2.0, 60), (3.0, 80))))
     assert sampler.peak() == {"baseline_available": 100, "min_available": 60, "peak_used": 40}
     assert sampler.peak(since=3.0)["peak_used"] == 20
+
+
+def test_forced_arm_reuses_r6_and_compares_each_model_with_itself(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every model r6 evaluated is re-run with a required first-turn tool call."""
+    previous = tmp_path / "r6"
+    previous.mkdir()
+    (previous / "pipeline.jsonl").write_text(json.dumps({"kind": "pipeline_complete", "payload": {
+        "evaluated": ["qwen-base", "qwen-student"]}}) + "\n")
+    sessions, compared = [], []
+    monkeypatch.setattr(driver, "verify_student", lambda directory, _events: directory / "merged-bf16")
+    monkeypatch.setattr(driver, "verify_evaluation", lambda directory, _events: None)
+    monkeypatch.setattr(driver, "session", lambda label, tag, *_a, first_turn_tool_choice="auto", **_k:
+                        sessions.append((label, tag, first_turn_tool_choice)))
+    monkeypatch.setattr(driver, "write_comparison", lambda first, second, _dest, _events, allow:
+                        compared.append((first.name, second.name, allow)) or {"delta_percentage_points": 1.0})
+    monkeypatch.setattr(driver, "write_numerical_comparison", lambda *_a: {"delta_percentage_points": 2.0})
+    root = tmp_path / "forced"
+    root.mkdir()
+    with (tmp_path / "events.jsonl").open("x") as stream:
+        driver.forced_arm(driver.argparse.Namespace(root=root, forced_arm_from=previous), stream)
+    assert sessions == [("qwen-base", "forced", "required"), ("qwen-student", "forced", "required")]
+    assert compared == [("qwen-base", "qwen-base-forced", True), ("qwen-student", "qwen-student-forced", True)]

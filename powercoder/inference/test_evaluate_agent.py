@@ -87,7 +87,7 @@ def test_concurrent_attempts_commit_in_benchmark_order(tmp_path: Path, monkeypat
     tasks_file = tmp_path / "tasks.jsonl"
     tasks_file.write_text("")
     args = argparse.Namespace(tasks=tasks_file, exclude=tasks_file, out=tmp_path / "run",
-                              model="m", base_url="http://x", concurrency=3)
+                              model="m", base_url="http://x", concurrency=3, first_turn_tool_choice="auto")
     asyncio.run(evaluate_agent.evaluate(args))
     order = [json.loads(line)["payload"]["example_id"] for line in (args.out / "results.jsonl").read_text().splitlines()]
     assert order == [t["example_id"] for t in tasks]

@@ -42,3 +42,28 @@ def test_inference_timeout_is_a_terminal_attempt_state(tmp_path: Path, monkeypat
     terminal = json.loads(journal.read_text().splitlines()[-1])
     assert terminal["kind"] == "terminal"
     assert terminal["payload"]["state"] == "inference_timeout"
+
+
+class RecordingClient(SlowClient):
+    """Answers immediately and records each turn's tool_choice."""
+
+    choices: list[str] = []
+
+    def chat_completion(self, *_args: Any, **kwargs: Any) -> dict[str, Any]:
+        RecordingClient.choices.append(kwargs["tool_choice"])
+        return {"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "done"}}]}
+
+
+def test_required_tool_choice_applies_to_the_first_turn_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The forced arm grammar-forces turn 0; the journal records the condition."""
+    monkeypatch.setattr(tool_probe, "InferenceClient", RecordingClient)
+    RecordingClient.choices = []
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Report the base-case power flow for snem-sa-2000.")
+    args = argparse.Namespace(base_url="http://127.0.0.1:1", model="m", prompt=prompt, study_tools=True,
+                              first_turn_tool_choice="required")
+    journal = tmp_path / "journal.jsonl"
+    with journal.open("w") as stream:
+        asyncio.run(tool_probe.probe(args, stream))
+    assert RecordingClient.choices == ["required"]
+    assert json.loads(journal.read_text().splitlines()[0])["payload"]["first_turn_tool_choice"] == "required"

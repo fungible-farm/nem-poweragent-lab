@@ -40,19 +40,28 @@ def verified_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]
     return summary, results
 
 
-def compare(base_dir: Path, student_dir: Path) -> dict[str, Any]:
-    """Measure the actual delta, refusing incomplete or unequal conditions."""
+def compare(base_dir: Path, student_dir: Path, allow_tool_choice_difference: bool = False) -> dict[str, Any]:
+    """Measure the actual delta, refusing incomplete or unequal conditions.
+
+    ``allow_tool_choice_difference`` admits exactly one difference, the first
+    turn's tool choice, for the forced-tool-call arm's own comparison.
+    """
     base, first = verified_run(base_dir)
     student, second = verified_run(student_dir)
     for field in ("inputs", "max_turns", "max_tool_calls", "max_tokens", "temperature", "attempts_per_task", "inference_timeout_s"):
         if base[field] != student[field]:
             raise ValueError(f"Unequal evaluation conditions: {field}")
+    # Runs before the option existed were all "auto".
+    choices = [run.get("first_turn_tool_choice", "auto") for run in (base, student)]
+    if choices[0] != choices[1] and not allow_tool_choice_difference:
+        raise ValueError("Unequal evaluation conditions: first_turn_tool_choice")
     first_paired = [{"example_id": r["example_id"], "pass": r["passed"]} for r in first]
     second_paired = [{"example_id": r["example_id"], "pass": r["passed"]} for r in second]
     base_rate = sum(r["passed"] for r in first) / len(first)
     student_rate = sum(r["passed"] for r in second) / len(second)
     delta = student_rate - base_rate
     return {"n_tasks": len(first), "base_model": base["model"], "student_model": student["model"],
+            "first_turn_tool_choice": {"base": choices[0], "student": choices[1]},
             "base_pass_at_1": base_rate, "student_pass_at_1": student_rate,
             "delta_pass_at_1": delta, "delta_percentage_points": delta * 100,
             "domain_threshold_met": delta >= DOMAIN_IMPROVEMENT_THRESHOLD,

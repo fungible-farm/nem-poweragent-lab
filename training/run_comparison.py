@@ -249,9 +249,10 @@ def stop_server(name: str, root: Path, events: TextIO) -> None:
     command(["podman", "stop", name], root / f"{name}-stop.log", events)
 
 
-def write_comparison(base: Path, candidate: Path, destination: Path, events: TextIO) -> dict[str, Any]:
+def write_comparison(base: Path, candidate: Path, destination: Path, events: TextIO,
+                     allow_tool_choice_difference: bool = False) -> dict[str, Any]:
     """Persist the measured delta even when it fails the requested gain threshold."""
-    result = compare(base, candidate)
+    result = compare(base, candidate, allow_tool_choice_difference)
     with destination.open("x") as output:
         json.dump(result, output, indent=2)
         output.write("\n")
@@ -259,9 +260,10 @@ def write_comparison(base: Path, candidate: Path, destination: Path, events: Tex
     return result
 
 
-def write_numerical_comparison(base: Path, candidate: Path, destination: Path, events: TextIO) -> dict[str, Any]:
+def write_numerical_comparison(base: Path, candidate: Path, destination: Path, events: TextIO,
+                               allow_tool_choice_difference: bool = False) -> dict[str, Any]:
     """Add M09 numerical correctness while preserving the stricter agent scores."""
-    result = compare_domain(base, candidate)
+    result = compare_domain(base, candidate, allow_tool_choice_difference)
     with destination.open("x") as output:
         json.dump(result, output, indent=2, allow_nan=False)
         output.write("\n")

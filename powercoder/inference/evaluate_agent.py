@@ -17,7 +17,7 @@ from typing import Any, TypedDict
 
 from powercoder.datasets.audit import audit_rows, load_rows
 from powercoder.inference.provenance import check as provenance_check
-from powercoder.inference.tool_probe import INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
+from powercoder.inference.tool_probe import FIRST_TURN_TOOL_CHOICES, INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
 from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answer
 
 # One task at a time reproduces the r1-r3 schedule. Tasks are independent
@@ -144,7 +144,8 @@ async def attempt(args: argparse.Namespace, task: dict[str, Any], grading: async
     prompt = args.out / "prompts" / f"{task['example_id']}.txt"
     prompt.write_text(task["task"]["prompt"])
     journal = args.out / f"{task['example_id']}.jsonl"
-    options = argparse.Namespace(base_url=args.base_url, model=args.model, prompt=prompt, study_tools=True)
+    options = argparse.Namespace(base_url=args.base_url, model=args.model, prompt=prompt, study_tools=True,
+                                 first_turn_tool_choice=args.first_turn_tool_choice)
     with journal.open("x") as stream:
         try:
             await probe(options, stream)
@@ -179,6 +180,7 @@ async def evaluate(args: argparse.Namespace) -> None:
         "max_turns": MAX_TURNS, "max_tool_calls": MAX_TOOL_CALLS, "max_tokens": MAX_TOKENS,
         "inference_timeout_s": INFERENCE_TIMEOUT_S,
         "temperature": 0.0, "attempts_per_task": 1, "concurrency": args.concurrency,
+        "first_turn_tool_choice": args.first_turn_tool_choice,
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (args.out / "prompts").mkdir()
@@ -218,6 +220,8 @@ def main() -> None:
     parser.add_argument("--tasks", type=Path, required=True)
     parser.add_argument("--exclude", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--first-turn-tool-choice", choices=FIRST_TURN_TOOL_CHOICES, default="auto",
+                        help="'required' forces a tool call on the first turn (a separate study arm)")
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY,
                         help="Attempts in flight at once; match the server's --max-num-seqs")
     args = parser.parse_args()

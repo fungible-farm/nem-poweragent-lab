@@ -10,11 +10,16 @@
 #
 # Usage:
 #   ./scripts/launch_agent_study.sh training/unsloth/out/agent-study-r6
+#   ./scripts/launch_agent_study.sh training/unsloth/out/agent-study-r6-forced \
+#       --forced-arm-from training/unsloth/out/agent-study-r6   # forced-tool-call arm
+#
+# Arguments after the root pass through to training/run_agent_study.py.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${1:?usage: $0 <new run root, e.g. training/unsloth/out/agent-study-r6>}"
+shift
 RUN="$(basename "$ROOT")"
 UNIT="powercoder-${RUN}"
 UV="$(command -v uv)"
@@ -37,6 +42,6 @@ systemd-run --user --unit="$UNIT" --remain-after-exit \
   --property=TimeoutStopSec=60 \
   --property="ExecStop=$STOP_CONTAINERS" \
   --property="ExecStopPost=$STOP_CONTAINERS" \
-  "$UV" run --offline --no-sync python -m training.run_agent_study --root "$ROOT"
+  "$UV" run --offline --no-sync python -m training.run_agent_study --root "$ROOT" "$@"
 
 echo "started $UNIT; inspect with: systemctl --user status $UNIT"
