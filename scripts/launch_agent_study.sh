@@ -22,7 +22,15 @@ ROOT="${1:?usage: $0 <new run root, e.g. training/unsloth/out/agent-study-r6>}"
 shift
 RUN="$(basename "$ROOT")"
 UNIT="powercoder-${RUN}"
-UV="$(command -v uv)"
+# The systemd user manager's PATH has no ~/.local/bin, so a waiter unit running
+# this script found no uv and set -e exited it silently (2026-10-23 06:40: r6
+# never launched). Resolve uv explicitly and say so when it is missing.
+UV="$(command -v uv || true)"
+UV="${UV:-$HOME/.local/bin/uv}"
+if [[ ! -x "$UV" ]]; then
+  echo "refusing: uv not found on PATH or at $HOME/.local/bin/uv" >&2
+  exit 1
+fi
 STOP_CONTAINERS="/bin/sh -c 'podman ps -q --filter name=^powercoder-${RUN}- | xargs -r podman stop -t 30'"
 
 if [[ -e "$REPO_ROOT/$ROOT" ]]; then

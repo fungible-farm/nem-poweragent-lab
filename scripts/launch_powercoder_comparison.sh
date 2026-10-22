@@ -36,7 +36,13 @@ RUN="$(basename "$ROOT")"
 UNIT="powercoder-${RUN}"
 # The verified, already-exited pinned Granite download (see the handoff).
 DOWNLOAD_CONTAINER="powercoder-granite42-download-r1"
-UV="$(command -v uv)"
+# A systemd unit's PATH has no ~/.local/bin (AGENTS.md FM-24); resolve uv explicitly.
+UV="$(command -v uv || true)"
+UV="${UV:-$HOME/.local/bin/uv}"
+if [[ ! -x "$UV" ]]; then
+  echo "refusing: uv not found on PATH or at $HOME/.local/bin/uv" >&2
+  exit 1
+fi
 STOP_CONTAINERS="/bin/sh -c 'podman ps -q --filter name=^powercoder-${RUN}- | xargs -r podman stop -t 30'"
 
 if [[ -e "$REPO_ROOT/$ROOT" ]]; then
