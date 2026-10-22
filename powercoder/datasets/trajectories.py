@@ -105,8 +105,13 @@ class Trajectory(TypedDict):
 class Conversation:
     """Drive the evaluation's MCP server and journal every turn as tool_probe does."""
 
-    def __init__(self, session: ClientSession, journal: TextIO, messages: list[dict[str, Any]]) -> None:
+    def __init__(self, session: ClientSession, journal: TextIO, messages: list[dict[str, Any]],
+                 tools: list[dict[str, Any]]) -> None:
         self.session, self.journal, self.messages = session, journal, messages
+        # Argument order per tool, from its served JSON schema: grammar-constrained
+        # decoding (xgrammar structural tags, any_order=False) accepts properties
+        # only in schema order, so trained calls must use it too.
+        self.order = {t["function"]["name"]: list(t["function"]["parameters"].get("properties", {})) for t in tools}
         self.calls = 0
         # Text for the next tool-call turn: the correction after an injected failure.
         self.note: str | None = None
@@ -125,6 +130,9 @@ class Conversation:
         """
         if self.calls >= min(MAX_TOOL_CALLS, MAX_TURNS - 1):
             raise RuntimeError("Scripted trajectory would exceed the evaluation's budgets")
+        order = self.order.get(tool, [])
+        arguments = {**{k: arguments[k] for k in order if k in arguments},
+                     **{k: v for k, v in arguments.items() if k not in order}}
         call = {"id": f"call_{self.calls}", "type": "function",
                 "function": {"name": tool, "arguments": json.dumps(arguments)}}
         self.respond({"role": "assistant", "content": self.note, "tool_calls": [call]}, "tool_calls")
@@ -269,7 +277,7 @@ async def build(row: dict[str, Any], journals: Path, fault: str | None = None) -
         with journal.open("x") as stream:
             record(stream, "start", {"messages": list(messages), "scripted": True})
             record(stream, "tools", tools)
-            conversation = Conversation(session, stream, messages)
+            conversation = Conversation(session, stream, messages, tools)
             try:
                 if fault:
                     await inject(conversation, row, fault)
