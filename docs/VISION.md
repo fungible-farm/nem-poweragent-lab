@@ -472,7 +472,9 @@ open/close.
 agent study. The first is 0008: the current benchmark cannot measure agent value over a scripted
 policy, so any r6 gain has to be read as "a LoRA learned the tool protocol". 0009 records a
 recovery-training defect that is fixed. 0010–0013 are provenance, strict-arm, answer-by-reference
-and numerics-tool work, and 0014 is the grammar-engine decision.
+and numerics-tool work, and 0014 is the grammar-engine decision. The forward plan is
+[PRD-0010](prd/0010-powercoder-physics-grounded-engineering-agent.md) (gates G0–G8: 0008 is G0, and
+0015–0022 are G1–G8).
 
 **Original state (as of the audit that opened these items): visualization was essentially absent.**
 `matplotlib` was a hard dependency imported in exactly one of roughly fifteen lab/script files

@@ -197,7 +197,9 @@ r4 also runs 8 attempts per server concurrently, with base and student side by s
 ### PowerCoder evaluation requirements
 
 Each requirement names its source and the test that checks it. These are the
-lab's own register (the r00t SysML register is the long-term home).
+lab's own register (the r00t SysML register is the long-term home). PRD-0010 supersedes these interim IDs:
+PC-REQ-1 → PC-REQ-004 (evidence provenance), PC-REQ-2 → PC-REQ-002/055; the tests below stay their
+verification until gate G1.
 
 | ID | Requirement | Source | Checked by |
 |---|---|---|---|

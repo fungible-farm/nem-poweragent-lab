@@ -19,6 +19,7 @@ on other PRDs explicitly (don't assume reading order from the number alone).
 | [0007](0007-lab6-cim-class-uri-traceability.md) | Lab 6 Phase 4a: CIM class-URI traceability annotations for Track B | 0006 | implemented |
 | [0008](0008-cim-gridy-mission-engine-prerequisites.md) | cim-gridy Phase 0: mission/calendar-step engine prerequisites (Grid2Op, OperatorFabric, ufo-types) | 0006, 0007 | superseded in practice by 0009 (prerequisites answered via Lab 8) |
 | [0009](0009-cim-gridy-incose-v-plan.md) | cim-gridy: INCOSE-V prioritized plan, Rust/Bevy-first | 0006, 0007, 0008 | Phases 0-3 complete, real evidence (Lab 8 spikes, Lab 9 vertical slice — `just check-lab9`, 17 tests); Phases 4-6 not started |
+| [0010](0010-powercoder-physics-grounded-engineering-agent.md) | PowerCoder: physics-grounded autonomous power-system engineering (gates G0–G8) | r6 study, backlog 0008–0014, Labs 2/5/6/8/9/10 | proposed; G0 = backlog 0008, G1–G8 = backlog 0015–0022 |
 
 ## Why this shape
 

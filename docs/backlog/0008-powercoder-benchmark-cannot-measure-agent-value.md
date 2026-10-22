@@ -1,6 +1,6 @@
 # 0008 — PowerCoder benchmark cannot measure agent value (priority 1)
 
-- **Status:** open. Merit 5 in the [independent review](reviews/2026-10-23-r6-merit-review.md), idea 8. Must be stated as a caveat beside any r6 number.
+- **Status:** open, and this is **gate G0 of [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md)**: baselines, frozen benchmark definitions, scoreboard. Merit 5 in the [independent review](reviews/2026-10-23-r6-merit-review.md), idea 8. Must be stated as a caveat beside any r6 number.
 - **Found:** 2026-10-23. Measured on the r6 inputs (`domain-stratified-100-20261022`, `smoke/splits/train.jsonl`).
 
 ## Evidence

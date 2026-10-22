@@ -20,13 +20,21 @@ research notes.
 | [0005](0005-unified-notebook-playbook.md) | Suggestion: a jupytext/Jupyter playbook binding all 5 labs' visual outputs into one narrative, without becoming a second source of truth | done (`notebooks/lab_playbook.py` + `just playbook`) |
 | [0006](0006-lab5-advanced-transient-visualization-techniques.md) | Research: advanced Lab 5 transient-visualization techniques (symmetrical components, R-X impedance trajectory, spectrogram, network-wide sag propagation) beyond the existing six views | done (all four options implemented: symmetrical components, R-X impedance trajectory, spectrogram, network-wide sag propagation) |
 | [0007](0007-clif-x-grammar-constrained-generation.md) | Idea: a CLIF (Common Logic Interchange Format) x-grammar for LLM constrained generation, demoed against the self-hosted Phi-4-mini pod | demo done (`labs/_shared/clif_demo/`), idea not adopted -- see doc for the "grammar-constrained can be semantically evasive" finding |
-| [0008](0008-powercoder-benchmark-cannot-measure-agent-value.md) | PowerCoder benchmark cannot measure agent value (one network, fixed interval, 36/69 keys shared with training, scripted policy); add baselines and judgement tasks | open — priority 1 |
+| [0008](0008-powercoder-benchmark-cannot-measure-agent-value.md) | PowerCoder benchmark cannot measure agent value (one network, fixed interval, 36/69 keys shared with training, scripted policy); add baselines and judgement tasks — PRD-0010 **G0** | open — priority 1 |
 | [0009](0009-recovery-training-supervised-the-injected-mistake.md) | Recovery training supervised the injected mistake | fixed `8314e14`; journal verification pending |
 | [0010](0010-provenance-check-hardening.md) | Provenance check (PC-REQ-1) is weaker than its requirement | open |
 | [0011](0011-strict-tool-calling-arm-redesign.md) | Strict-tool-calling arm: redesign as a 2×2 before running it | implemented; queued after r6 |
 | [0012](0012-answer-by-reference.md) | Idea: answer by reference (numbers rendered from cited tool output) | idea |
-| [0013](0013-sensitivity-newton-tool.md) | Idea: sensitivity/Newton tool with certificates; PCA and the one-interface generator dropped | idea |
+| [0013](0013-sensitivity-newton-tool.md) | Idea: sensitivity/Newton tool with certificates; PCA and the one-interface generator dropped | absorbed into 0016 |
 | [0014](0014-grammar-engines-xgrammar-llguidance-gbnf.md) | Grammar engines: xgrammar kept in sync for vLLM; GBNF/llguidance for llama.cpp | decided |
+| [0015](0015-g1-typed-command-protocol-and-gateway.md) | PRD-0010 G1: typed command protocol (Rust IR, DSL) and policy gateway | open |
+| [0016](0016-g2-verified-engineering-mathematics.md) | PRD-0010 G2: verified engineering mathematics (OPF, contingencies, sensitivities, state estimation, proof contract) | open |
+| [0017](0017-g3-verifier-guided-investigative-learning.md) | PRD-0010 G3: verifier-guided learning (task generator, GRPO, distillation, search) | open |
+| [0018](0018-g4-cim-semantic-network-intelligence.md) | PRD-0010 G4: CIM/RDF/SHACL semantic network and versioned topology | open |
+| [0019](0019-g5-observations-and-weather.md) | PRD-0010 G5: SCADA, sparse PMU, data lake and weather | blocked (data access); synthetic path open |
+| [0020](0020-g6-autonomous-engineering-investigations.md) | PRD-0010 G6: autonomous engineering investigations | open |
+| [0021](0021-g7-probabilistic-forecasting.md) | PRD-0010 G7: probabilistic forecasting and leakage-free hindcasting | open (real data blocked by G5) |
+| [0022](0022-g8-independent-superiority-assessment.md) | PRD-0010 G8: independent superiority assessment (benchmarks, blind expert comparison) | open |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
