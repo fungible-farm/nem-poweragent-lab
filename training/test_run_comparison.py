@@ -105,3 +105,30 @@ def test_parallel_runs_every_stage_before_reporting_a_failure(tmp_path: Path) ->
     assert marker.exists()
     kinds = [e["kind"] for e in events(journal)]
     assert kinds.count("stage_start") == 2 and kinds.count("stage_exit") == 2
+
+
+def test_granite_only_run_reuses_qwen_and_serves_one_granite_at_a_time(tmp_path: Path,
+                                                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    # r4's side-by-side Granite servers decoded ~4 tok/s per stream, past the timeout.
+    served: list[list[str]] = []
+    verified: list[Path] = []
+    student = tmp_path / "granite-out" / "merged-bf16"
+    student.mkdir(parents=True)
+    (student / "config.json").write_text("{}")
+    config = tmp_path / "config.yaml"
+    config.write_text(f"model: {{name: ibm-granite/granite-4.2-8b}}\noutput: {{dir: {student.parent}}}\n")
+    monkeypatch.setattr(driver, "GRANITE_CONFIG", config)
+    monkeypatch.setattr(driver, "container_info", lambda _name: {"state": {"Running": False, "ExitCode": 0}})
+    monkeypatch.setattr(driver, "verify_base", lambda _model: {})
+    monkeypatch.setattr(driver, "verify_evaluation", lambda directory, _events: verified.append(directory))
+    monkeypatch.setattr(driver, "evaluate_pair", lambda pair, *_a, **_k: served.append([p[0] for p in pair]))
+    monkeypatch.setattr(driver, "write_comparison", lambda *_a: {"domain_threshold_met": False})
+    monkeypatch.setattr(driver, "write_numerical_comparison", lambda *_a: {"domain_threshold_met": False})
+    previous = tmp_path / "agent-domain-r4"
+    args = driver.argparse.Namespace(root=tmp_path / "r5", download_container="dl", qwen_from=previous)
+    journal = tmp_path / "pipeline.jsonl"
+    with journal.open("x") as stream:
+        driver.run(args, stream)
+    assert verified == [previous / "base", previous / "student"]
+    assert served == [["granite-base"], ["granite-student"]]
+    assert events(journal)[-1]["kind"] == "pipeline_complete"

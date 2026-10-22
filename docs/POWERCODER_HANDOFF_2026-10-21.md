@@ -1,7 +1,7 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **14:30 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
-Implementation HEAD: `f3bab24` (r4); `a279d7b` ran r3; `8442962` ran r2.
+Snapshot: **22 October 2026, 16:00 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Implementation: r5 runs from the commit after `62d6ff0`; `f3bab24` ran r4; `a279d7b` ran r3; `8442962` ran r2.
 Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live
 pipeline that no longer runs).
 
@@ -16,9 +16,11 @@ The detailed original request/audit is local to this host at
 The goal record is `.pi/goals/active_goal_2026102108123965_mvh6j65n-98gogh.md`
 (contracts match the real output files, auto-continue off).
 
-**The experiment is incomplete. r4 is running supervised** (see "Live r4 run").
-Granite training has completed (see below); no comparison exists yet. Failure
-modes found along the way are recorded in `AGENTS.md` (FM-1…FM-16).
+**The experiment is incomplete.** The Qwen comparison is complete and **missed
+the ≥10 pp target**: the student scored below the base (see "r4 results").
+Granite training is complete. The Granite evaluations crashed in r4 on an
+inference timeout (FM-6) and are re-running supervised as **r5** (see "Live r5
+run"). Failure modes are recorded in `AGENTS.md` (FM-1…FM-16).
 At 10:01 AEDT, on user
 instruction, the r2 pipeline was stopped as unsupervised: driver PID `987032`,
 Qwen base evaluator PID `954658`, its MCP child and `uv` wrappers (SIGTERM), then
@@ -80,7 +82,46 @@ Persistent proxy backends (`llama-vllm-27b`, `granite42-vllm`) are systemd units
 that `globalTTL` cannot unload; they must be stopped explicitly before
 memory-heavy PowerCoder stages.
 
-## Live r4 run — observe before taking action
+## Live r5 run — observe before taking action
+
+Unit **`powercoder-agent-domain-r5`**, root `training/unsloth/out/agent-domain-r5/`,
+launched with `--qwen-from training/unsloth/out/agent-domain-r4`. It verifies and
+reuses r4's complete Qwen runs and Granite training, rewrites the two Qwen
+comparisons into r5 (deterministic, seed 42), then evaluates Granite base and then
+Granite student **one server at a time** at the same budgets (8 concurrent, 8192
+tokens, 1800 s), and writes all Granite comparison files. A timeout now ends one
+attempt as `inference_timeout` instead of the stage.
+
+```bash
+systemctl --user status powercoder-agent-domain-r5
+tail -3 training/unsloth/out/agent-domain-r5/pipeline.jsonl
+wc -l training/unsloth/out/agent-domain-r5/granite-*/results.jsonl
+uv run python -m powercoder.inference.failure_modes training/unsloth/out/agent-domain-r5/granite-base
+```
+
+## r4 results (Qwen complete; Granite crashed)
+
+Qwen stage finished 2026-10-22 00:50 AEDT; both runs 306/306, identical input
+hashes and budgets (`agent-domain-r4/{base,student}/summary.json`).
+
+| Metric | Qwen base | Qwen student | Δ (95% paired bootstrap) |
+|---|---|---|---|
+| Strict agent pass@1 (`qwen-comparison.json`) | 3.9% (12) | 0.0% (0) | −3.9 pp [−6.2, −2.0] |
+| Solver-verified pass@1 (`qwen-numerical-comparison.json`) | 5.6% (17) | 0.0% (0) | −5.6 pp [−8.2, −3.3] |
+
+The ≥10 pp gate is **not met**, and is recorded as missed; budgets and scoring
+are unchanged. `failure_modes` on the student: 252 `response_token_cap` (the FM-16
+loop), 52 `empty_stop`, 2 `turn_budget_exhausted`. Base: 190
+`response_token_cap`, 93 `turn_budget_exhausted`, 12 pass, 5
+`solver_correct_strict_rejected`, 4 `invalid_tool_protocol`, 2 `answered_wrong`.
+
+Granite stage started 00:55 with both 8B servers side by side and failed at 04:41:
+one request exceeded the 1800 s timeout (`httpx.ReadTimeout`), aborting both
+evaluators at 26 (base) and 30 (student) of 306. Partial early signal, reports
+only: Granite base was solver-correct on 17/26 reports (all strict-rejected on
+wording), against Qwen base's 4/26. Too small and too early to be a result.
+
+## r4 run (launch record)
 
 Launched 13:51 AEDT as transient unit **`powercoder-agent-domain-r4`** from
 `f3bab24`, root `training/unsloth/out/agent-domain-r4/`. It differs from r1–r3 in

@@ -142,7 +142,7 @@ or harness failure, never an impossible task.
 | FM-3 nondeterministic prompt | Solver responses include wall-clock `execution_time_s`, which is fed back to the model | r3 vs r2: same task, temperature 0; identical until `execution_time_s` 1.2655 vs 1.1948 s, then diverged; only 14/31 shared answers identical | Single greedy pass@1 is not reproducible between runs; paired deltas carry this noise |
 | FM-4 `solver_correct_strict_rejected` | The strict report parser requires the reference's wording; Markdown or tabular answers fail | 3/76: numerically correct per `solver-verified-domain-v1` | Report both metrics (`domain_scorecard.py`), as already required |
 | FM-5 context overflow (latent) | vLLM `--max-model-len 16384` must hold prompt + `max_tokens`; an over-length request is an HTTP error, so `evaluate_agent` raises `controller_error` and **stops the whole run** rather than failing one task | Largest prompt observed 7,583 tokens. Harmless at 2048, but 8192 + 7,583 is already 15,775 | Raise context with any token-budget increase, and record overflow as a per-task failure |
-| FM-6 inference timeout (latent) | `INFERENCE_TIMEOUT_S = 600` per request at ~19 tok/s single-stream | 2048 tokens ≈ 110 s. 8192 tokens ≈ 430–585 s, at the limit | A timeout is a `controller_error`, which stops the run; scale it with the token budget |
+| FM-6 inference timeout | `INFERENCE_TIMEOUT_S = 600` per request at ~19 tok/s single-stream; until r5 a timeout was an `httpx.ReadTimeout` that stopped the run | 2048 tokens ≈ 110 s; 8192 tokens ≈ 430–585 s. **Occurred in r4** at 1800 s, 2026-10-22 04:41: the two Granite 8B servers side by side decoded ~32–36 tok/s each (~4 tok/s per stream, ~2,000 s per full response), and one timeout aborted both Granite evaluators at 26 and 30/306 | Since r5 a timeout is the per-task terminal `inference_timeout`; Granite servers run one at a time. The timeout value stays 1800 s because `compare_agents` refuses runs with different values |
 
 ### Model behaviour (count as model failures; don't patch around them)
 
@@ -170,6 +170,8 @@ or harness failure, never an impossible task.
 - FM-3: `execution_time_s` removed from model-facing MCP responses.
 - FM-5: context raised to 32768, and an overflow is recorded as the per-task terminal `context_exhausted`.
 - FM-6: `INFERENCE_TIMEOUT_S` raised to 1800.
+
+**Fixed from r5 on:** FM-6 timeouts end only that attempt (`inference_timeout`), and Granite base and student are served one at a time. Neither changes a budget, and no r4 Qwen attempt timed out, so r5 reuses r4's Qwen runs (`run_comparison --qwen-from`).
 
 r4 also runs 8 attempts per server concurrently, with base and student side by side and Granite training alongside. Concurrent batching changes floating-point reduction order, which is one more reason (with FM-3) not to expect bitwise reproduction of an earlier run.
 

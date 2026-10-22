@@ -21,13 +21,17 @@
 #
 # Usage:
 #   ./scripts/launch_powercoder_comparison.sh training/unsloth/out/agent-domain-r3
+#   ./scripts/launch_powercoder_comparison.sh training/unsloth/out/agent-domain-r5 \
+#       --qwen-from training/unsloth/out/agent-domain-r4    # Granite stages only
 #
+# Arguments after the root pass through to training/run_comparison.py.
 # The run root must not exist yet; the driver creates it and refuses reuse.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${1:?usage: $0 <new run root, e.g. training/unsloth/out/agent-domain-r3>}"
+shift
 RUN="$(basename "$ROOT")"
 UNIT="powercoder-${RUN}"
 # The verified, already-exited pinned Granite download (see the handoff).
@@ -47,6 +51,6 @@ systemd-run --user --unit="$UNIT" --remain-after-exit \
   --property="ExecStop=$STOP_CONTAINERS" \
   --property="ExecStopPost=$STOP_CONTAINERS" \
   "$UV" run --offline --no-sync python -m training.run_comparison \
-    --root "$ROOT" --download-container "$DOWNLOAD_CONTAINER"
+    --root "$ROOT" --download-container "$DOWNLOAD_CONTAINER" "$@"
 
 echo "started $UNIT; inspect with: systemctl --user status $UNIT"

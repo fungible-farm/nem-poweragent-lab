@@ -2,7 +2,9 @@
 
 Serve the pinned Qwen base and the original saved Qwen student side by side and
 evaluate both while the pinned Granite model trains on the same split, then
-evaluate Granite base and student side by side. This driver owns every stage it starts, so one supervising unit
+evaluate Granite base and then Granite student, one server at a time.
+``--qwen-from`` instead reuses a completed earlier root's verified Qwen runs and
+Granite training and runs only the Granite stages. This driver owns every stage it starts, so one supervising unit
 (`systemd-run --user`, see training/granite/README.md) stops all of them. Every
 GPU stage first waits for measured unified-memory headroom. No stage is retried
 or truncated automatically. A failed stage leaves its logs and stops this driver.
@@ -210,10 +212,11 @@ def verify_evaluation(directory: Path, events: TextIO) -> None:
 def evaluate_pair(pair: list[tuple[str, Path, str, Path, float]], root: Path, events: TextIO,
                   extra: list[tuple[list[str], Path]] | None = None,
                   extra_floor: tuple[str, int] | None = None) -> None:
-    """Serve two models side by side, evaluate both at once, then release them.
+    """Serve one or two models side by side, evaluate them at once, then release them.
 
     Args:
-        pair: (label, source, model_path, out_dir, memory_fraction) per model.
+        pair: (label, source, model_path, out_dir, memory_fraction) per model;
+            one entry serves a single model on the first port.
         extra: Further stages (Granite training) to run alongside the evaluations.
         extra_floor: (stage, bytes) memory admission for ``extra``, checked
             after both servers hold their memory.
@@ -291,28 +294,44 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
                  TRAINING_IMAGE, "python", "-m", "training.granite.train", "--config", str(GRANITE_CONFIG)],
                 args.root / "granite-training.log")
 
-    # Stage 1: Qwen base and student side by side, Granite training alongside.
-    evaluate_pair([("qwen-base", HF_HUB, QWEN_BASE_SNAPSHOT, args.root / "base", GPU_MEMORY_FRACTION),
-                   ("qwen-student", QWEN_STUDENT, "", args.root / "student", GPU_MEMORY_FRACTION)],
-                  args.root, events, extra=[training], extra_floor=("granite-training", GRANITE_WEIGHT_BYTES))
-    qwen = write_comparison(args.root / "base", args.root / "student", args.root / "qwen-comparison.json", events)
-    qwen_numerical = write_numerical_comparison(args.root / "base", args.root / "student",
+    granite_student = Path(config["output"]["dir"]) / "merged-bf16"
+    if args.qwen_from:
+        # Stage 1 already completed under the same budgets (agent-domain-r4);
+        # verified_run refuses an incomplete or altered run.
+        qwen_base, qwen_student = args.qwen_from / "base", args.qwen_from / "student"
+        for directory in (qwen_base, qwen_student):
+            verify_evaluation(directory, events)
+        if not (granite_student / "config.json").is_file():
+            raise RuntimeError(f"Granite student {granite_student} is missing; run stage 1 with training")
+        record(events, "reused_stage", {"qwen_from": str(args.qwen_from), "granite_student": str(granite_student)})
+    else:
+        # Stage 1: Qwen base and student side by side, Granite training alongside.
+        qwen_base, qwen_student = args.root / "base", args.root / "student"
+        evaluate_pair([("qwen-base", HF_HUB, QWEN_BASE_SNAPSHOT, qwen_base, GPU_MEMORY_FRACTION),
+                       ("qwen-student", QWEN_STUDENT, "", qwen_student, GPU_MEMORY_FRACTION)],
+                      args.root, events, extra=[training], extra_floor=("granite-training", GRANITE_WEIGHT_BYTES))
+    qwen = write_comparison(qwen_base, qwen_student, args.root / "qwen-comparison.json", events)
+    qwen_numerical = write_numerical_comparison(qwen_base, qwen_student,
                                                args.root / "qwen-numerical-comparison.json", events)
 
-    # Stage 2: Granite base and student side by side.
+    # Stage 2: Granite base, then Granite student, one server at a time. Side by
+    # side in r4 the two 8B servers shared the GB10's memory bandwidth at
+    # ~32-36 tok/s each (~4 tok/s per stream), so a full 8,192-token response
+    # needed ~2,000 s, past INFERENCE_TIMEOUT_S. One server gets the whole
+    # bandwidth at the same CONCURRENCY and the same total wall time.
     evaluate_pair([("granite-base", Path(config["model"]["name"]), "", args.root / "granite-base",
-                    GRANITE_GPU_MEMORY_FRACTION),
-                   ("granite-student", Path(config["output"]["dir"]) / "merged-bf16", "", args.root / "granite-student",
+                    GRANITE_GPU_MEMORY_FRACTION)], args.root, events)
+    evaluate_pair([("granite-student", granite_student, "", args.root / "granite-student",
                     GRANITE_GPU_MEMORY_FRACTION)], args.root, events)
     granite = write_comparison(args.root / "granite-base", args.root / "granite-student",
                                args.root / "granite-comparison.json", events)
-    write_comparison(args.root / "base", args.root / "granite-student", args.root / "granite-vs-qwen-base.json", events)
-    write_comparison(args.root / "student", args.root / "granite-student", args.root / "granite-vs-qwen-student.json", events)
+    write_comparison(qwen_base, args.root / "granite-student", args.root / "granite-vs-qwen-base.json", events)
+    write_comparison(qwen_student, args.root / "granite-student", args.root / "granite-vs-qwen-student.json", events)
     granite_numerical = write_numerical_comparison(args.root / "granite-base", args.root / "granite-student",
                                                   args.root / "granite-numerical-comparison.json", events)
-    write_numerical_comparison(args.root / "base", args.root / "granite-student",
+    write_numerical_comparison(qwen_base, args.root / "granite-student",
                                args.root / "granite-vs-qwen-base-numerical.json", events)
-    write_numerical_comparison(args.root / "student", args.root / "granite-student",
+    write_numerical_comparison(qwen_student, args.root / "granite-student",
                                args.root / "granite-vs-qwen-student-numerical.json", events)
     record(events, "pipeline_complete", {"qwen_domain_threshold_met": qwen["domain_threshold_met"],
         "granite_domain_threshold_met": granite["domain_threshold_met"],
@@ -325,6 +344,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
     parser.add_argument("--download-container", required=True)
+    parser.add_argument("--qwen-from", type=Path,
+                        help="Completed earlier root whose Qwen runs and Granite training are reused")
     args = parser.parse_args()
     args.root.mkdir()
     # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.

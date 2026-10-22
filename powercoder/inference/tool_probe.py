@@ -29,8 +29,11 @@ MAX_TOOL_CALLS: int = 24
 # turns, so this bounds one response, not the conversation.
 MAX_TOKENS: int = 8192
 # One full response at the ~14 tok/s low end measured on GB10 takes ~585 s;
-# with concurrent requests sharing the GPU allow ~3x that. A timeout stops the
-# whole run (FM-6), so this is transport patience, not extra attempts.
+# with concurrent requests sharing the GPU allow ~3x that. A request that still
+# exceeds it is that attempt's terminal ``inference_timeout`` (FM-6): r4's
+# Granite side-by-side stage decoded ~4 tok/s per stream and one timeout
+# aborted the whole stage. Every compared run records this value, and
+# compare_agents refuses runs whose values differ.
 INFERENCE_TIMEOUT_S: float = 1800.0
 # vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
 CONTEXT_OVERFLOW: str = "maximum context length"
@@ -87,6 +90,12 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
                                                      "error": error.response.text[:500]})
                         return 1
                     raise
+                except httpx.TimeoutException as error:
+                    # One slow attempt is that attempt's failure; the client
+                    # closes the connection, so vLLM aborts the request.
+                    record(journal, "terminal", {"state": "inference_timeout", "actual_tool_calls": calls,
+                                                 "timeout_s": INFERENCE_TIMEOUT_S, "error": type(error).__name__})
+                    return 1
                 record(journal, "model_response", result)
                 choice = result["choices"][0]
                 message = choice["message"]

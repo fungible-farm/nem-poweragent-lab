@@ -32,6 +32,8 @@ CAUSES: tuple[str, ...] = (
     "contingency_dropped",
     "response_token_cap",
     "turn_budget_exhausted",
+    "context_exhausted",
+    "inference_timeout",
     "invalid_tool_protocol",
     "model_protocol_error",
     "empty_stop",
@@ -84,7 +86,8 @@ def classify(task: dict[str, Any], result: dict[str, Any], events: list[dict[str
         cause = "contingency_dropped"
     elif "length" in finishes:
         cause = "response_token_cap"
-    elif terminal in ("turn_budget_exhausted", "invalid_tool_protocol", "model_protocol_error"):
+    elif terminal in ("turn_budget_exhausted", "context_exhausted", "inference_timeout",
+                      "invalid_tool_protocol", "model_protocol_error"):
         cause = terminal
     elif terminal == "incomplete_generation":
         cause = "empty_stop"

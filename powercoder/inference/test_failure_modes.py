@@ -62,3 +62,8 @@ def test_none_string_errors_are_counted_as_an_overlay() -> None:
     events = [error, error, {"kind": "terminal", "payload": {"state": "turn_budget_exhausted"}}]
     attempt = failure_modes.classify(TASK, result(), events)
     assert (attempt["cause"], attempt["none_string_errors"]) == ("turn_budget_exhausted", 2)
+
+
+def test_inference_timeout_is_a_per_attempt_cause() -> None:
+    events = [response("tool_calls"), {"kind": "terminal", "payload": {"state": "inference_timeout"}}]
+    assert failure_modes.classify(TASK, result(), events)["cause"] == "inference_timeout"
