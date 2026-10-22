@@ -89,7 +89,7 @@ test:
     uv run python -m pytest labs/ -q
 
 # --- per-lab self-check gates ----------------------------------------------
-check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-systhread-core check-systhread-wasm check-systhread-explorer
+check: check-lab1 check-lab2 check-lab3 check-lab4 check-lab5 check-lab6 check-lab7 check-lab8 check-lab9 check-lab10 check-systhread-core check-systhread-wasm check-systhread-explorer
 
 check-systhread-core:
     cargo test -p systhread-core --manifest-path rust/Cargo.toml
@@ -202,6 +202,26 @@ check-lab8:
 # -p fft-detector scoping already avoids.
 check-lab9:
     cargo test --manifest-path rust/Cargo.toml -p mission-engine --release
+
+# Lab 10: PowerAgentBench's RestoreBench on this node. Fast gate: pinned sources
+# (once fetched) and the local transport's message translation.
+check-lab10:
+    uv run python -m pytest -q labs/10-poweragentbench-restorebench/test_lab10.py
+
+# Lab 10: clone PowerAgentBench at the pinned commit into data/ and verify it.
+lab10-fetch:
+    uv run labs/10-poweragentbench-restorebench/restorebench_lab.py --step fetch
+
+# Lab 10: re-score all 92 published witnesses (~5 min) against the fixture.
+lab10-check-slow:
+    uv run labs/10-poweragentbench-restorebench/restorebench_lab.py --step check
+
+# Lab 10: RestoreBench's single tool-using agent on a locally served model, e.g.
+# just lab10-agent http://127.0.0.1:8101 powercoder-qwen-student 5
+lab10-agent base_url model limit="46":
+    uv run labs/10-poweragentbench-restorebench/restorebench_lab.py --step agent \
+        --base-url {{base_url}} --model {{model}} --limit {{limit}} \
+        --results-dir labs/10-poweragentbench-restorebench/results/agent-{{model}}
 
 # Lab 9 against the REAL grid2op subprocess (needs `just lab9-dataset` first,
 # and takes ~1-2 min just to import grid2op and build the 503-bus env).

@@ -1,7 +1,7 @@
 # PowerCoder handoff — 21 October 2026
 
-Snapshot: **22 October 2026, 16:00 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
-Implementation: r5 runs from the commit after `62d6ff0`; `f3bab24` ran r4; `a279d7b` ran r3; `8442962` ran r2.
+Snapshot: **22 October 2026, 22:15 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
+Implementation: r6 runs from `90f849a` and later; r5 ran from `6caf63c` (stopped); `f3bab24` ran r4; `a279d7b` ran r3; `8442962` ran r2.
 Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live
 pipeline that no longer runs).
 
@@ -19,8 +19,10 @@ The goal record is `.pi/goals/active_goal_2026102108123965_mvh6j65n-98gogh.md`
 **The experiment is incomplete.** The Qwen comparison is complete and **missed
 the ≥10 pp target**: the student scored below the base (see "r4 results").
 Granite training is complete. The Granite evaluations crashed in r4 on an
-inference timeout (FM-6) and are re-running supervised as **r5** (see "Live r5
-run"). Failure modes are recorded in `AGENTS.md` (FM-1…FM-16).
+inference timeout (FM-6); r5 re-ran them supervised and was **stopped
+deliberately** at Granite base 34/306 because of benchmark and training defects
+(see "r5 run"). r6 replaces r1–r5 with fixed tools, retrained students and a
+stratified sample (see "r6"). Failure modes are recorded in `AGENTS.md` (FM-1…FM-20).
 At 10:01 AEDT, on user
 instruction, the r2 pipeline was stopped as unsupervised: driver PID `987032`,
 Qwen base evaluator PID `954658`, its MCP child and `uv` wrappers (SIGTERM), then
@@ -82,22 +84,109 @@ Persistent proxy backends (`llama-vllm-27b`, `granite42-vllm`) are systemd units
 that `globalTTL` cannot unload; they must be stopped explicitly before
 memory-heavy PowerCoder stages.
 
-## Live r5 run — observe before taking action
+## r6 — fixed tools, retrained students, stratified sample (in progress)
 
-Unit **`powercoder-agent-domain-r5`**, root `training/unsloth/out/agent-domain-r5/`,
-launched with `--qwen-from training/unsloth/out/agent-domain-r4`. It verifies and
-reuses r4's complete Qwen runs and Granite training, rewrites the two Qwen
-comparisons into r5 (deterministic, seed 42), then evaluates Granite base and then
-Granite student **one server at a time** at the same budgets (8 concurrent, 8192
-tokens, 1800 s), and writes all Granite comparison files. A timeout now ends one
-attempt as `inference_timeout` instead of the stage.
+Goal set 2026-10-22: (1) fix FM-17/FM-18; (2) mixed, stratified task order;
+(3) retrain both students on tool-call examples behind a 20-task smoke gate;
+(4) evaluate all four models on ~100 stratified tasks; (5) measure latency and
+peak memory separately; and consider a separate PowerAgentBench lab (Lab 10).
+
+| Piece | Where | State |
+|---|---|---|
+| FM-17/FM-18 fixes | `powercoder/inference/studies.py` (+ `test_studies.py`) | Done |
+| 100-task sample | `powercoder/datasets/sample_benchmark.py` → `benchmarks/power-agent-bench-lite/results/domain-stratified-100-20261022/` (sha256 `e0ae550f…`, 25 per subfamily, interleaved) | Done |
+| 20-task smoke set | validation split minus every task shared with training (FM-21), `training/unsloth/out/smoke-validation-20-20261022/` (sha256 `566885d9…`; 7 load / 7 line / 3 dispatch / 3 report; audit clean) | Done |
+| Trajectories | `powercoder/datasets/trajectories.py` → `training/unsloth/out/trajectories-20261022/` (238 kept / 238, all pass `grade()`; sha256 `e20982a4…`) | Done |
+| Trainer | `training/agent_sft.py`, configs `training/agent/config.{qwen35-4b,granite42-8b}.yaml`, image `training/agent/Containerfile` (+fla 0.5.2 → `c890642db172`) | Retraining both after the seam-token fix |
+| Training unit | `./scripts/launch_agent_sft.sh` → `powercoder-agent-sft` | Running |
+| Driver | `training/run_agent_study.py`, `./scripts/launch_agent_study.sh <root>` | Written, tested on CPU |
+| Latency | `powercoder/inference/latency_bench.py` (20 smoke first turns, 512 tokens, `ignore_eos`, concurrency 1, idle server) | Written |
+| Lab 10 | `labs/10-poweragentbench-restorebench/` | CPU steps done; agent stage runs inside r6 |
+
+**Live state (22:15 AEDT).** The seam-fixed Qwen student trained on the
+238 plain trajectories (`training/unsloth/out/agent-sft-qwen35-4b-20261022/`,
+30 steps, 1.9 h, final loss 0.0027) passed `generation_check` 8/8: from the
+served prompt it closes `<think>` and opens a `run_study_trial` call. It is
+kept as the plain-procedure baseline. On user direction both students are now
+retrained on `trajectories-20261022-v2` (238 plain + 119 failure-mode recovery
+variants: 61 `"None"`, 49 line-0, 9 `run_power_flow`; all pass `grade()`
+including provenance) into `agent-sft-*-20261022-v2/`, which r6 evaluates.
+`powercoder-agent-study-r6-wait` launches r6 when that training succeeds.
+Watch with:
 
 ```bash
-systemctl --user status powercoder-agent-domain-r5
-tail -3 training/unsloth/out/agent-domain-r5/pipeline.jsonl
-wc -l training/unsloth/out/agent-domain-r5/granite-*/results.jsonl
-uv run python -m powercoder.inference.failure_modes training/unsloth/out/agent-domain-r5/granite-base
+podman logs --tail 3 powercoder-agent-sft-qwen35-4b 2>&1 | tr '\r' '\n' | tail -2
+cat training/unsloth/out/agent-sft-*-20261022-v2/generation_check.json
+systemctl --user status powercoder-agent-study-r6-wait powercoder-agent-study-r6
+tail -3 training/unsloth/out/agent-study-r6/pipeline.jsonl
 ```
+
+Plumbing verified before launch with the defective student as a stand-in:
+vLLM serves the merged Qwen3.5 checkpoint; `latency_bench` measured TTFT
+0.40 s and 8.5 tok/s (GPU shared with training); Lab 10's local transport
+reached vLLM after capping responses at 8,192 tokens (RestoreBench's 16,384
+plus its ~43k-character IEEE 118 first turn overran the 32,768 context, so the
+first attempt recorded `LLM_FAILURE` on every call).
+
+Training facts (preflight, both students): 238 conversations as 1,457 turn
+sequences (each = separately tokenised served prompt + target), 30 optimizer
+steps (8 conversations ≈ 49 sequences a step, 1 epoch, LR 1e-4, LoRA r32 on
+decoder linears): Qwen 158,855 and Granite 160,127 supervised tokens. Image
+`localhost/powercoder-agent-sft:local` (`c890642db172`) adds fla 0.5.2: the
+reference Gated-DeltaNet kernels ran ~125 s/step and held ~93 GB.
+
+**Seam-token defect (found and fixed 2026-10-22 ~20:00).** The first complete
+Qwen student (`training/unsloth/out/agent-sft-qwen35-4b-20261022-defect-seam-token/`,
+kept as evidence) reached teacher-forced loss 0.0006, yet served by vLLM it
+answered reports with invented numbers and no tool call, and opened fits with
+long reasoning. Measured cause: prompt and target were tokenised as one string;
+Qwen's prompt ends `<think>\n` and its target starts `\n</think>`, and the two
+newlines merge into one `\n\n` token, so training never contained the served
+prompt's final token. vLLM's `/tokenize` and the HF render of the served prompt
+are identical (1,074 tokens), so serving was not at fault. `agent_sft.encode`
+now concatenates separately tokenised prompt and target, and the trainer's
+post-merge `generation_check` (8 first turns, 32 tokens each, greedy) refuses
+to finish otherwise; on the defective student it reported 0/8. Granite's
+seam (`<think>\n` + `</think>`) does not merge (supervised tokens unchanged),
+but its partial run was discarded too, and training was cut to one epoch
+(Qwen's loss was 0.0016 by epoch 0.67).
+
+Incident ~19:05: a full `pytest tests/` run hit `tests/integration/test_teacher_gateway.py`,
+which made llama-swap start `qwen3.8-flash-next`; the kernel OOM-killed
+llama-swap's model process. Training survived. Don't run the gateway tests
+during GPU stages.
+
+Lab 10 result: RestoreBench witnesses on this aarch64 node score IEEE 118
+45/46 (S0081 `BUDGET_EXHAUSTED`, reproduced) and PEGASE 89 46/46; its own
+verifier agrees. Not yet reported upstream.
+
+## r5 run — stopped deliberately 2026-10-22 17:46 AEDT
+
+Unit `powercoder-agent-domain-r5`, root `training/unsloth/out/agent-domain-r5/`,
+launched 15:50 with `--qwen-from training/unsloth/out/agent-domain-r4` (Granite only,
+one server at a time, same budgets as r4). Stopped by `systemctl --user stop`; the
+journal recorded `driver_stopped` (exit 143), no containers or evaluators remained.
+Granite student was never evaluated.
+
+Granite base reached 34/306 (`failure_modes`): reports 15 `solver_correct_strict_rejected`,
+11 `answered_wrong`; load-scale fits 7 `turn_budget_exhausted`, 1 `response_token_cap`.
+Solver-verified reports 15/26 vs Qwen base 4/26; strict 0/34. Fits ran ~40 min each
+(12 turns × 130–370 s).
+
+Why stopped: the remaining 272 tasks are fits measured through benchmark defects
+that a new run root must fix, so the result would be re-run anyway:
+- every `run_study_trial` on snem-sa-2000 returns `constraint_violation` (r4 Qwen
+  base 1045/1045, r5 Granite 77/77) because the base case already has 39 bus-voltage
+  violations — the status carries no signal and models retry as if it failed;
+- `contingency_line: 0` is a valid line index, so "no contingency" written as `0`
+  silently outages line 0 (Granite 66 of 104 calls) — FM-1 in a new form;
+- students are trained on `{prompt → expected.answer}` text with no tools, a
+  different system prompt and `seq_len: 1024` (`training/unsloth/train.py`), then
+  evaluated as multi-turn tool agents — the likely cause of the 0% Qwen student.
+
+Next: fix those in a new root, interleave/stratify task order, retrain students on
+tool-call trajectories behind a 20-task smoke gate, evaluate all four models on a
+stratified sample, and measure latency/peak memory in a dedicated benchmark.
 
 ## r4 results (Qwen complete; Granite crashed)
 
