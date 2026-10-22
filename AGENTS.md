@@ -126,7 +126,7 @@ benchmark. Re-derive with `uv run python -m powercoder.inference.failure_modes <
 assigns each attempt one cause in a fixed precedence order. Don't quote these counts as results:
 the benchmark runs in subfamily order (26 report, 120 load-scale, 120 line-rating, 40 dispatch),
 so early attempts are not a representative sample. Status and live state:
-`docs/POWERCODER_HANDOFF_2026-10-21.md`.
+`docs/POWERCODER_HANDOFF_2026-10-23.md`.
 
 **Feasibility.** All 306 tasks are solvable within the budgets. Every reference converged; each
 report needs one `run_study_trial(operation="none")` call; the reference bisection reached each

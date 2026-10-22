@@ -1,5 +1,8 @@
 # PowerCoder handoff — 21 October 2026
 
+> **Superseded by [POWERCODER_HANDOFF_2026-10-23.md](POWERCODER_HANDOFF_2026-10-23.md).** Kept as the
+> r1–r6 history; its "live state" paragraphs are out of date.
+
 Snapshot: **22 October 2026, 22:15 AEDT (UTC+11)**. Branch: `chore/powercoder-recovery`.
 Implementation: r6 runs from `90f849a` and later; r5 ran from `6caf63c` (stopped); `f3bab24` ran r4; `a279d7b` ran r3; `8442962` ran r2.
 Earlier revisions of this handoff: `b1a7b44`, `bb2a90c` (both describe a live

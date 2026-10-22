@@ -1,6 +1,6 @@
 """Smoke-gate the retrained students, then evaluate all four models and measure them.
 
-r6 of the PowerCoder study (docs/POWERCODER_HANDOFF_2026-10-21.md). Inputs are
+r6 of the PowerCoder study (docs/POWERCODER_HANDOFF_2026-10-23.md). Inputs are
 frozen and verified before anything is served:
 
 - the students from ``training/agent_sft.py`` (each ``hash_manifest.json``
