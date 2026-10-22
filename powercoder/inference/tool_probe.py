@@ -35,6 +35,11 @@ MAX_TOKENS: int = 8192
 # aborted the whole stage. Every compared run records this value, and
 # compare_agents refuses runs whose values differ.
 INFERENCE_TIMEOUT_S: float = 1800.0
+# The evaluation's system turn. Training trajectories (powercoder/datasets/
+# trajectories.py) reuse it verbatim, so students train on the prompt they are
+# evaluated with (AGENTS.md FM-19).
+SYSTEM_PROMPT: str = ("Use the available tools to solve the task. Report only results supported by actual "
+                      "tool responses. Convergence and physical validity are different.")
 # vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
 CONTEXT_OVERFLOW: str = "maximum context length"
 
@@ -53,7 +58,7 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         cwd=str(Path(__file__).resolve().parents[2]),
     )
     messages = [
-        {"role": "system", "content": "Use the available tools to solve the task. Report only results supported by actual tool responses. Convergence and physical validity are different."},
+        {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": args.prompt.read_text()},
     ]
     record(journal, "start", {

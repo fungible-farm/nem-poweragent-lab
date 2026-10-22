@@ -23,24 +23,27 @@ from powercoder.inference.powermcp import PowerMCP
 MODEL_HIDDEN_FIELDS: frozenset[str] = frozenset({"execution_time_s"})
 
 
-def create_server(study_tools: bool = False) -> Server:
-    """Expose canonical schemas and real solver outcomes through SDK transport."""
-    backend = PowerMCP()
-    server = Server("powercoder-canonical")
-    schemas = backend.get_tool_schemas()
+def tool_definitions(study_tools: bool = False) -> list[Tool]:
+    """The tools this server lists; the latency benchmark sends the same list."""
+    schemas = PowerMCP().get_tool_schemas()
     if study_tools:
         from powercoder.inference.studies import tool_schema
 
         schemas.append(tool_schema())
+    return [Tool(name=f["name"], description=f["description"], inputSchema=f["parameters"])
+            for schema in schemas for f in [schema["function"]]]
+
+
+def create_server(study_tools: bool = False) -> Server:
+    """Expose canonical schemas and real solver outcomes through SDK transport."""
+    backend = PowerMCP()
+    server = Server("powercoder-canonical")
+    tools = tool_definitions(study_tools)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         """Reuse the canonical schemas rather than duplicate their constraints."""
-        return [
-            Tool(name=f["name"], description=f["description"], inputSchema=f["parameters"])
-            for schema in schemas
-            for f in [schema["function"]]
-        ]
+        return tools
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
