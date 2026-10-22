@@ -71,7 +71,7 @@ def test_concurrent_attempts_commit_in_benchmark_order(tmp_path: Path, monkeypat
     from powercoder.inference import evaluate_agent
 
     tasks = [{"example_id": f"ex_{i}", "subfamily": "pf-report", "task": {"prompt": f"p{i}"}} for i in range(5)]
-    monkeypatch.setattr(evaluate_agent, "DOMAIN_TASK_COUNT", len(tasks))
+    monkeypatch.setattr(evaluate_agent, "frozen_task_count", lambda _path: len(tasks))
     monkeypatch.setattr(evaluate_agent, "load_rows", lambda _path: tasks)
     monkeypatch.setattr(evaluate_agent, "audit_rows", lambda *_args: {"clean": True})
     flight = {"now": 0, "max": 0}

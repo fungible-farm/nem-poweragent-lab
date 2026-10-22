@@ -19,7 +19,7 @@ def paired_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
     """Build small integrity fixtures; these journals assert no real physics."""
     cases = json.loads(FIXTURE.read_text())
     tasks = [cases["tasks"][0], cases["tasks"][-1]]
-    monkeypatch.setattr(comparator, "DOMAIN_TASK_COUNT", len(tasks))
+    monkeypatch.setattr(comparator, "frozen_task_count", lambda _path: len(tasks))
     source = tmp_path / "tasks.jsonl"
     source.write_text("".join(json.dumps(t) + "\n" for t in tasks))
     for label, outcomes in (("base", [False, True]), ("student", [True, True])):

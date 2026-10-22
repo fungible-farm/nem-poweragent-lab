@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import time
+from functools import lru_cache
 from typing import Any
 
 import pandapower as pp
@@ -35,7 +36,12 @@ def tool_schema() -> dict[str, Any]:
             "line_loading; gen_dispatch scales one generator P and observes trafo_loading. "
             "Use operation=none for base/N-1 reports. Returns actual measurements, not a fitted answer. "
             "element_id selects the modified line/generator (unused for all-load scaling). "
-            "observation_id selects the observed bus/line/transformer."
+            "observation_id selects the observed bus/line/transformer. "
+            "Omit contingency_line (or pass null) for the intact network; an integer takes that "
+            "line out of service, and 0 is a real line. "
+            "status=constraint_violation with metric_valid=true is still a usable measurement: "
+            "compare voltage_violations with base_case_voltage_violations, which the unmodified "
+            "case already has."
         ),
         "parameters": {
             "type": "object", "additionalProperties": False,
@@ -49,15 +55,40 @@ def tool_schema() -> dict[str, Any]:
                 "contingency_line": {"type": ["integer", "null"]},
                 "max_iter": {"type": "integer", "minimum": 1, "maximum": MAX_ITERATIONS},
             },
-            "required": ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "contingency_line", "max_iter"],
+            # contingency_line is optional: when it was required, models filled it with 0
+            # (line 0 out) or "None" to mean "no contingency" (AGENTS.md FM-7, FM-18).
+            "required": ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "max_iter"],
         },
     }}
 
 
+@lru_cache(maxsize=None)
+def base_case_voltage_violations(network_id: str) -> int | None:
+    """Count bus-voltage band violations in the unmodified, intact case.
+
+    snem-sa-2000 already has 39 such buses, so every trial on it is
+    ``constraint_violation`` whatever the trial value (AGENTS.md FM-17). Reporting
+    the base count lets a model tell an inherited violation from one its trial
+    caused, without weakening the canonical status contract. Cached because each
+    MCP server process serves one attempt and the case files never change.
+
+    Returns:
+        The violation count, or None when the unmodified case does not converge
+        (a converged trial on such a case must not be reported as non-convergence).
+    """
+    net, _ = pm._load_network_object(network_id)
+    try:
+        pm._runpp_counted(net, numba=True, max_iteration=MAX_ITERATIONS)
+    except pp.LoadflowNotConverged:
+        return None
+    vm = net.res_bus.vm_pu
+    return int(((vm < pm.VOLTAGE_LIMIT_LOW_PU) | (vm > pm.VOLTAGE_LIMIT_HIGH_PU)).sum())
+
+
 def run_study_trial(
     network_id: str, operation: str, scale: float, element_id: int,
-    observation: str, observation_id: int, contingency_line: int | None,
-    max_iter: int,
+    observation: str, observation_id: int, max_iter: int,
+    contingency_line: int | None = None,
 ) -> pm.PowerMCPResult:
     """Apply one explicit perturbation and measure a real, independently solved network.
 
@@ -113,6 +144,9 @@ def run_study_trial(
             "metric_unit": "pu" if observation == "bus_voltage" else "percent",
             "min_bus_voltage_pu": float(vm.min()), "max_bus_voltage_pu": float(vm.max()),
             "voltage_violations": voltage_violations,
+            "base_case_voltage_violations": base_case_voltage_violations(network_id),
+            "metric_valid": True,
+            "contingency": f"line {contingency_line} out of service" if contingency_line is not None else "none (intact network)",
             "max_line_loading_percent": line_loading, "max_trafo_loading_percent": trafo_loading,
             "voltage_limit_pu": [pm.VOLTAGE_LIMIT_LOW_PU, pm.VOLTAGE_LIMIT_HIGH_PU],
             "thermal_limit_percent": THERMAL_LIMIT_PERCENT,

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from powercoder.datasets.audit import load_rows
-from powercoder.inference.evaluate_agent import DOMAIN_TASK_COUNT
+from powercoder.inference.evaluate_agent import frozen_task_count
 from training.unsloth.evaluate import DOMAIN_IMPROVEMENT_THRESHOLD, uncertainty
 
 
@@ -22,8 +22,9 @@ def verified_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]
     results = [row["payload"] for row in records]
     task_path = Path(next(iter(summary["inputs"])))
     expected_ids = [row["example_id"] for row in load_rows(task_path)]
+    count = frozen_task_count(task_path)
     if (not summary["complete"] or not summary["independence_audit"]["clean"]
-        or summary["n_tasks"] != DOMAIN_TASK_COUNT or len(results) != DOMAIN_TASK_COUNT
+        or summary["n_tasks"] != count or len(results) != count
         or [row["example_id"] for row in results] != expected_ids):
         raise ValueError("Incomplete or mismatched domain run")
     for path, expected_hash in summary["inputs"].items():

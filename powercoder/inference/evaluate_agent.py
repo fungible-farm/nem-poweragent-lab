@@ -19,8 +19,6 @@ from powercoder.datasets.audit import audit_rows, load_rows
 from powercoder.inference.tool_probe import INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
 from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answer
 
-# The audited 2026-10-20 benchmark manifest has exactly 306 unique tasks.
-DOMAIN_TASK_COUNT: int = 306
 # One task at a time reproduces the r1-r3 schedule. Tasks are independent
 # (own MCP process, own journal), so concurrency changes throughput only.
 DEFAULT_CONCURRENCY: int = 1
@@ -38,6 +36,29 @@ class TaskResult(TypedDict):
     verification: dict[str, Any]
     diagnostics: list[str]
     journal_sha256: str
+
+
+def frozen_task_count(tasks: Path) -> int:
+    """Return the task count a frozen suite's own manifest declares for this exact file.
+
+    Every suite (``build_benchmark.py``'s 306 tasks, ``sample_benchmark.py``'s
+    stratified samples) sits beside a ``manifest.json`` recording the file's
+    sha256, so a run of a truncated or swapped file is refused.
+
+    Raises:
+        ValueError: if the manifest is missing, names another file, or has no count.
+    """
+    manifest_path = tasks.parent / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"No frozen-suite manifest beside {tasks}")
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get("examples_sha256") != hashlib.sha256(tasks.read_bytes()).hexdigest():
+        raise ValueError(f"{tasks} is not the file its manifest froze")
+    if "n_tasks" in manifest:
+        return int(manifest["n_tasks"])
+    if "counts_by_subfamily" in manifest:
+        return sum(manifest["counts_by_subfamily"].values())
+    raise ValueError(f"{manifest_path} declares no task count")
 
 
 def relevant_evidence(task: dict[str, Any], answer: str, events: list[dict[str, Any]]) -> bool:
@@ -141,8 +162,8 @@ async def evaluate(args: argparse.Namespace) -> None:
     """
     tasks = load_rows(args.tasks)
     audit = audit_rows(tasks, load_rows(args.exclude))
-    if not audit["clean"] or len(tasks) != DOMAIN_TASK_COUNT:
-        raise ValueError(f"Expected the complete independent domain suite: {audit}")
+    if not audit["clean"] or len(tasks) != frozen_task_count(args.tasks):
+        raise ValueError(f"Expected a complete, frozen, independent task suite: {audit}")
     args.out.mkdir(parents=True, exist_ok=False)
     manifest = {
         "model": args.model, "base_url": args.base_url,
