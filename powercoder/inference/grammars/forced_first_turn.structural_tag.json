@@ -1,0 +1,180 @@
+{
+ "type": "structural_tag",
+ "format": {
+  "type": "sequence",
+  "elements": [
+   {
+    "type": "regex",
+    "pattern": "\n{0,2}"
+   },
+   {
+    "type": "triggered_tags",
+    "triggers": [
+     "<tool_call>\n<function="
+    ],
+    "tags": [
+     {
+      "type": "tag",
+      "begin": "<tool_call>\n<function=load_network>\n",
+      "content": {
+       "type": "json_schema",
+       "json_schema": {
+        "type": "object",
+        "properties": {
+         "network_id": {
+          "type": "string",
+          "description": "Network identifier",
+          "enum": [
+           "snem-sa-2000",
+           "snem-1803",
+           "fixture-2bus-ok",
+           "fixture-2bus-nonconverged"
+          ]
+         }
+        },
+        "required": [
+         "network_id"
+        ],
+        "additionalProperties": false
+       },
+       "style": "qwen_xml",
+       "any_order": false,
+       "max_whitespace_cnt": null
+      },
+      "end": "\n</function>\n</tool_call>"
+     },
+     {
+      "type": "tag",
+      "begin": "<tool_call>\n<function=run_power_flow>\n",
+      "content": {
+       "type": "json_schema",
+       "json_schema": {
+        "type": "object",
+        "properties": {
+         "network_id": {
+          "type": "string",
+          "description": "Network identifier",
+          "enum": [
+           "snem-sa-2000",
+           "snem-1803",
+           "fixture-2bus-ok",
+           "fixture-2bus-nonconverged"
+          ]
+         },
+         "method": {
+          "type": "string",
+          "description": "Solution method (advisory; nr is the real solver)",
+          "enum": [
+           "nr",
+           "cg"
+          ],
+          "default": "nr"
+         },
+         "max_iter": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum iterations",
+          "default": 50
+         },
+         "check_limits": {
+          "type": "boolean",
+          "description": "Report converged-but-violating solutions as constraint_violation",
+          "default": true
+         }
+        },
+        "required": [
+         "network_id"
+        ],
+        "additionalProperties": false
+       },
+       "style": "qwen_xml",
+       "any_order": false,
+       "max_whitespace_cnt": null
+      },
+      "end": "\n</function>\n</tool_call>"
+     },
+     {
+      "type": "tag",
+      "begin": "<tool_call>\n<function=run_study_trial>\n",
+      "content": {
+       "type": "json_schema",
+       "json_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "network_id": {
+          "type": "string",
+          "enum": [
+           "snem-sa-2000",
+           "snem-1803",
+           "fixture-2bus-ok",
+           "fixture-2bus-nonconverged"
+          ]
+         },
+         "operation": {
+          "type": "string",
+          "enum": [
+           "none",
+           "load_scale",
+           "line_rating",
+           "gen_dispatch"
+          ]
+         },
+         "scale": {
+          "type": "number",
+          "minimum": 0.9,
+          "maximum": 1.1
+         },
+         "element_id": {
+          "type": "integer"
+         },
+         "observation": {
+          "type": "string",
+          "enum": [
+           "bus_voltage",
+           "line_loading",
+           "trafo_loading"
+          ]
+         },
+         "observation_id": {
+          "type": "integer"
+         },
+         "contingency_line": {
+          "type": [
+           "integer",
+           "null"
+          ]
+         },
+         "max_iter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+         }
+        },
+        "required": [
+         "network_id",
+         "operation",
+         "scale",
+         "element_id",
+         "observation",
+         "observation_id",
+         "max_iter"
+        ]
+       },
+       "style": "qwen_xml",
+       "any_order": false,
+       "max_whitespace_cnt": null
+      },
+      "end": "\n</function>\n</tool_call>"
+     }
+    ],
+    "at_least_one": true,
+    "stop_after_first": false,
+    "excludes": [
+     "<think>",
+     "</think>"
+    ]
+   }
+  ]
+ }
+}

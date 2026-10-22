@@ -112,9 +112,16 @@ which Granite's template also emits) accepts all 2,207 trained turns of the
 357 trajectories and rejects 70 of the 119 injected failures (every FM-7
 `"None"` and FM-1 `run_power_flow` call); the 49 line-0 calls are schema-valid,
 so only training addresses FM-18. That check forced trajectory arguments into
-schema order (`a9fe73d`). Caveat for the queued forced arm: vLLM turns
-`tool_choice="required"` into a JSON-array schema, not the model's XML format,
-so it measures forcing plus a format shift; a structural-tag arm would not.
+schema order (`a9fe73d`). vLLM turns `tool_choice="required"` into a
+JSON-array schema, not the models' XML format, so the forced arm now uses
+`--first-turn-tool-choice structural_tag`: the committed
+`powercoder/inference/grammars/forced_first_turn.structural_tag.json` (built by
+`build_structural_tag.py` in the inference image from `served_tools.json`; the
+probe refuses to run if the served tools drift) sent as vLLM
+`structured_outputs.structural_tag` with `tool_choice="auto"`. Verified live
+23:10 on the v1 Qwen student: vLLM accepted the tag, all 3 first turns were
+`run_study_trial` calls, and all 3 validation fits passed grade() (numerical,
+evidence, provenance).
 
 **Sorted-tool-schema defect (22:50).** Training prompts rendered the tool block
 with sorted keys (`common.write_jsonl`), unlike the served prompt (AGENTS.md

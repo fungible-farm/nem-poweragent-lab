@@ -67,3 +67,24 @@ def test_required_tool_choice_applies_to_the_first_turn_only(tmp_path: Path, mon
         asyncio.run(tool_probe.probe(args, stream))
     assert RecordingClient.choices == ["required"]
     assert json.loads(journal.read_text().splitlines()[0])["payload"]["first_turn_tool_choice"] == "required"
+
+
+def test_structural_tag_rides_on_auto_and_must_match_the_served_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The committed tag is sent as vLLM structured_outputs on turn 0, with tool_choice auto."""
+    seen: list[dict] = []
+
+    class TagClient(SlowClient):
+        def chat_completion(self, *_args: Any, **kwargs: Any) -> dict[str, Any]:
+            seen.append(kwargs)
+            return {"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "done"}}]}
+
+    monkeypatch.setattr(tool_probe, "InferenceClient", TagClient)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Report the base-case power flow for snem-sa-2000.")
+    args = argparse.Namespace(base_url="http://127.0.0.1:1", model="m", prompt=prompt, study_tools=True,
+                              first_turn_tool_choice="structural_tag")
+    with (tmp_path / "journal.jsonl").open("w") as stream:
+        asyncio.run(tool_probe.probe(args, stream))
+    assert seen[0]["tool_choice"] == "auto"
+    tag = json.loads(seen[0]["extra"]["structured_outputs"]["structural_tag"])
+    assert tag["type"] == "structural_tag"

@@ -29,8 +29,8 @@ with its logs kept.
 
 ``--forced-arm-from <r6 root>`` is a separate study arm (never part of r6): it
 reuses r6's verified students and unforced 100-task runs, evaluates every
-model r6 evaluated with ``--first-turn-tool-choice required`` (vLLM's grammar
-forces a tool call before any answer), and writes one forced-vs-unforced
+model r6 evaluated with ``--first-turn-tool-choice structural_tag`` (xgrammar
+forces a tool call before any answer, in the model's own trained format), and writes one forced-vs-unforced
 comparison per model.
 """
 
@@ -248,14 +248,14 @@ def forced_arm(args: argparse.Namespace, events: TextIO) -> None:
         verify_evaluation(previous / label, events)
         forced = args.root / f"{label}-forced"
         session(label, "forced", *sources[label], fractions[label.split("-")[0]], args.root, events,
-                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="required")
+                [("benchmark-forced", BENCHMARK, forced)], latency=False, first_turn_tool_choice="structural_tag")
         stem = f"{label}-auto-vs-forced"
         strict = write_comparison(previous / label, forced, args.root / f"{stem}.json", events, True)
         numerical = write_numerical_comparison(previous / label, forced, args.root / f"{stem}-numerical.json",
                                                events, True)
         outcomes[label] = {"strict_delta_pp": strict["delta_percentage_points"],
                            "solver_verified_delta_pp": numerical["delta_percentage_points"]}
-    record(events, "pipeline_complete", {"arm": "forced-first-turn-tool-call", "from": str(previous),
+    record(events, "pipeline_complete", {"arm": "forced-first-turn-structural-tag", "from": str(previous),
                                          "comparisons": outcomes})
 
 

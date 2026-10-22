@@ -38,11 +38,16 @@ INFERENCE_TIMEOUT_S: float = 1800.0
 # The evaluation's system turn. Training trajectories (powercoder/datasets/
 # trajectories.py) reuse it verbatim, so students train on the prompt they are
 # evaluated with (AGENTS.md FM-19).
-# "auto" is the r1-r6 protocol. "required" makes vLLM's grammar force a tool call
-# on the first turn only, so no number can precede a solver run; later turns are
-# "auto" so the model can still answer. A separate study arm, never mixed with
-# "auto" runs (compare_agents treats it as an evaluation condition).
-FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "required")
+# "auto" is the r1-r6 protocol. The other two force a tool call on the first turn
+# only (later turns are "auto" so the model can still answer), as a separate study
+# arm never mixed with "auto" runs (compare_agents treats it as a condition):
+# - "structural_tag": xgrammar's structural tag in the model's own XML tool-call
+#   format (grammars/build_structural_tag.py), so the trained format is kept;
+# - "required": vLLM's tool_choice="required", which it turns into a JSON-array
+#   schema, a different format from the one the models were trained on.
+FIRST_TURN_TOOL_CHOICES: tuple[str, ...] = ("auto", "structural_tag", "required")
+STRUCTURAL_TAG: Path = Path(__file__).resolve().parent / "grammars/forced_first_turn.structural_tag.json"
+SERVED_TOOLS: Path = Path(__file__).resolve().parent / "grammars/served_tools.json"
 SYSTEM_PROMPT: str = ("Use the available tools to solve the task. Report only results supported by actual "
                       "tool responses. Convergence and physical validity are different.")
 # vLLM's 400 text when prompt + max_tokens exceeds --max-model-len.
@@ -54,6 +59,17 @@ def record(stream: TextIO, kind: str, payload: Any) -> None:
     stream.write(json.dumps({"kind": kind, "payload": payload}, allow_nan=False) + "\n")
     stream.flush()
     os.fsync(stream.fileno())
+
+
+def structural_tag(tools: list[dict[str, Any]]) -> dict[str, Any]:
+    """vLLM's ``structured_outputs`` field carrying the committed structural tag.
+
+    Raises:
+        ValueError: if the tools the tag was built from are not the served tools.
+    """
+    if json.dumps(tools) != json.dumps(json.loads(SERVED_TOOLS.read_text())):
+        raise ValueError("Served tools differ from grammars/served_tools.json; rebuild the structural tag")
+    return {"structured_outputs": {"structural_tag": STRUCTURAL_TAG.read_text()}}
 
 
 async def probe(args: argparse.Namespace, journal: TextIO) -> int:
@@ -90,10 +106,12 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         with InferenceClient(args.base_url, timeout=INFERENCE_TIMEOUT_S) as client:
             for turn in range(MAX_TURNS):
                 try:
+                    forced = turn == 0 and first_choice != "auto"
                     result = await asyncio.to_thread(
                         client.chat_completion, args.model, messages,
                         max_tokens=MAX_TOKENS, temperature=0.0, tools=tools,
-                        tool_choice=first_choice if turn == 0 else "auto",
+                        tool_choice="required" if forced and first_choice == "required" else "auto",
+                        extra=structural_tag(tools) if forced and first_choice == "structural_tag" else None,
                     )
                 except httpx.HTTPStatusError as error:
                     # The conversation outgrew the server's context: this

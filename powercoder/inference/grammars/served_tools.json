@@ -1,0 +1,144 @@
+[
+ {
+  "type": "function",
+  "function": {
+   "name": "load_network",
+   "description": "Load a power network case by identifier",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "network_id": {
+      "type": "string",
+      "description": "Network identifier",
+      "enum": [
+       "snem-sa-2000",
+       "snem-1803",
+       "fixture-2bus-ok",
+       "fixture-2bus-nonconverged"
+      ]
+     }
+    },
+    "required": [
+     "network_id"
+    ],
+    "additionalProperties": false
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_power_flow",
+   "description": "Run AC power flow analysis on a network; returns one of success / non_convergence / constraint_violation / execution_failure with solver measurements",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "network_id": {
+      "type": "string",
+      "description": "Network identifier",
+      "enum": [
+       "snem-sa-2000",
+       "snem-1803",
+       "fixture-2bus-ok",
+       "fixture-2bus-nonconverged"
+      ]
+     },
+     "method": {
+      "type": "string",
+      "description": "Solution method (advisory; nr is the real solver)",
+      "enum": [
+       "nr",
+       "cg"
+      ],
+      "default": "nr"
+     },
+     "max_iter": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum iterations",
+      "default": 50
+     },
+     "check_limits": {
+      "type": "boolean",
+      "description": "Report converged-but-violating solutions as constraint_violation",
+      "default": true
+     }
+    },
+    "required": [
+     "network_id"
+    ],
+    "additionalProperties": false
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_study_trial",
+   "description": "Run one fresh Newton-Raphson AC trial. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. Use operation=none for base/N-1 reports. Returns actual measurements, not a fitted answer. element_id selects the modified line/generator (unused for all-load scaling). observation_id selects the observed bus/line/transformer. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.",
+   "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "network_id": {
+      "type": "string",
+      "enum": [
+       "snem-sa-2000",
+       "snem-1803",
+       "fixture-2bus-ok",
+       "fixture-2bus-nonconverged"
+      ]
+     },
+     "operation": {
+      "type": "string",
+      "enum": [
+       "none",
+       "load_scale",
+       "line_rating",
+       "gen_dispatch"
+      ]
+     },
+     "scale": {
+      "type": "number",
+      "minimum": 0.9,
+      "maximum": 1.1
+     },
+     "element_id": {
+      "type": "integer"
+     },
+     "observation": {
+      "type": "string",
+      "enum": [
+       "bus_voltage",
+       "line_loading",
+       "trafo_loading"
+      ]
+     },
+     "observation_id": {
+      "type": "integer"
+     },
+     "contingency_line": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "max_iter": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+     }
+    },
+    "required": [
+     "network_id",
+     "operation",
+     "scale",
+     "element_id",
+     "observation",
+     "observation_id",
+     "max_iter"
+    ]
+   }
+  }
+ }
+]

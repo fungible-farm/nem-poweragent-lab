@@ -76,5 +76,5 @@ def test_forced_arm_reuses_r6_and_compares_each_model_with_itself(tmp_path: Path
     root.mkdir()
     with (tmp_path / "events.jsonl").open("x") as stream:
         driver.forced_arm(driver.argparse.Namespace(root=root, forced_arm_from=previous), stream)
-    assert sessions == [("qwen-base", "forced", "required"), ("qwen-student", "forced", "required")]
+    assert sessions == [("qwen-base", "forced", "structural_tag"), ("qwen-student", "forced", "structural_tag")]
     assert compared == [("qwen-base", "qwen-base-forced", True), ("qwen-student", "qwen-student-forced", True)]
