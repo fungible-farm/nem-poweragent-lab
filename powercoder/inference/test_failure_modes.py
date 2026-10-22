@@ -33,6 +33,7 @@ def no_solver(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep these gates CPU-only; the real grader is exercised by its own tests."""
     monkeypatch.setattr(failure_modes, "score_numerical", lambda _task, _answer: (False, {}, []))
     monkeypatch.setattr(failure_modes, "relevant_evidence", lambda *_args: False)
+    monkeypatch.setattr(failure_modes, "provenance_check", lambda *_args: {"traced": True})
 
 
 def test_contingency_silently_dropped_by_run_power_flow() -> None:
@@ -67,3 +68,13 @@ def test_none_string_errors_are_counted_as_an_overlay() -> None:
 def test_inference_timeout_is_a_per_attempt_cause() -> None:
     events = [response("tool_calls"), {"kind": "terminal", "payload": {"state": "inference_timeout"}}]
     assert failure_modes.classify(TASK, result(), events)["cause"] == "inference_timeout"
+
+
+def test_an_answer_with_numbers_no_tool_produced_is_fabricated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """User rule: a made-up number fails the attempt, ahead of every other cause."""
+    from powercoder.inference.provenance import check
+
+    monkeypatch.setattr(failure_modes, "provenance_check", check)
+    monkeypatch.setattr(failure_modes, "score_numerical", lambda _task, _answer: (True, {}, []))
+    events = [response("stop", "converged in 5 iterations"), {"kind": "terminal", "payload": {"state": "answered"}}]
+    assert failure_modes.classify(TASK, result(answer="converged in 5 iterations"), events)["cause"] == "fabricated"

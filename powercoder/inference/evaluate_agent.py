@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from powercoder.datasets.audit import audit_rows, load_rows
+from powercoder.inference.provenance import check as provenance_check
 from powercoder.inference.tool_probe import INFERENCE_TIMEOUT_S, MAX_TOKENS, MAX_TOOL_CALLS, MAX_TURNS, probe, record
 from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answer
 
@@ -32,6 +33,10 @@ class TaskResult(TypedDict):
     answer: str
     numerical_pass: bool
     tool_evidence_pass: bool
+    # Every number in the answer traces to this attempt's tool responses or prompt
+    # (powercoder/inference/provenance.py); an untraced number fails the attempt.
+    provenance_pass: bool
+    untraced_numbers: list[str]
     passed: bool
     verification: dict[str, Any]
     diagnostics: list[str]
@@ -118,10 +123,12 @@ def grade(task: dict[str, Any], journal: Path) -> TaskResult:
     answer = (responses[-1]["choices"][0]["message"].get("content") or "") if responses else ""
     correct, verification, diagnostics = score_answer(task, answer)
     evidence = relevant_evidence(task, answer, events)
+    provenance = provenance_check(answer, events, task["task"].get("prompt", ""))
     return {
         "example_id": task["example_id"], "subfamily": task["subfamily"],
         "answer": answer, "numerical_pass": correct, "tool_evidence_pass": evidence,
-        "passed": completed and correct and evidence,
+        "provenance_pass": provenance["traced"], "untraced_numbers": provenance["untraced"],
+        "passed": completed and correct and evidence and provenance["traced"],
         "verification": verification, "diagnostics": diagnostics,
         "journal_sha256": hashlib.sha256(journal.read_bytes()).hexdigest(),
     }

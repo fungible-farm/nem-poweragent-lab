@@ -17,13 +17,17 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from powercoder.datasets.audit import load_rows
+from powercoder.inference.provenance import check as provenance_check
 from powercoder.inference.compare_agents import compare, verified_run
 from training.unsloth.evaluate import (DOMAIN_IMPROVEMENT_THRESHOLD, FIT_SUBFAMILIES,
                                        REPORT_LOAD_TOL, REPORT_VOLT_TOL, score_answer, uncertainty)
 
 # Version the metric before the first complete base/student comparison. M09
 # specifies numerical correctness and tool behaviour as separate scorecard rows.
-SCORER_VERSION: str = "solver-verified-domain-v1"
+# v2 (r6 on): a numerically correct answer also needs every number traced to the
+# attempt's tool responses or prompt (provenance.py); v1 checked values only, so a
+# guessed or memorised value could pass. r4's v1 comparison files are unchanged.
+SCORER_VERSION: str = "solver-verified-traced-v2"
 NUMBER: str = r"([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)"
 # Use the existing documented tolerances, including exact discrete counts.
 REPORT_TOLERANCES: dict[str, float] = {
@@ -179,8 +183,10 @@ def rescore_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         if answer != row["answer"]:
             raise ValueError("Scored answer disagrees with the actual model response")
         correct, evidence, diagnostics = score_numerical(task, answer)
+        provenance = provenance_check(answer, events, task["task"].get("prompt", ""))
         results.append({"example_id": row["example_id"], "subfamily": task["subfamily"],
-            "pass": completed and correct, "completed_attempt": completed,
+            "pass": completed and correct and provenance["traced"], "completed_attempt": completed,
+            "untraced_numbers": provenance["untraced"],
             "strict_original_agent_pass": row["passed"], "tool_evidence_pass": row["tool_evidence_pass"],
             "answer": answer, "journal_sha256": row["journal_sha256"],
             "numerical_verification": evidence, "diagnostics": diagnostics})

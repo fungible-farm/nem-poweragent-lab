@@ -22,12 +22,14 @@ from typing import Any, TypedDict
 from powercoder.datasets.audit import load_rows
 from powercoder.inference.domain_scorecard import score_numerical
 from powercoder.inference.evaluate_agent import relevant_evidence
+from powercoder.inference.provenance import check as provenance_check
 
 TASKS: Path = Path("benchmarks/power-agent-bench-lite/results/domain-held-out-20261020/examples.jsonl")
 # Precedence order: a strict pass first, then grader disagreement, then the
 # first defect that made the attempt fail.
 CAUSES: tuple[str, ...] = (
     "pass",
+    "fabricated",
     "solver_correct_strict_rejected",
     "contingency_dropped",
     "response_token_cap",
@@ -78,8 +80,12 @@ def classify(task: dict[str, Any], result: dict[str, Any], events: list[dict[str
     solver_ok = bool(answer) and score_numerical(task, answer)[0]
     dropped = any(r["name"] == "run_power_flow" and "contingency_line" in json.loads(r["arguments"] or "{}")
                   for r in requests)
+    traced = provenance_check(answer, events, task["task"].get("prompt", ""))["traced"]
     if result["passed"]:
         cause = "pass"
+    elif answer and not traced:
+        # A number not from the solver fails the attempt even when it is right.
+        cause = "fabricated"
     elif solver_ok:
         cause = "solver_correct_strict_rejected"
     elif terminal == "answered" and dropped and not relevant_evidence(task, answer, events):
