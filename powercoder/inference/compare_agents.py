@@ -42,7 +42,9 @@ def verified_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]
 
 # Evaluation conditions a run records beside its budgets; runs from before a field
 # existed used its default. A comparison spanning a difference must name it.
-CONDITIONS: dict[str, str] = {"first_turn_tool_choice": "auto", "server_tool_strict_level": "auto"}
+CONDITIONS: dict[str, str] = {"first_turn_tool_choice": "auto", "server_tool_strict_level": "auto",
+                              # evaluate_prompted.py's procedure-in-the-prompt baseline (G0).
+                              "system_prompt_variant": "evaluation"}
 
 
 def compare(base_dir: Path, student_dir: Path, allowed_differences: frozenset[str] = frozenset()) -> dict[str, Any]:

@@ -82,3 +82,31 @@ def test_strict_arm_is_a_2x2_per_model_compared_with_its_own_baseline(
         ("qwen-base-strict-parameter-first-auto", frozenset({"server_tool_strict_level"})),
         ("qwen-base-strict-parameter-first-required",
          frozenset({"server_tool_strict_level", "first_turn_tool_choice"}))]
+
+
+def test_prompted_arm_runs_each_base_and_compares_with_its_plain_run_and_student(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """G0 baseline (b): one prompted smoke run per base, two named-condition comparisons each."""
+    r6, strict = tmp_path / "r6b", tmp_path / "strict"
+    for directory in (strict / "qwen-base-strict-auto-first-auto", r6 / "qwen-student-smoke",
+                      strict / "granite-base-strict-auto-first-auto"):
+        directory.mkdir(parents=True)
+        (directory / "summary.json").write_text("{}")
+    sessions, compared = [], []
+    monkeypatch.setattr(driver, "session", lambda label, tag, *_a, evaluator=driver.EVALUATOR, **_k:
+                        sessions.append((label, tag, evaluator)))
+    monkeypatch.setattr(driver, "write_comparison", lambda first, second, _dest, _events, spans:
+                        compared.append((first.name, second.name, spans)) or {"delta_percentage_points": 0.0})
+    monkeypatch.setattr(driver, "write_numerical_comparison", lambda *_a: {"delta_percentage_points": 0.0})
+    root = tmp_path / "prompted"
+    root.mkdir()
+    with (tmp_path / "events.jsonl").open("x") as stream:
+        driver.prompted_arm(driver.argparse.Namespace(root=root, r6_root=r6, strict_root=strict), stream)
+    assert sessions == [("qwen-base", "prompted", driver.PROMPTED_EVALUATOR),
+                        ("granite-base", "prompted", driver.PROMPTED_EVALUATOR)]
+    spans = frozenset({"system_prompt_variant"})
+    assert compared == [("qwen-base-strict-auto-first-auto", "qwen-base-prompted-smoke", spans),
+                        ("qwen-student-smoke", "qwen-base-prompted-smoke", spans),
+                        ("granite-base-strict-auto-first-auto", "granite-base-prompted-smoke", spans)]
+    final = json.loads((tmp_path / "events.jsonl").read_text().splitlines()[-1])
+    assert final["kind"] == "pipeline_complete"

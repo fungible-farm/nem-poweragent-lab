@@ -71,6 +71,8 @@ SMOKE_MIN_PASS: int = 10
 # --tool-strict-level ("parameter" enforces each argument's schema on every turn)
 # and the first turn's tool_choice ("required" forces a tool call).
 STRICT_LEVELS: tuple[str, ...] = ("auto", "parameter")
+EVALUATOR: str = "powercoder.inference.evaluate_agent"
+PROMPTED_EVALUATOR: str = "powercoder.inference.evaluate_prompted"
 FIRST_TURN_CHOICES: tuple[str, ...] = ("auto", "required")
 # Host memory sampling period; vLLM's load and each request last seconds or more.
 MEMORY_SAMPLE_S: float = 1.0
@@ -136,13 +138,13 @@ def verify_student(directory: Path, events: TextIO) -> Path:
 
 
 def evaluation(model: str, port: int, tasks: Path, out: Path, first_turn_tool_choice: str = "auto",
-               strict_level: str = "auto") -> tuple[list[str], Path]:
+               strict_level: str = "auto", evaluator: str = EVALUATOR) -> tuple[list[str], Path]:
     """The evaluate_agent command for one suite, at the shared concurrency and budgets.
 
     ``strict_level`` must be the --tool-strict-level the server was started with;
     it is recorded in the run manifest as a comparison condition.
     """
-    return ([sys.executable, "-m", "powercoder.inference.evaluate_agent", "--base-url", f"http://127.0.0.1:{port}",
+    return ([sys.executable, "-m", evaluator, "--base-url", f"http://127.0.0.1:{port}",
              "--model", model, "--tasks", str(tasks), "--exclude", str(TRAIN_SPLIT), "--out", str(out),
              "--concurrency", str(CONCURRENCY), "--first-turn-tool-choice", first_turn_tool_choice,
              "--server-tool-strict-level", strict_level],
@@ -151,7 +153,7 @@ def evaluation(model: str, port: int, tasks: Path, out: Path, first_turn_tool_ch
 
 def session(label: str, tag: str, source: Path, model_path: str, fraction: float, root: Path, events: TextIO,
             suites: list[tuple[str, Path, Path]] | list[tuple[str, Path, Path, str]], latency: bool,
-            restorebench: bool = False, strict_level: str = "auto") -> None:
+            restorebench: bool = False, strict_level: str = "auto", evaluator: str = EVALUATOR) -> None:
     """Serve one model alone; optionally benchmark latency; run each suite; release it.
 
     Args:
@@ -162,6 +164,8 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
         latency: Run the latency benchmark on the idle server before any suite.
         restorebench: Run Lab 10's RestoreBench agent stage instead of or after the suites.
         strict_level: The server's vLLM --tool-strict-level ("auto" adds no flag).
+        evaluator: The evaluation module (evaluate_agent, or evaluate_prompted for G0's
+            procedure-in-the-prompt baseline).
     """
     name, model = f"powercoder-{root.name}-{label}-{tag}", f"powercoder-{label}"
     reasoning = "nemotron_v3" if label.startswith("granite") else "qwen3"
@@ -182,7 +186,8 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
                                                      "memory": memory.peak(start)})
             for stage, tasks, out, *choice in suites:
                 start = time.time()
-                command(*evaluation(model, port, tasks, out, choice[0] if choice else "auto", strict_level), events)
+                command(*evaluation(model, port, tasks, out, choice[0] if choice else "auto", strict_level, evaluator),
+                        events)
                 verify_evaluation(out, events)
                 record(events, "suite_memory", {"model": label, "stage": stage, "memory": memory.peak(start)})
             if restorebench:
@@ -288,13 +293,52 @@ def strict_arm(args: argparse.Namespace, events: TextIO) -> None:
                                          "comparisons": outcomes})
 
 
+def prompted_arm(args: argparse.Namespace, events: TextIO) -> None:
+    """G0 baseline (b): each base model with the procedure in its system prompt, on the smoke suite.
+
+    Compared, on the same 20 tasks, with that base's plain run (the strict arm's
+    (auto, auto) cell, ``--strict-root``) and with its family's student (r6b's
+    smoke run, ``--r6-root``). Each comparison names the condition it spans
+    (system_prompt_variant). If a prompted base matches its student, fine-tuning
+    added nothing measurable (backlog 0008).
+    """
+    sources = {"qwen-base": (HF_HUB, QWEN_BASE_SNAPSHOT), "granite-base": (GRANITE_BASE, "")}
+    fractions = {"qwen": GPU_MEMORY_FRACTION, "granite": GRANITE_GPU_MEMORY_FRACTION}
+    spans = frozenset({"system_prompt_variant"})
+    outcomes: dict[str, dict[str, Any]] = {}
+    for label, (source, model_path) in sources.items():
+        family = label.split("-")[0]
+        prompted = args.root / f"{label}-prompted-smoke"
+        session(label, "prompted", source, model_path, fractions[family], args.root, events,
+                [("smoke-prompted", SMOKE, prompted)], latency=False, evaluator=PROMPTED_EVALUATOR)
+        references = {"plain-base": args.strict_root / f"{label}-strict-auto-first-auto",
+                      "student": args.r6_root / f"{family}-student-smoke"}
+        for name, reference in references.items():
+            if not (reference / "summary.json").is_file():
+                record(events, "comparison_skipped", {"model": label, "against": name, "missing": str(reference)})
+                continue
+            stem = f"{label}-prompted-vs-{name}"
+            strict = write_comparison(reference, prompted, args.root / f"{stem}.json", events, spans)
+            numerical = write_numerical_comparison(reference, prompted, args.root / f"{stem}-numerical.json",
+                                                   events, spans)
+            outcomes.setdefault(label, {})[name] = {"strict_delta_pp": strict["delta_percentage_points"],
+                                                     "solver_verified_delta_pp": numerical["delta_percentage_points"]}
+    record(events, "pipeline_complete", {"arm": "prompted-base", "tasks": str(SMOKE), "comparisons": outcomes})
+
+
 def main() -> None:
     """Create a fresh run root and durable journal; refuse automatic re-execution."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
     parser.add_argument("--strict-arm", action="store_true",
                         help="Run only the strict-tool-calling 2x2 on the smoke suite (backlog 0011)")
+    parser.add_argument("--prompted-arm", action="store_true",
+                        help="Run only G0's prompted-base baseline on the smoke suite (needs --r6-root, --strict-root)")
+    parser.add_argument("--r6-root", type=Path, help="Completed r6 root (its student smoke runs)")
+    parser.add_argument("--strict-root", type=Path, help="Completed strict-arm root (its plain base cells)")
     args = parser.parse_args()
+    if args.prompted_arm and not (args.r6_root and args.strict_root):
+        parser.error("--prompted-arm needs --r6-root and --strict-root")
     args.root.mkdir()
     # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.
     signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
@@ -304,7 +348,7 @@ def main() -> None:
                               for parent in (REPO / "powercoder/inference", REPO / "powercoder/datasets", REPO / "training")
                               for p in parent.glob("*.py")}})
         try:
-            (strict_arm if args.strict_arm else run)(args, events)
+            (prompted_arm if args.prompted_arm else strict_arm if args.strict_arm else run)(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
             raise

@@ -120,3 +120,14 @@ def test_the_interval_gate_is_recorded_beside_the_point_estimate(paired_runs: tu
     assert result["domain_threshold_met"]
     assert result["domain_threshold_met_ci_lower"] == (result["uncertainty"]["delta"][0] >= 0.10)
     assert not result["domain_threshold_met_ci_lower"]
+
+
+def test_a_prompted_run_must_name_the_prompt_difference(paired_runs: tuple[Path, Path]) -> None:
+    """G0's procedure-in-the-prompt baseline is a named condition, never silently mixed."""
+    base, student = paired_runs
+    summary = json.loads((student / "summary.json").read_text())
+    (student / "summary.json").write_text(json.dumps({**summary, "system_prompt_variant": "procedure"}))
+    with pytest.raises(ValueError, match="system_prompt_variant"):
+        comparator.compare(base, student)
+    assert comparator.compare(base, student, frozenset({"system_prompt_variant"}))["conditions"][
+        "system_prompt_variant"] == {"base": "evaluation", "student": "procedure"}
