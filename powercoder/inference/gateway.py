@@ -26,6 +26,7 @@ from typing import Any, TypedDict
 
 import jsonschema
 
+from powercoder.inference.powermcp import SERVED_NETWORKS
 from powercoder.inference.tool_probe import MAX_TOOL_CALLS
 
 READ_ONLY_TOOLS: frozenset[str] = frozenset({"load_network", "run_power_flow", "run_study_trial", "ls", "get"})
@@ -46,7 +47,7 @@ class Policy:
     """What a role may do in one attempt."""
 
     role: str = "analyst"
-    networks: frozenset[str] = frozenset({"snem-sa-2000", "snem-1803", "fixture-2bus-ok", "fixture-2bus-nonconverged"})
+    networks: frozenset[str] = frozenset(SERVED_NETWORKS)
     max_calls: int = MAX_TOOL_CALLS
 
 

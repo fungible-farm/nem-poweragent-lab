@@ -233,6 +233,31 @@ FIXTURE_BUILDERS: dict[str, Callable[[], pp.pandapowerNet]] = {
     "fixture-2bus-nonconverged": _make_fixture_2bus_nonconverged,
 }
 
+def _standard_case(name: str) -> Callable[[], pp.pandapowerNet]:
+    """A pandapower built-in test case (BSD-3, shipped with the pinned pandapower)."""
+    import pandapower.networks as pn
+
+    builder = getattr(pn, name)
+
+    def build() -> pp.pandapowerNet:
+        return builder()
+
+    build.__qualname__ = f"pandapower.networks.{name}"
+    return build
+
+
+# Standard test networks served alongside the CSIRO cases (backlog 0017, 2026-10-24): G3's
+# procedural pool needs networks other than the two NEM cases, so that one of those can stay
+# held out. All solve with the tool's own Newton-Raphson in 3-4 iterations from the default start.
+# Training and evaluation roles are fixed in powercoder.datasets.procedural.
+STANDARD_CASES: dict[str, Callable[[], pp.pandapowerNet]] = {
+    "ieee39": _standard_case("case39"),
+    "ieee118": _standard_case("case118"),
+    "pegase89": _standard_case("case89pegase"),
+}
+# Every network the tools serve, in schema enum order (the Rust IR's NETWORKS must equal it).
+SERVED_NETWORKS: tuple[str, ...] = (*CASE_FILES, *STANDARD_CASES, *FIXTURE_BUILDERS)
+
 
 def _load_network_object(network_id: str) -> tuple[pp.pandapowerNet, str]:
     """Load a network by ID.
@@ -266,6 +291,11 @@ def _load_network_object(network_id: str) -> tuple[pp.pandapowerNet, str]:
 
         net, _notes = load_case(str(path))
         return net, _sha256_file(path)
+    if network_id in STANDARD_CASES:
+        net = STANDARD_CASES[network_id]()
+        # The network's own serialised data is its identity, so a pandapower upgrade that
+        # changed a case would change its hash.
+        return net, _sha256_bytes(pp.to_json(net).encode("utf-8"))
     if network_id in FIXTURE_BUILDERS:
         builder = FIXTURE_BUILDERS[network_id]
         net = builder()
@@ -457,7 +487,7 @@ class PowerMCP:
                             "network_id": {
                                 "type": "string",
                                 "description": "Network identifier",
-                                "enum": list(CASE_FILES) + list(FIXTURE_BUILDERS),
+                                "enum": list(SERVED_NETWORKS),
                             }
                         },
                         "required": ["network_id"],
@@ -480,7 +510,7 @@ class PowerMCP:
                             "network_id": {
                                 "type": "string",
                                 "description": "Network identifier",
-                                "enum": list(CASE_FILES) + list(FIXTURE_BUILDERS),
+                                "enum": list(SERVED_NETWORKS),
                             },
                             "method": {
                                 "type": "string",

@@ -33,8 +33,10 @@ pub const DEFAULT_MAX_ITER: u32 = 50;
 /// The served tool description, verbatim (`studies.tool_schema`); the fixture test guards it.
 pub const STUDY_TRIAL_DESCRIPTION: &str = "Run one fresh Newton-Raphson AC trial. Every response reports the network-wide results: convergence, iterations, min/max bus voltage, max line and transformer loading, and voltage violations. Use operation=none for base-case and N-1 reports; a report needs only network_id, max_iter and, for N-1, contingency_line. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. A modification needs scale, observation and observation_id; line_rating and gen_dispatch also need element_id, the modified line/generator. Use only ids the task or a tool response gave you. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. Returns actual measurements, not a fitted answer. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.";
 
-/// Networks the study tool serves, in its enum order (`powermcp.CASE_FILES` then fixtures).
-pub const NETWORKS: [&str; 4] = ["snem-sa-2000", "snem-1803", "fixture-2bus-ok", "fixture-2bus-nonconverged"];
+/// Networks the study tool serves, in its enum order (`powermcp.SERVED_NETWORKS`: the CSIRO cases,
+/// pandapower's standard cases, then fixtures).
+pub const NETWORKS: [&str; 7] = ["snem-sa-2000", "snem-1803", "ieee39", "ieee118", "pegase89", "fixture-2bus-ok",
+                                 "fixture-2bus-nonconverged"];
 
 /// What a trial observes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

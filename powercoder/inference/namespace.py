@@ -89,7 +89,7 @@ def ls(path: str, offset: int = 0) -> dict[str, Any]:
     if path == "/":
         return {"path": "/", "children": ["case", "env"], "total": 2}
     if p["network"] is None:
-        ids = sorted(pm.CASE_FILES) + sorted(pm.FIXTURE_BUILDERS)
+        ids = sorted(pm.CASE_FILES) + sorted(pm.STANDARD_CASES) + sorted(pm.FIXTURE_BUILDERS)
         return {"path": path, "children": ids, "total": len(ids)}
     net = _net(p["network"])
     if p["kind"] is None:
