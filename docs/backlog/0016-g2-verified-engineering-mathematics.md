@@ -67,3 +67,19 @@ blocked.
   negative-reactance branches (x ≈ −63 Ω, series-compensation equivalents). The eigenvalue
   criterion assumes inductive branches, so this is **flagged, not read as voltage
   instability**.
+
+## AC OPF done (2026-10-23): `powercoder/engineering/ac_opf.py`
+pandapower `runopp` (PIPS) gives a **local** optimum. No global certificate exists here, so
+`optimality_gap_or_bound` stays None and the result says so (PC-REQ-011). Feasibility *is*
+re-verified independently. The OPF's setpoints (generator P and V, slack V and angle) are
+re-solved as a plain AC power flow, which must reproduce the OPF's voltages, satisfy Kirchhoff's
+laws, and keep every limit **the case declares** (bus `min/max_vm_pu`, branch
+`max_loading_percent`, generator P and Q limits).
+
+| Case | Objective | \|dV\| re-solve vs OPF | Binding limits | Verdict |
+|---|---|---|---|---|
+| case9 | 5,311.91 | 5.2e-11 pu | none | feasible |
+| ieee39-pab-stressed | 51,434.81 | 4.4e-9 pu | **1 line at 100%**, 5 V max, 7 P max, 2 Q | feasible |
+| ieee118-restorebench | 129,704.74 | 2.8e-10 pu | 7 V max, 16 P min, 8 Q | feasible |
+
+An overloaded case9 (5× load) is not reported solved.
