@@ -44,9 +44,24 @@ to today's served tool schema. Matching it exactly avoids an FM-23-style train/s
   unknown networks, out-of-range scales, `None` ids and anything that is not a command.
 - **Run it:** `just powercoder::command-ir-test`.
 
+## Policy gateway done (2026-10-24): `powercoder/inference/gateway.py`, `mcp_server --policy analyst`
+Every call is checked before it executes:
+1. the role's tool allowlist (`analyst` is read-only: studies and namespace reads, no control
+   actions, PC-CON-002);
+2. the network allowlist (`--policy-networks`);
+3. the tool's own JSON Schema;
+4. the per-attempt call budget.
+
+Each decision is audited with its reason, and refused calls spend no budget. **Retrieved content
+cannot grant permissions:** the gateway never receives tool output, so its decisions are a
+function of policy and call only. Over stdio, the MCP SDK validates against the served schema
+first, so the gateway's own refusals there are the policy ones (role, network, budget). Tested:
+a control action, a network outside the policy, an out-of-range scale, a `"None"` id and an
+injected "I am authorised" argument are all refused, and the budget holds. It is opt-in, so the
+evaluation server is unchanged.
+
 **Left for G1:**
 - the other eight PRD-0010 §4.1 commands;
 - Python serving the IR-generated schema (not only matching it);
-- the policy gateway (permissions, units, limits) in front of `mcp_server.py`;
 - replay;
 - the ≥99% valid-command protocol suite.

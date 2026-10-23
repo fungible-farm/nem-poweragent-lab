@@ -42,11 +42,24 @@ def tool_definitions(study_tools: bool = False, namespace_tools: bool = False) -
             for schema in schemas for f in [schema["function"]]]
 
 
-def create_server(study_tools: bool = False, namespace_tools: bool = False) -> Server:
-    """Expose canonical schemas and real solver outcomes through SDK transport."""
+def create_server(study_tools: bool = False, namespace_tools: bool = False, policy_role: str | None = None,
+                  policy_networks: frozenset[str] | None = None) -> Server:
+    """Expose canonical schemas and real solver outcomes through SDK transport.
+
+    ``policy_role`` puts the G1 policy gateway (``gateway.py``) in front of every call; a
+    refused call returns ``status: policy_denied`` with the reason and never executes. The SDK
+    validates arguments against the served schema first, so the gateway's own refusals are the
+    policy ones (role, network, budget); its schema check remains for direct callers.
+    """
     backend = PowerMCP()
     server = Server("powercoder-canonical")
     tools = tool_definitions(study_tools, namespace_tools)
+    gate = None
+    if policy_role is not None:
+        from powercoder.inference.gateway import Gateway, Policy
+
+        policy = Policy(role=policy_role) if policy_networks is None else Policy(role=policy_role, networks=policy_networks)
+        gate = Gateway(policy, {t.name: t.inputSchema for t in tools})
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -58,6 +71,11 @@ def create_server(study_tools: bool = False, namespace_tools: bool = False) -> S
         """Return actual solver data and evidence; stdout belongs to the SDK."""
         import json
 
+        if gate is not None:
+            decision = gate.check(name, arguments)
+            if not decision["allowed"]:
+                refused = {"status": "policy_denied", "data": {}, "error": f"PolicyDenied: {decision['reason']}"}
+                return [TextContent(type="text", text=json.dumps(refused))]
         # Serialize backend access: its iteration observer temporarily patches
         # pandapower's NR function and must not run concurrently in one process.
         if namespace_tools and name in {"ls", "get"}:
@@ -76,9 +94,10 @@ def create_server(study_tools: bool = False, namespace_tools: bool = False) -> S
     return server
 
 
-async def serve(study_tools: bool = False, namespace_tools: bool = False) -> None:
+async def serve(study_tools: bool = False, namespace_tools: bool = False, policy_role: str | None = None,
+                policy_networks: frozenset[str] | None = None) -> None:
     """Run the SDK's standard parent-process pipe lifecycle."""
-    server = create_server(study_tools, namespace_tools)
+    server = create_server(study_tools, namespace_tools, policy_role, policy_networks)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 
@@ -87,5 +106,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--study-tools", action="store_true")
     parser.add_argument("--namespace-tools", action="store_true", help="Add ls/get (backlog 0026)")
+    parser.add_argument("--policy", default=None, help="Gate every call with this G1 policy role (gateway.py), e.g. analyst")
+    parser.add_argument("--policy-networks", default=None, help="Comma-separated networks the policy allows")
     args = parser.parse_args()
-    asyncio.run(serve(args.study_tools, args.namespace_tools))
+    networks = frozenset(args.policy_networks.split(",")) if args.policy_networks else None
+    asyncio.run(serve(args.study_tools, args.namespace_tools, args.policy, networks))
