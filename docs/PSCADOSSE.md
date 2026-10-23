@@ -18,6 +18,13 @@ components — Apache-2.0, MIT, BSD — ideally foundation-backed. Where such a
 component exists for a needed capability, this repo assimilates it rather than
 reaching for a proprietary or novel re-implementation.
 
+**User decisions, 2026-10-23:**
+- **Copyleft is acceptable.** OSI-approved copyleft licences (GPL, AGPL, EUPL, MPL and so on) may
+  be used, as well as permissive ones. Record every licence at adoption, as before. Permissive is
+  still preferred where both exist.
+- **LibreOffice is not used.** Spreadsheet formulas are recalculated in Python (`formulas`,
+  EUPL-1.1+).
+
 ### Verified license map (checked from installed metadata / vendored files, not assumed)
 
 | Component | Role on the golden path | License | Notes |

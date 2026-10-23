@@ -116,6 +116,8 @@ result on a clean checkout is.
   `docs/PSCADOSSE.md` for the policy and the verified license map (incl. the DPsim/MPL-2.0
   exception and the "copyleft display CLIs are fine — they're not API surface" distinction).
   Record a new dependency's license at the point of adoption.
+  **2026-10-23 (user):** copyleft is acceptable, though permissive is still preferred, and
+  LibreOffice is not used. See `docs/PSCADOSSE.md`.
 - **No `b00t` dependency, no commercial power-system engines on the golden path, no cloud LLM API
   keys anywhere.** See `docs/DEFINITION_OF_DONE.md` "Governance / non-goals held" for the full list.
 
