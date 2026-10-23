@@ -131,3 +131,14 @@ def test_a_prompted_run_must_name_the_prompt_difference(paired_runs: tuple[Path,
         comparator.compare(base, student)
     assert comparator.compare(base, student, frozenset({"system_prompt_variant"}))["conditions"][
         "system_prompt_variant"] == {"base": "evaluation", "student": "procedure"}
+
+
+def test_a_different_tool_set_must_be_named(paired_runs: tuple[Path, Path]) -> None:
+    """ls/get change every prompt's tool block (backlog 0026), so a namespace run never mixes silently."""
+    base, student = paired_runs
+    summary = json.loads((student / "summary.json").read_text())
+    (student / "summary.json").write_text(json.dumps({**summary, "tool_set": "study+namespace"}))
+    with pytest.raises(ValueError, match="tool_set"):
+        comparator.compare(base, student)
+    assert comparator.compare(base, student, frozenset({"tool_set"}))["conditions"]["tool_set"] == {
+        "base": "study", "student": "study+namespace"}

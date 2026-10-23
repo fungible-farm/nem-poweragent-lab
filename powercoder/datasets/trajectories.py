@@ -96,7 +96,12 @@ RECOVERY_NOTES: dict[str, str] = {
     # the one the tool's response names, never one the script knows otherwise.
     "unknown_bus": ("Bus {bad} does not exist in this network; the error names the valid ids, "
                     "so I observe bus {valid}, the lowest."),
+    # The same recovery with ls/get (backlog 0026), in two turns: list, then use the first id.
+    "unknown_bus_ls": "Bus {bad} does not exist in this network, so I list /case/{case}/bus.",
+    "unknown_bus_listed": "Bus {valid} is the first bus listed, so I observe it.",
 }
+# The injected failures (RECOVERY_NOTES also holds the namespace recovery's two notes).
+FAULTS: tuple[str, ...] = ("none_string", "contingency_zero", "run_power_flow_contingency", "unknown_bus")
 # A report's unknown_bus mistake observes one id below the lowest bus: below the
 # index's minimum, so it cannot exist in any case (r6b Qwen student sent 999,
 # under snem-sa-2000's lowest bus 985, on three report attempts).
@@ -129,6 +134,8 @@ class Conversation:
         self.calls = 0
         # Text for the next tool-call turn: the correction after an injected failure.
         self.note: str | None = None
+        # Whether the server offers ls/get (backlog 0026); recoveries then walk the namespace.
+        self.namespace = any(t["function"]["name"] == "ls" for t in tools)
 
     def respond(self, message: dict[str, Any], finish_reason: str) -> None:
         """Record an assistant turn in the shape of a chat completion."""
@@ -223,11 +230,19 @@ async def inject(conversation: Conversation, row: dict[str, Any], fault: str) ->
         if inputs.get("contingency_line") is not None:
             arguments["contingency_line"] = inputs["contingency_line"]
         observed = await conversation.trial(arguments)
-        named = VALID_IDS_PATTERN.search(str(observed.get("error") or ""))
-        # The recovery must use the id the response names, and that must be the
-        # bus report() then observes, or the trajectory teaches a guess.
-        expected = named is not None and int(named.group(1)) == valid
-        conversation.note = RECOVERY_NOTES[fault].format(bad=bad, valid=valid) if expected else None
+        if conversation.namespace:
+            # With ls/get, the recovery walks the namespace rather than reading the error.
+            conversation.note = RECOVERY_NOTES["unknown_bus_ls"].format(bad=bad, case=inputs["case"])
+            listing = await conversation.trial({"path": f"/case/{inputs['case']}/bus"}, tool="ls")
+            listed = (listing.get("data") or {}).get("children") or []
+            expected = "error" in observed and bool(listed) and listed[0] == valid
+            conversation.note = RECOVERY_NOTES["unknown_bus_listed"].format(valid=valid) if expected else None
+        else:
+            named = VALID_IDS_PATTERN.search(str(observed.get("error") or ""))
+            # The recovery must use the id the response names, and that must be the
+            # bus report() then observes, or the trajectory teaches a guess.
+            expected = named is not None and int(named.group(1)) == valid
+            conversation.note = RECOVERY_NOTES[fault].format(bad=bad, valid=valid) if expected else None
     else:
         operation, observation = FIT_OPERATIONS[row["subfamily"]]
         ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
@@ -299,10 +314,12 @@ async def fit(conversation: Conversation, row: dict[str, Any]) -> str:
     return f"{best[0]:.{SCALE_DECIMALS}f}"
 
 
-async def build(row: dict[str, Any], journals: Path, fault: str | None = None) -> tuple[Trajectory | None, str]:
+async def build(row: dict[str, Any], journals: Path, fault: str | None = None,
+                namespace: bool = False) -> tuple[Trajectory | None, str]:
     """Script, journal and grade one row (optionally a recovery variant); return it or the drop reason."""
     parameters = StdioServerParameters(command=sys.executable,
-                                       args=["-m", "powercoder.inference.mcp_server", "--study-tools"],
+                                       args=["-m", "powercoder.inference.mcp_server", "--study-tools",
+                                             *(["--namespace-tools"] if namespace else [])],
                                        cwd=str(common.REPO_ROOT))
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": row["task"]["prompt"]}]
     journal = journals / f"{row['example_id']}{'-' + fault if fault else ''}.jsonl"
@@ -330,13 +347,14 @@ async def build(row: dict[str, Any], journals: Path, fault: str | None = None) -
             "messages": messages}, "kept"
 
 
-async def build_all(jobs: list[tuple[dict[str, Any], str | None]], journals: Path) -> list[tuple[Trajectory | None, str]]:
+async def build_all(jobs: list[tuple[dict[str, Any], str | None]], journals: Path,
+                    namespace: bool = False) -> list[tuple[Trajectory | None, str]]:
     """Build every (row, fault) job with bounded concurrency, preserving order."""
     gate = asyncio.Semaphore(CONCURRENCY)
 
     async def bounded(row: dict[str, Any], fault: str | None) -> tuple[Trajectory | None, str]:
         async with gate:
-            return await build(row, journals, fault)
+            return await build(row, journals, fault, namespace)
 
     return await asyncio.gather(*(bounded(row, fault) for row, fault in jobs))
 
@@ -361,6 +379,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", type=Path, required=True, help="Training-split examples.jsonl")
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--namespace-tools", action="store_true",
+                        help="Serve ls/get too (backlog 0026); a different tool block, so a different training set")
     args = parser.parse_args()
     if args.out_dir.exists():
         raise ValueError("Refusing to overwrite a frozen trajectory directory")
@@ -374,7 +394,7 @@ def main() -> int:
              for fault in extra_faults(row)]
     journals = args.out_dir / "journals"
     journals.mkdir(parents=True)
-    outcomes = asyncio.run(build_all(jobs, journals))
+    outcomes = asyncio.run(build_all(jobs, journals, args.namespace_tools))
     kept = [trajectory for trajectory, _ in outcomes if trajectory is not None]
     examples = write_in_order(args.out_dir / "trajectories.jsonl", kept)
     manifest = {
@@ -389,12 +409,13 @@ def main() -> int:
         "skipped_subfamilies": {name: sum(r["subfamily"] == name for r in rows) for name in sorted(SKIPPED_SUBFAMILIES)},
         "kept": len(kept),
         "kept_by_subfamily": {name: sum(t["subfamily"] == name for t in kept) for name in sorted({t["subfamily"] for t in kept})},
-        "kept_by_fault": {str(name): sum(t["fault"] == name for t in kept) for name in [None, *RECOVERY_NOTES]},
+        "kept_by_fault": {str(name): sum(t["fault"] == name for t in kept) for name in [None, *FAULTS]},
         "dropped": {f"{row['example_id']}:{fault}": reason for (row, fault), (_, reason) in zip(jobs, outcomes)
                     if reason != "kept"},
         "tool_calls": {f"{t['example_id']}:{t['fault']}": sum(m["role"] == "tool" for m in t["messages"]) for t in kept},
         "trajectories_sha256": hashlib.sha256(examples.read_bytes()).hexdigest(),
         "benchmark_access": False,
+        "namespace_tools": args.namespace_tools,
     }
     common.write_json(args.out_dir / "manifest.json", manifest)
     print(json.dumps({k: v for k, v in manifest.items() if k != "tool_calls"}, indent=2))

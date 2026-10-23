@@ -24,6 +24,9 @@ from training.unsloth.evaluate import FIT_SUBFAMILIES, extract_scale, score_answ
 # request asks (tool_choice / per-tool strict); "function" always constrains the
 # call envelope; "parameter" also enforces each argument's schema.
 TOOL_STRICT_LEVELS: tuple[str, ...] = ("auto", "function", "parameter")
+# The tool sets an attempt's MCP server can list, as recorded in the manifest.
+TOOL_SET_STUDY: str = "study"
+TOOL_SET_NAMESPACE: str = "study+namespace"
 # One task at a time reproduces the r1-r3 schedule. Tasks are independent
 # (own MCP process, own journal), so concurrency changes throughput only.
 DEFAULT_CONCURRENCY: int = 1
@@ -149,7 +152,8 @@ async def attempt(args: argparse.Namespace, task: dict[str, Any], grading: async
     prompt.write_text(task["task"]["prompt"])
     journal = args.out / f"{task['example_id']}.jsonl"
     options = argparse.Namespace(base_url=args.base_url, model=args.model, prompt=prompt, study_tools=True,
-                                 first_turn_tool_choice=args.first_turn_tool_choice)
+                                 first_turn_tool_choice=args.first_turn_tool_choice,
+                                 namespace_tools=getattr(args, "namespace_tools", False))
     with journal.open("x") as stream:
         try:
             await probe(options, stream)
@@ -188,6 +192,8 @@ async def evaluate(args: argparse.Namespace) -> None:
         # The serving side of the condition, as the caller started the server
         # (vLLM --tool-strict-level); recorded so compare_agents can refuse mixes.
         "server_tool_strict_level": args.server_tool_strict_level,
+        # The tools each attempt's MCP server lists (backlog 0026 adds ls/get).
+        "tool_set": TOOL_SET_NAMESPACE if getattr(args, "namespace_tools", False) else TOOL_SET_STUDY,
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (args.out / "prompts").mkdir()
@@ -231,6 +237,8 @@ def main() -> None:
                         help="'required' forces a tool call on the first turn (a separate study arm)")
     parser.add_argument("--server-tool-strict-level", choices=TOOL_STRICT_LEVELS, default="auto",
                         help="The vLLM --tool-strict-level the server was started with (recorded, not applied)")
+    parser.add_argument("--namespace-tools", action="store_true",
+                        help="Also serve ls/get (backlog 0026); recorded as tool_set, so only like runs compare")
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY,
                         help="Attempts in flight at once; match the server's --max-num-seqs")
     args = parser.parse_args()

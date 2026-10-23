@@ -63,3 +63,23 @@ def test_unknown_bus_is_added_to_report_recovery_rows_not_swapped_in() -> None:
     assert [trajectories.fault_for(report, index) for index in (0, 2)] == ["run_power_flow_contingency"] * 2
     assert trajectories.extra_faults(report) == ["unknown_bus"]
     assert trajectories.extra_faults({"subfamily": "pf-load-scale-fit"}) == []
+
+
+@pytest.mark.skipif(not (pm.REPO_ROOT / pm.CASE_FILES[CASE]).exists(),
+                    reason="needs data/ (scripts/fetch_csiro_nem_data.py)")
+def test_with_namespace_tools_the_unknown_bus_recovery_lists_buses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backlog 0026: refused id -> ls the buses -> the first listed id, which report() observes."""
+    row = {"example_id": "ex_unknown_bus_ls", "subfamily": "pf-report", "lifecycle": {"split": "train"},
+           "task": {"prompt": f"Run an AC power flow on case '{CASE}' and report the result.", "inputs": {"case": CASE}}}
+    journals = tmp_path / "journals"
+    journals.mkdir()
+    monkeypatch.setattr(trajectories, "grade", lambda _row, _journal: {"passed": True})
+    trajectory, reason = asyncio.run(trajectories.build(row, journals, "unknown_bus", namespace=True))
+    assert reason == "kept"
+    calls = [(m["tool_calls"][0]["function"]["name"], json.loads(m["tool_calls"][0]["function"]["arguments"]), m["content"])
+             for m in trajectory["messages"] if m["role"] == "assistant" and m.get("tool_calls")]
+    valid = trajectories.first_bus(CASE)
+    assert [name for name, _, _ in calls] == ["run_study_trial", "ls", "run_study_trial"]
+    assert calls[1][1] == {"path": f"/case/{CASE}/bus"} and calls[2][1]["observation_id"] == valid
+    assert calls[2][2] == trajectories.RECOVERY_NOTES["unknown_bus_listed"].format(valid=valid)
+    assert [t["function"]["name"] for t in trajectory["tools"]][-2:] == ["ls", "get"]

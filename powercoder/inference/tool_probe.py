@@ -76,7 +76,8 @@ def record(stream: TextIO, kind: str, payload: Any) -> None:
 async def probe(args: argparse.Namespace, journal: TextIO) -> int:
     """Let the real model choose tools and feed back actual MCP responses."""
     parameters = StdioServerParameters(
-        command=sys.executable, args=["-m", "powercoder.inference.mcp_server"] + (["--study-tools"] if args.study_tools else []),
+        command=sys.executable, args=["-m", "powercoder.inference.mcp_server"] + (["--study-tools"] if args.study_tools else [])
+        + (["--namespace-tools"] if getattr(args, "namespace_tools", False) else []),
         cwd=str(Path(__file__).resolve().parents[2]),
     )
     first_choice = getattr(args, "first_turn_tool_choice", "auto")

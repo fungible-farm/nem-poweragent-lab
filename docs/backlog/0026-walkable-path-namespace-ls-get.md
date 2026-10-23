@@ -1,6 +1,6 @@
 # 0026 — A walkable path namespace: one grammar, `ls` and `get`, answers that cite paths
 
-- **Status:** open, the next step after 0024's step 1. This is the 80/20 cut of
+- **Status:** **code and training data done** 2026-10-23 on `chore/bus-discovery`; retraining and the smoke run need the GPU (a new run root). The next step after 0024's step 1. This is the 80/20 cut of
   [0027](0027-functional-data-virtualization-layer.md), agreed with the user on 2026-10-23.
 - **Affects:**
   - the tool set, which means a new run root and retrained students;
@@ -56,3 +56,26 @@ we already have.
   trajectories that use `ls` after a bad id, and tests.
 - **Measured cost of a retrain** (both students, from v2): 2.7 h for Qwen and 3.4 h for Granite, then
   a smoke run and an evaluation run.
+
+## Done (2026-10-23)
+- **Grammar and resolver.** `powercoder/inference/namespace.lark` is the grammar, and
+  `namespace.py` resolves exactly those paths. A test checks that both accept the same set: a
+  generated corpus of valid paths plus 5 seeded mutations of each, parsed with lark (MIT, a dev
+  dependency).
+- **The tools.** `ls` gives exact listings with totals and paged ids. `get` returns case-table
+  values, with the unit taken from the column suffix and the canonical path. Both are opt-in
+  (`mcp_server --namespace-tools`, `evaluate_agent --namespace-tools`), so the r1–r6 tool set is
+  unchanged. **Measured cost: 663 characters** added to the tool block (2,743 → 3,406).
+- **Provenance.** `check_fields` checks that a number followed by a cited path equals what the
+  path holds; the grader resolves it. Ids, paths and totals from listings are identifiers only.
+  The r6b v3 scores are unchanged (12, 76, 23, 59).
+- **Comparability.** `compare_agents.CONDITIONS` gains `tool_set` (`study` /
+  `study+namespace`), so a namespace run is never compared silently with r6.
+- **Training data.** `trajectories --namespace-tools` builds the same 375 examples with the
+  five-tool block. Its `unknown_bus` recovery is refused id → `ls /case/<case>/bus` → the first
+  id listed. 375 kept, 0 dropped. The default build is unchanged (hash `e7988135`, identical to
+  the earlier v3).
+
+## Still needs the GPU
+- Retrain both students on `--namespace-tools` trajectories.
+- Run the smoke suite with `--namespace-tools` and check the acceptance criteria above.

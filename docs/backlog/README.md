@@ -38,7 +38,7 @@ research notes.
 | [0023](0023-snemsa-case-lacks-ratings-costs-and-distributed-slack.md) | snemSA has no real branch ratings, one generator cost, and a single slack: OPF and thermal tasks carry no signal | open |
 | [0024](0024-element-discovery-and-graph-search.md) | Element discovery: valid ids in errors (done), then a fixed-query CIM graph tool; vector search not on synthetic names | step 1 done; open |
 | [0025](0025-podman-desktop-packaging-of-on-demand-services.md) | Podman Desktop packaging of optional, on-demand, memory-heavy services | awaiting requirements |
-| [0026](0026-walkable-path-namespace-ls-get.md) | Walkable path namespace: one grammar, `ls`/`get`, answers that cite paths (80/20 of 0027) | open, next |
+| [0026](0026-walkable-path-namespace-ls-get.md) | Walkable path namespace: one grammar, `ls`/`get`, answers that cite paths (80/20 of 0027) | code + trajectories done; retrain/eval need GPU |
 | [0027](0027-functional-data-virtualization-layer.md) | Functional data-virtualization layer: CIM-named, memoised, Arrow-queryable `/proc` for the grid | deferred |
 | [0028](0028-short-circuit-and-system-strength-tasks.md) | Short-circuit and system-strength (SCR proxy) tasks on snemSA, IEC 60909 via pandapower | blocked (no transmission case with short-circuit data; measured) |
 | [0029](0029-cgmes-round-trip-with-pypowsybl.md) | Check the G4 CIM export against pypowsybl's CGMES | done (not importable; AC agrees to 8.6e-4 pu; gaps listed) |
