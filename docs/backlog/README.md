@@ -45,6 +45,7 @@ research notes.
 | [0030](0030-nem-dispatch-reruns-with-nempy.md) | Re-run historical NEM dispatch with nempy | blocked (NEMWeb access) |
 | [0031](0031-openstef-short-term-forecasting.md) | OpenSTEF as G7's first forecasting engine | blocked (G5 data) |
 | [0032](0032-energnn-screening-surrogate.md) | EnerGNN as a screening ranker, never a source of reported numbers | deferred |
+| [0033](0033-study-workbook-audit.md) | Audit an engineer's study workbook: every number traced, re-derived or flagged (prototype 6/6 on seeded errors) | open |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
