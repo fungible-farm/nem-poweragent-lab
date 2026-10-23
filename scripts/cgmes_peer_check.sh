@@ -7,6 +7,7 @@
 #   2. peer: peer_check.py check (pypowsybl only)    -> counts, status, voltages
 #   3. here: peer_check compare                      -> exit 1 above the tolerance
 # Usage: scripts/cgmes_peer_check.sh [peer-host] [out-dir]   (defaults: sm3lly.lan, a mktemp dir)
+#        DIAGRAMS=1 also renders powsybl-diagram SVGs into <out-dir>/diagrams (backlog 0004).
 set -euo pipefail
 
 PEER="${1:-sm3lly.lan}"
@@ -27,5 +28,11 @@ scp -q "$ROOT/powercoder/semantic/peer_check.py" "$OUT/cgmes.zip" "$PEER:$REMOTE
 ssh -o BatchMode=yes "$PEER" "cd $REMOTE && \$HOME/.local/bin/uv run -q --no-project --python 3.12 \
     --with pypowsybl==$PYPOWSYBL_VERSION python peer_check.py check --zip cgmes.zip --out peer.json"
 scp -q "$PEER:$REMOTE/peer.json" "$OUT/peer.json"
+if [[ "${DIAGRAMS:-0}" == "1" ]]; then
+    # Optional (backlog 0004): powsybl-diagram single-line and network-area SVGs from the same zip.
+    ssh -o BatchMode=yes "$PEER" "cd $REMOTE && \$HOME/.local/bin/uv run -q --no-project --python 3.12 \
+        --with pypowsybl==$PYPOWSYBL_VERSION python peer_check.py diagram --zip cgmes.zip --out-dir diagrams"
+    scp -q -r "$PEER:$REMOTE/diagrams" "$OUT/"
+fi
 
 "$UV" run python -m powercoder.semantic.peer_check compare --voltages "$OUT/pandapower_vm.json" --peer "$OUT/peer.json"

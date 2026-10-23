@@ -1,7 +1,8 @@
 # 0004 — Lab 4 & Lab 5: visualization options
 
-- **Status:** partially done — Lab 4's reconciliation chart and Lab 5's topology drawing are done;
-  Lab 5's stretch-tier symbolic single-line is still open.
+- **Status:** partially done — Lab 4's reconciliation chart and Lab 5's topology drawing are done.
+  The stretch tier's gate, a CIM/CGMES export, is met (0034), and real symbolic single-line diagrams now
+  render for snemSA (2026-10-23, below). Lab 5's own chaos-net topology is not wired to it yet.
 - **Depends on:** 0001 (gap), 0002 (options research)
 
 ## Lab 4 — `labs/04-aemo-digital-twin-reconciliation/`
@@ -81,3 +82,17 @@ Two separate gaps, two separate fixes:
 Both labs already hold the exact objects (`pandapower.pandapowerNet`, `networkx.Graph`) that the
 free-tier tools in 0002 operate on directly — no data reshaping needed, only a rendering call at
 the point where the object already exists in the script.
+
+## Symbolic single-line, unblocked (2026-10-23)
+The stretch tier was gated on a CIM/CGMES export, and backlog 0034 now provides one that pypowsybl
+imports and solves. `peer_check.py diagram` (`DIAGRAMS=1 scripts/cgmes_peer_check.sh`) renders,
+with **powsybl-diagram from pypowsybl 1.16.1** on the x86-64 peer (no ARM64 wheel), the SVG
+outputs below:
+- a single-line diagram of the inferred substation with the most voltage levels (15; 378 drawn
+  elements, feeders with flow arrows), labelled with CSIRO's element names;
+- a network-area diagram around it, depth 2, with branch flows.
+
+The substation grouping is **inferred** (buses joined by transformers, 0034), not data, and any
+caption must say so. snemSA's `bus_data` `x y` (0024) are layout positions and could place the
+voltage levels. **Not yet:** Lab 5's chaos-net topology through the same export, and a committed
+fixture for its diagram.
