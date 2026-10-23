@@ -27,7 +27,7 @@ from typing import Any, Callable
 import pandas as pd
 import pandapower as pp
 
-IR_VERSION: str = "0.1.0"  # rust/command-ir IR_VERSION
+IR_VERSION: str = "0.2.0"  # rust/command-ir IR_VERSION
 # Fields hidden from model-facing study output (mcp_server.MODEL_HIDDEN_FIELDS, FM-3).
 HIDDEN: frozenset[str] = frozenset({"execution_time_s"})
 

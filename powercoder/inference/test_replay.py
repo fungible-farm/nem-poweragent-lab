@@ -42,6 +42,6 @@ def test_a_changed_number_is_found_by_path(tmp_path: Path) -> None:
 
 
 def test_a_schema_refusal_is_reproduced(tmp_path: Path) -> None:
-    bad = {k: v for k, v in TRIAL.items() if k != "scale"}
-    (call,) = replay(_journal(tmp_path, "Input validation error: 'scale' is a required property", bad, is_error=True))
+    bad = TRIAL | {"contingency_line": "None"}  # FM-7: invalid under every schema version
+    (call,) = replay(_journal(tmp_path, "Input validation error: 'None' is not of type 'integer', 'null'", bad, is_error=True))
     assert call["outcome"] == "error_reproduced"

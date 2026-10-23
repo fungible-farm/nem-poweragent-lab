@@ -79,3 +79,31 @@ def test_unknown_contingency_and_modification_ids_name_valid_ids_too() -> None:
     assert trial(contingency_line=99).error.endswith("contingency line 99: the network has 1 lines; the lowest 1 ids are 0")
     assert "Unknown modification element 7" in trial(operation="line_rating", element_id=7,
                                                       observation="line_loading", observation_id=0).error
+
+
+def test_a_report_needs_no_invented_element_or_observation() -> None:
+    """IR 0.2.0: a network-wide report sends only what it uses, and says it observed nothing."""
+    assert tool_schema()["function"]["parameters"]["required"] == ["network_id", "operation", "max_iter"]
+    result = run_study_trial(network_id=NETWORK, operation="none", max_iter=20)
+    assert result.status != pm.ExecutionStatus.EXECUTION_FAILURE, result.error
+    assert result.data["observation"] == "none (network-wide report)"
+    assert not {"metric", "metric_unit", "metric_valid"} & set(result.data)
+    assert result.data["study"] == {"network_id": NETWORK, "operation": "none", "max_iter": 20, "contingency_line": None}
+    full = trial(operation="none", observation_id=1)
+    assert full.data["min_bus_voltage_pu"] == result.data["min_bus_voltage_pu"]
+
+
+@pytest.mark.parametrize(("operation", "missing"), [
+    ("load_scale", {"scale"}), ("load_scale", {"observation_id", "observation"}), ("line_rating", {"element_id"})])
+def test_a_modification_names_what_it_still_needs(operation: str, missing: set[str]) -> None:
+    observation = {"load_scale": "bus_voltage", "line_rating": "line_loading"}[operation]
+    arguments = {"network_id": NETWORK, "operation": operation, "scale": 1.05, "element_id": 0,
+                 "observation": observation, "observation_id": 0, "max_iter": 20}
+    result = run_study_trial(**{k: v for k, v in arguments.items() if k not in missing})
+    assert result.status == pm.ExecutionStatus.EXECUTION_FAILURE
+    assert all(name in result.error for name in missing - {"observation"}), result.error
+
+
+def test_load_scale_needs_no_element_id() -> None:
+    result = trial(element_id=None)
+    assert result.data["metric_valid"] and "element_id" not in result.data["study"]

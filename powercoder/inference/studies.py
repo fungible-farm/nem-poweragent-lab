@@ -96,8 +96,8 @@ def unknown_element(role: str, element_id: int, index: Any, kind: str) -> ValueE
 
 
 def run_study_trial(
-    network_id: str, operation: str, scale: float, element_id: int,
-    observation: str, observation_id: int, max_iter: int,
+    network_id: str, operation: str, scale: float | None = None, element_id: int | None = None,
+    observation: str | None = None, observation_id: int | None = None, max_iter: int | None = None,
     contingency_line: int | None = None,
 ) -> pm.PowerMCPResult:
     """Apply one explicit perturbation and measure a real, independently solved network.
@@ -105,32 +105,51 @@ def run_study_trial(
     Non-convergence and numerical failure never return usable metric values.
     Physical validity covers bus voltage and line/transformer nameplate screening
     only; convergence does not establish operational safety.
+
+    An argument the operation does not use is optional (IR 0.2.0, backlog 0015): a report
+    (``operation="none"``) needs no scale, element or observation, since its network-wide
+    fields are always returned, and only ``line_rating``/``gen_dispatch`` modify an element.
+    Requiring them made a model invent an id the task never named (r6b Qwen student: bus 999,
+    then 1, 2, 3, ...). Unused arguments that are sent are accepted and ignored. A call with
+    every argument echoes and answers exactly as before.
     """
-    arguments = dict(locals())
+    arguments = {k: v for k, v in locals().items() if v is not None or k == "contingency_line"}
     start = time.monotonic()
     try:
+        expected = {"load_scale": "bus_voltage", "line_rating": "line_loading", "gen_dispatch": "trafo_loading"}
+        if operation not in {"none", *expected}:
+            raise ValueError("Unknown operation or observation")
+        missing = [name for name, value in (("max_iter", max_iter),) + (
+            (("scale", scale), ("observation", observation), ("observation_id", observation_id)) if operation != "none" else ()) + (
+            (("element_id", element_id),) if operation in {"line_rating", "gen_dispatch"} else ()) if value is None]
+        if observation_id is not None and observation is None:
+            missing.append("observation")
+        if missing:
+            raise ValueError(f"operation={operation} requires {', '.join(missing)}")
+        scale = 1.0 if scale is None else scale
         if isinstance(scale, bool) or not isinstance(scale, (float, int)) or not math.isfinite(scale) or not SCALE_MIN <= scale <= SCALE_MAX:
             raise ValueError("scale must be finite and within the declared interval")
         for value in (element_id, observation_id, max_iter):
-            if isinstance(value, bool) or not isinstance(value, int):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
                 raise TypeError("element/observation IDs and max_iter must be integers")
         if not 1 <= max_iter <= MAX_ITERATIONS:
             raise ValueError("max_iter outside the declared budget")
         if contingency_line is not None and (isinstance(contingency_line, bool) or not isinstance(contingency_line, int)):
             raise ValueError("contingency_line must be an integer or null")
-        expected = {"load_scale": "bus_voltage", "line_rating": "line_loading", "gen_dispatch": "trafo_loading"}
-        if operation not in {"none", *expected} or observation not in {"bus_voltage", "line_loading", "trafo_loading"}:
+        if observation is not None and observation not in {"bus_voltage", "line_loading", "trafo_loading"}:
             raise ValueError("Unknown operation or observation")
         if operation != "none" and observation != expected[operation]:
             raise ValueError("Observation incompatible with modification")
         if operation == "none" and scale != 1.0:
             raise ValueError("operation=none requires scale=1")
         net, case_hash = pm._load_network_object(network_id)
-        table, column = {"bus_voltage": ("res_bus", "vm_pu"), "line_loading": ("res_line", "loading_percent"), "trafo_loading": ("res_trafo", "loading_percent")}[observation]
-        element_table = {"bus_voltage": "bus", "line_loading": "line", "trafo_loading": "trafo"}[observation]
-        if observation_id not in net[element_table].index:
-            raise unknown_element("observation element", observation_id, net[element_table].index,
-                                  ELEMENT_KINDS[element_table])
+        observes = observation_id is not None
+        if observes:
+            table, column = {"bus_voltage": ("res_bus", "vm_pu"), "line_loading": ("res_line", "loading_percent"), "trafo_loading": ("res_trafo", "loading_percent")}[observation]
+            element_table = {"bus_voltage": "bus", "line_loading": "line", "trafo_loading": "trafo"}[observation]
+            if observation_id not in net[element_table].index:
+                raise unknown_element("observation element", observation_id, net[element_table].index,
+                                      ELEMENT_KINDS[element_table])
         if operation == "load_scale":
             net.load.loc[:, ["p_mw", "q_mvar"]] *= scale
         elif operation in {"line_rating", "gen_dispatch"}:
@@ -158,7 +177,7 @@ def run_study_trial(
         voltage_violations = int(((vm < pm.VOLTAGE_LIMIT_LOW_PU) | (vm > pm.VOLTAGE_LIMIT_HIGH_PU)).sum())
         line_loading = float(net.res_line.loading_percent.max()) if len(net.line) else 0.0
         trafo_loading = float(net.res_trafo.loading_percent.max()) if len(net.trafo) else 0.0
-        observed = float(net[table].loc[observation_id, column])
+        observed = float(net[table].loc[observation_id, column]) if observes else math.nan
         data = {
             "study": arguments, "converged": True, "iterations": iterations,
             # None when the observed element is itself de-energized by the outage.
@@ -174,6 +193,12 @@ def run_study_trial(
             "thermal_limit_percent": THERMAL_LIMIT_PERCENT,
             "physical_scope": "bus voltage band and line/transformer nameplate loading only",
         }
+        if not observes:
+            # A network-wide report observes no element: no metric fields at all, rather
+            # than metric_valid=false, which reads as a failed study.
+            for key in ("metric", "metric_unit", "metric_valid"):
+                del data[key]
+            data["observation"] = "none (network-wide report)"
         if de_energized:
             # Only when an outage isolates buses, so every other response stays
             # byte-identical to the ones the students were trained on.

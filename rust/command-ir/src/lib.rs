@@ -2,8 +2,8 @@
 //!
 //! `SOLVE` and `SIMULATE` lower to today's `run_study_trial` tool (`powercoder/inference/studies.py`):
 //!
-//! - [`Solve`]: an AC power flow of the intact network or one N-1 outage, observing one element
-//!   (`operation = "none"`, `scale = 1`, `element_id = 0`, as the trained procedure sends it);
+//! - [`Solve`]: an AC power flow of the intact network or one N-1 outage (`operation = "none"`),
+//!   optionally observing one element; a report sends no scale, element or observation (0.2.0);
 //! - [`Simulate`]: one perturbation trial: scale all loads, one line's rating or one
 //!   generator's dispatch, and observe the quantity that modification moves.
 //!
@@ -21,7 +21,7 @@ use serde_json::{json, Map, Value};
 use std::fmt;
 
 /// IR version; bump on any change to command shape or lowering.
-pub const IR_VERSION: &str = "0.1.0";
+pub const IR_VERSION: &str = "0.2.0";
 /// The study tool's scale interval (`studies.SCALE_MIN`/`SCALE_MAX`).
 pub const SCALE_MIN: f64 = 0.9;
 pub const SCALE_MAX: f64 = 1.1;
@@ -31,7 +31,7 @@ pub const MAX_ITERATIONS: u32 = 100;
 pub const DEFAULT_MAX_ITER: u32 = 50;
 
 /// The served tool description, verbatim (`studies.tool_schema`); the fixture test guards it.
-pub const STUDY_TRIAL_DESCRIPTION: &str = "Run one fresh Newton-Raphson AC trial. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. Use operation=none for base/N-1 reports. Returns actual measurements, not a fitted answer. element_id selects the modified line/generator (unused for all-load scaling). observation_id selects the observed bus/line/transformer. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.";
+pub const STUDY_TRIAL_DESCRIPTION: &str = "Run one fresh Newton-Raphson AC trial. Every response reports the network-wide results: convergence, iterations, min/max bus voltage, max line and transformer loading, and voltage violations. Use operation=none for base-case and N-1 reports; a report needs only network_id, max_iter and, for N-1, contingency_line. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. A modification needs scale, observation and observation_id; line_rating and gen_dispatch also need element_id, the modified line/generator. Use only ids the task or a tool response gave you. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. Returns actual measurements, not a fitted answer. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.";
 
 /// Networks the study tool serves, in its enum order (`powermcp.CASE_FILES` then fixtures).
 pub const NETWORKS: [&str; 4] = ["snem-sa-2000", "snem-1803", "fixture-2bus-ok", "fixture-2bus-nonconverged"];
@@ -83,13 +83,13 @@ impl Modification {
     }
 }
 
-/// An AC power flow, intact or with one line out, observing one element.
+/// An AC power flow, intact or with one line out. Its network-wide results always come back;
+/// `observe` optionally reads one element too (IR 0.2.0: a report names no element).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Solve {
     pub network: String,
     pub contingency_line: Option<u32>,
-    pub observation: Observation,
-    pub observation_id: u32,
+    pub observe: Option<(Observation, u32)>,
     pub max_iter: u32,
 }
 
@@ -99,8 +99,9 @@ pub struct Simulate {
     pub network: String,
     pub modification: Modification,
     pub scale: f64,
-    /// The modified line or generator; ignored by load scaling, which scales every load.
-    pub element_id: u32,
+    /// The modified line or generator: required by line_rating and gen_dispatch, absent for
+    /// load scaling, which scales every load.
+    pub element_id: Option<u32>,
     pub observation_id: u32,
     pub contingency_line: Option<u32>,
     pub max_iter: u32,
@@ -225,6 +226,9 @@ impl Command {
             Command::Solve(s) => check_common(&s.network, s.max_iter),
             Command::Simulate(s) => {
                 check_common(&s.network, s.max_iter)?;
+                if s.modification != Modification::LoadScale && s.element_id.is_none() {
+                    return invalid(format!("{} requires element_id", s.modification.as_str()));
+                }
                 if !(s.scale.is_finite() && (SCALE_MIN..=SCALE_MAX).contains(&s.scale)) {
                     return Err(IrError::ScaleOutOfRange(s.scale));
                 }
@@ -271,18 +275,25 @@ impl Command {
     pub fn lower(&self) -> Result<Value, IrError> {
         self.validate()?;
         let mut args = Map::new();
-        let (network, operation, scale, element_id, observation, observation_id, contingency, max_iter) = match self {
-            Command::Solve(s) => (&s.network, "none", json!(1.0), 0, s.observation, s.observation_id, s.contingency_line, s.max_iter),
-            Command::Simulate(s) => (&s.network, s.modification.as_str(), json!(s.scale), s.element_id, s.modification.observation(),
-                                     s.observation_id, s.contingency_line, s.max_iter),
+        let (network, operation, scale, element_id, observe, contingency, max_iter) = match self {
+            Command::Solve(s) => (&s.network, "none", None, None, s.observe, s.contingency_line, s.max_iter),
+            Command::Simulate(s) => (&s.network, s.modification.as_str(), Some(s.scale), s.element_id,
+                                     Some((s.modification.observation(), s.observation_id)), s.contingency_line, s.max_iter),
             other => return Err(IrError::Invalid(format!("{} does not lower to run_study_trial", other.name()))),
         };
+        // An argument the operation does not use is left out, never filled with a placeholder.
         args.insert("network_id".into(), json!(network));
         args.insert("operation".into(), json!(operation));
-        args.insert("scale".into(), scale);
-        args.insert("element_id".into(), json!(element_id));
-        args.insert("observation".into(), json!(observation.as_str()));
-        args.insert("observation_id".into(), json!(observation_id));
+        if let Some(scale) = scale {
+            args.insert("scale".into(), json!(scale));
+        }
+        if let Some(element) = element_id {
+            args.insert("element_id".into(), json!(element));
+        }
+        if let Some((observation, id)) = observe {
+            args.insert("observation".into(), json!(observation.as_str()));
+            args.insert("observation_id".into(), json!(id));
+        }
         if let Some(line) = contingency {
             args.insert("contingency_line".into(), json!(line));
         }
@@ -315,7 +326,7 @@ pub fn study_trial_schema() -> Value {
                     "contingency_line": {"type": ["integer", "null"]},
                     "max_iter": {"type": "integer", "minimum": 1, "maximum": MAX_ITERATIONS}
                 },
-                "required": ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "max_iter"]
+                "required": ["network_id", "operation", "max_iter"]
             }
         }
     })
@@ -364,25 +375,37 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
         .ok_or_else(|| IrError::Invalid(format!("{k} must be a non-negative integer")));
     let network = text("network_id")?.to_string();
     let operation = text("operation")?;
-    let observation = match text("observation")? {
-        "bus_voltage" => Observation::BusVoltage,
-        "line_loading" => Observation::LineLoading,
-        "trafo_loading" => Observation::TrafoLoading,
-        other => return Err(IrError::Invalid(format!("unknown observation {other}"))),
-    };
-    let scale = obj.get("scale").filter(|v| v.is_number()).and_then(Value::as_f64).ok_or_else(|| invalid("scale must be a number"))?;
-    let element_id = id("element_id")?;
-    let observation_id = id("observation_id")?;
+    let present = |k: &str| !matches!(obj.get(k), None | Some(Value::Null));
+    let optional_id = |k: &str| if present(k) { id(k).map(Some) } else { Ok(None) };
+    let observation = if present("observation") {
+        Some(match text("observation")? {
+            "bus_voltage" => Observation::BusVoltage,
+            "line_loading" => Observation::LineLoading,
+            "trafo_loading" => Observation::TrafoLoading,
+            other => return Err(IrError::Invalid(format!("unknown observation {other}"))),
+        })
+    } else { None };
+    let scale = if present("scale") {
+        Some(obj.get("scale").filter(|v| v.is_number()).and_then(Value::as_f64).ok_or_else(|| invalid("scale must be a number"))?)
+    } else { None };
+    // element_id is accepted and ignored where the operation does not use it, as the tool does.
+    let element_id = optional_id("element_id")?;
+    let observation_id = optional_id("observation_id")?;
     let max_iter = id("max_iter")?;
     let contingency_line = match obj.get("contingency_line") {
         None | Some(Value::Null) => None,
         Some(_) => Some(id("contingency_line")?),
     };
     let command = if operation == "none" {
-        if scale != 1.0 {
+        if scale.is_some_and(|s| s != 1.0) {
             return Err(invalid("operation=none requires scale=1"));
         }
-        Command::Solve(Solve { network, contingency_line, observation, observation_id, max_iter })
+        let observe = match (observation, observation_id) {
+            (Some(o), Some(i)) => Some((o, i)),
+            (None, Some(_)) => return Err(invalid("operation=none requires observation with observation_id")),
+            _ => None,
+        };
+        Command::Solve(Solve { network, contingency_line, observe, max_iter })
     } else {
         let modification = match operation {
             "load_scale" => Modification::LoadScale,
@@ -390,9 +413,12 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
             "gen_dispatch" => Modification::GenDispatch,
             other => return Err(IrError::Invalid(format!("unknown operation {other}"))),
         };
-        if observation != modification.observation() {
+        let scale = scale.ok_or_else(|| IrError::Invalid(format!("operation={operation} requires scale")))?;
+        let observation_id = observation_id.ok_or_else(|| IrError::Invalid(format!("operation={operation} requires observation_id")))?;
+        if observation != Some(modification.observation()) {
             return Err(IrError::Invalid(format!("{operation} observes {}", modification.observation().as_str())));
         }
+        let element_id = if modification == Modification::LoadScale { None } else { element_id };
         Command::Simulate(Simulate { network, modification, scale, element_id, observation_id, contingency_line, max_iter })
     };
     command.validate()?;
@@ -402,7 +428,7 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
 /// Parse the textual DSL into a command.
 ///
 /// ```text
-/// SOLVE <network> [OUTAGE <line>] OBSERVE <bus_voltage|line_loading|trafo_loading> <id> [MAXITER <n>]
+/// SOLVE <network> [OUTAGE <line>] [OBSERVE <bus_voltage|line_loading|trafo_loading> <id>] [MAXITER <n>]
 /// SIMULATE <network> <load_scale|line_rating|gen_dispatch> <scale> [ELEMENT <id>] OBSERVE <id>
 ///          [OUTAGE <line>] [MAXITER <n>]
 /// ```
@@ -421,12 +447,16 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
     let max_iter = match value_after("MAXITER") { Some(w) => number(w, "MAXITER")?, None => DEFAULT_MAX_ITER };
     let command = match words.first().map(|w| w.to_ascii_uppercase()) {
         Some(ref verb) if verb == "SOLVE" => {
-            let i = keyword("OBSERVE").ok_or_else(|| syntax("SOLVE needs OBSERVE <kind> <id>"))?;
-            let kind = words.get(i + 1).ok_or_else(|| syntax("OBSERVE needs a kind"))?;
-            let observation = Observation::ALL.into_iter().find(|o| o.as_str() == *kind)
-                .ok_or_else(|| syntax(&format!("unknown observation {kind}")))?;
-            Command::Solve(Solve { network, contingency_line: outage, observation,
-                                   observation_id: number(words.get(i + 2), "OBSERVE")?, max_iter })
+            let observe = match keyword("OBSERVE") {
+                None => None,
+                Some(i) => {
+                    let kind = words.get(i + 1).ok_or_else(|| syntax("OBSERVE needs a kind"))?;
+                    let observation = Observation::ALL.into_iter().find(|o| o.as_str() == *kind)
+                        .ok_or_else(|| syntax(&format!("unknown observation {kind}")))?;
+                    Some((observation, number(words.get(i + 2), "OBSERVE")?))
+                }
+            };
+            Command::Solve(Solve { network, contingency_line: outage, observe, max_iter })
         }
         Some(ref verb) if verb == "SIMULATE" => {
             let kind = words.get(2).ok_or_else(|| syntax("SIMULATE needs a modification"))?;
@@ -435,7 +465,7 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
                 .ok_or_else(|| syntax(&format!("unknown modification {kind}")))?;
             let scale = words.get(3).ok_or_else(|| syntax("SIMULATE needs a scale"))?
                 .parse::<f64>().map_err(|_| syntax("scale must be a number"))?;
-            let element_id = match value_after("ELEMENT") { Some(w) => number(w, "ELEMENT")?, None => 0 };
+            let element_id = match value_after("ELEMENT") { Some(w) => Some(number(w, "ELEMENT")?), None => None };
             let observation_id = number(value_after("OBSERVE").flatten(), "OBSERVE")?;
             Command::Simulate(Simulate { network, modification, scale, element_id, observation_id,
                                          contingency_line: outage, max_iter })

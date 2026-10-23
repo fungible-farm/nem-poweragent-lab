@@ -5,7 +5,7 @@ use command_ir::{parse, to_python_json};
 
 /// One example per PC-REQ-001 command.
 pub const EXAMPLES: [&str; 10] = [
-    "SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985",
+    "SOLVE snem-sa-2000 OUTAGE 94",
     "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985",
     "RECALL SA1 FROM 2026-06-10T00:00 TO 2026-06-10T01:00 ASOF 2026-06-10T00:30",
     "RESOLVE /case/snem-sa-2000/bus/985/vn_kv",
@@ -47,14 +47,19 @@ fn lift_inverts_lower_and_applies_the_tools_static_rules() {
     use command_ir::{lift, parse};
     use serde_json::json;
 
-    for dsl in ["SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985", "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985"] {
+    for dsl in ["SOLVE snem-sa-2000 OUTAGE 94", "SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985",
+                "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985", "SIMULATE snem-1803 line_rating 1.05 ELEMENT 7 OBSERVE 7"] {
         let command = parse(dsl).unwrap();
         assert_eq!(lift(&command.lower().unwrap()).unwrap(), command, "{dsl}");
     }
+    // The 0.1.0 report shape (placeholder scale, element and observation) still lifts: unused
+    // arguments are accepted, so a model trained on it is not newly refused.
     let base = json!({"network_id": "snem-sa-2000", "operation": "none", "scale": 1, "element_id": 0,
                       "observation": "bus_voltage", "observation_id": 985, "max_iter": 50});
     assert!(lift(&base).is_ok());
+    assert!(lift(&json!({"network_id": "snem-sa-2000", "operation": "none", "max_iter": 50})).is_ok(), "a bare report");
     let with = |k: &str, v: serde_json::Value| { let mut a = base.clone(); a[k] = v; a };
+    let without = |k: &str| { let mut a = base.clone(); a.as_object_mut().unwrap().remove(k); a };
     for (bad, why) in [
         (with("scale", json!(0.95)), "none with scale != 1"),
         (with("contingency_line", json!("None")), "FM-7 string None"),
@@ -63,6 +68,8 @@ fn lift_inverts_lower_and_applies_the_tools_static_rules() {
         (with("max_iter", json!(0)), "max_iter out of range"),
         (with("network_id", json!("ieee14")), "unknown network"),
         (with("extra", json!(1)), "unknown property"),
+        (without("observation"), "an observation_id without its observation"),
+        (without("max_iter"), "max_iter is required"),
         (with("operation", json!("load_scale")), "load_scale observes bus_voltage — ok"),
     ] {
         let ok = why.ends_with("ok");
@@ -71,4 +78,7 @@ fn lift_inverts_lower_and_applies_the_tools_static_rules() {
     let mismatch = json!({"network_id": "snem-sa-2000", "operation": "line_rating", "scale": 1.0, "element_id": 3,
                           "observation": "bus_voltage", "observation_id": 3, "max_iter": 50});
     assert!(lift(&mismatch).is_err(), "line_rating must observe line_loading");
+    let no_line = json!({"network_id": "snem-sa-2000", "operation": "line_rating", "scale": 1.0,
+                         "observation": "line_loading", "observation_id": 3, "max_iter": 50});
+    assert!(lift(&no_line).is_err(), "line_rating must name the line it modifies");
 }
