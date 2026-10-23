@@ -103,8 +103,10 @@ RECOVERY_NOTES: dict[str, str] = {
 # The injected failures (RECOVERY_NOTES also holds the namespace recovery's two notes).
 FAULTS: tuple[str, ...] = ("none_string", "contingency_zero", "run_power_flow_contingency", "unknown_bus")
 # A report's unknown_bus mistake observes one id below the lowest bus: below the
-# index's minimum, so it cannot exist in any case (r6b Qwen student sent 999,
-# under snem-sa-2000's lowest bus 985, on three report attempts).
+# index's minimum, so it cannot exist in any case. CORRECTION 2026-10-24: the r6b
+# Qwen student's 999 (three report attempts) is *above* snem-sa-2000's lowest bus
+# 985, in the gap before 1632, so this offset does not reproduce the observed
+# mistake. The report prompt names no bus at all; see backlog 0008/0015.
 UNKNOWN_BUS_OFFSET: int = 1
 # Pulls the first id an unknown-element error names (studies.unknown_element).
 VALID_IDS_PATTERN: re.Pattern[str] = re.compile(r"ids are (\d+)")
