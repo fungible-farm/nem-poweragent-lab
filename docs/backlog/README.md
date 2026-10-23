@@ -36,6 +36,8 @@ research notes.
 | [0021](0021-g7-probabilistic-forecasting.md) | PRD-0010 G7: probabilistic forecasting and leakage-free hindcasting | open (real data blocked by G5) |
 | [0022](0022-g8-independent-superiority-assessment.md) | PRD-0010 G8: independent superiority assessment (benchmarks, blind expert comparison) | open |
 | [0023](0023-snemsa-case-lacks-ratings-costs-and-distributed-slack.md) | snemSA has no real branch ratings, one generator cost, and a single slack: OPF and thermal tasks carry no signal | open |
+| [0024](0024-element-discovery-and-graph-search.md) | Element discovery: valid ids in errors (done), then a fixed-query CIM graph tool; vector search not on synthetic names | step 1 done; open |
+| [0025](0025-podman-desktop-packaging-of-on-demand-services.md) | Podman Desktop packaging of optional, on-demand, memory-heavy services | awaiting requirements |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
