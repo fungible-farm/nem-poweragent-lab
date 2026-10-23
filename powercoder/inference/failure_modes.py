@@ -83,8 +83,11 @@ def classify(task: dict[str, Any], result: dict[str, Any], events: list[dict[str
     traced = provenance_check(answer, events, task["task"].get("prompt", ""))["traced"]
     if result["passed"]:
         cause = "pass"
-    elif answer and not traced:
+    elif terminal == "answered" and answer and not traced:
         # A number not from the solver fails the attempt even when it is right.
+        # Only a final answer counts: when the budget runs out, evaluate_agent
+        # records the last turn's narration ("Bus 9 fails. I'll try bus 10.")
+        # as the answer, and its numbers are not a reported result.
         cause = "fabricated"
     elif solver_ok:
         cause = "solver_correct_strict_rejected"

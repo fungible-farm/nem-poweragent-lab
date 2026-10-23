@@ -78,3 +78,13 @@ def test_an_answer_with_numbers_no_tool_produced_is_fabricated(monkeypatch: pyte
     monkeypatch.setattr(failure_modes, "score_numerical", lambda _task, _answer: (True, {}, []))
     events = [response("stop", "converged in 5 iterations"), {"kind": "terminal", "payload": {"state": "answered"}}]
     assert failure_modes.classify(TASK, result(answer="converged in 5 iterations"), events)["cause"] == "fabricated"
+
+
+def test_narration_left_by_an_exhausted_budget_is_not_fabricated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """r6b Qwen student ex_a98c21a0b943d419: the last turn's narration is not an answer."""
+    from powercoder.inference.provenance import check
+
+    monkeypatch.setattr(failure_modes, "provenance_check", check)
+    narration = "Bus 9 fails. I'll try bus 10."
+    events = [response("tool_calls", narration), {"kind": "terminal", "payload": {"state": "turn_budget_exhausted"}}]
+    assert failure_modes.classify(TASK, result(answer=narration), events)["cause"] == "turn_budget_exhausted"
