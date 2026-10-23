@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import copy
 import random
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -319,6 +320,42 @@ def _run_fit(spec: FitSpec, target: float, tol: float) -> dict[str, Any]:
 
 # --- per-subfamily example builders -----------------------------------------
 
+# Prompt wordings. v1 (to 2026-10-23) said "applied to bus B" for a load-scale fit, which
+# scales every load and observes bus B: incoherent, so a model told to refuse incoherent tasks
+# could rightly refuse it. v2 names what the scale multiplies and what is observed, as the
+# study tool does (user direction 2026-10-24).
+PROMPT_WORDINGS: tuple[str, ...] = ("v1", "v2")
+CURRENT_WORDING: str = "v2"
+METRIC_NAMES: dict[str, str] = {"pf-load-scale-fit": "bus voltage", "pf-line-rating-fit": "line loading",
+                                "pf-gen-dispatch-fit": "transformer loading"}
+
+
+def fit_prompt(subfamily: str, inputs: dict[str, Any], wording: str = CURRENT_WORDING, interval: bool = True) -> str:
+    """A fit task's prompt, rendered from its inputs alone.
+
+    ``interval=False`` drops " in [lo, hi]" (the judgement suite's open-interval variant).
+
+    Raises:
+        ValueError: for an unknown wording or element description.
+    """
+    case, unit, tol = inputs["case"], inputs["metric_unit"], inputs["tolerance"]
+    bracket = f" in [{inputs['scale_lo']}, {inputs['scale_hi']}]" if interval else ""
+    goal = f"{inputs['target']:.6f} {unit} (within {tol} {unit}). Return only the scale factor."
+    if wording == "v1":
+        return (f"Using the power flow solver, find the scale factor s{bracket} applied to {inputs['element']} on case "
+                f"'{case}' such that the {METRIC_NAMES[subfamily]} equals {goal}")
+    if wording != "v2":
+        raise ValueError(f"Unknown prompt wording {wording!r}")
+    ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
+    scaled, observed = {
+        "pf-load-scale-fit": ("every load's active and reactive demand", f"voltage at bus {ids[-1]}"),
+        "pf-line-rating-fit": (f"the thermal rating of line {ids[0]}", f"loading of line {ids[0]}"),
+        "pf-gen-dispatch-fit": (f"the active-power dispatch of generator {ids[0]}", f"loading of transformer {ids[-1]}"),
+    }[subfamily]
+    return (f"Using the power flow solver, find the scale factor s{bracket} applied to {scaled} on case '{case}' "
+            f"such that the {observed} equals {goal}")
+
+
 def _gen_fit_example(
     subfamily: str,
     case: str,
@@ -408,13 +445,7 @@ def _gen_fit_example(
         "tolerance": tol,
         "metric_unit": spec.metric_unit,
     }
-    prompt = (
-        f"Using the power flow solver, find the scale factor s in "
-        f"[{SCALE_LO}, {SCALE_HI}] applied to {spec.element_desc} on case "
-        f"'{case}' such that the {spec.metric_name} equals "
-        f"{target:.6f} {spec.metric_unit} (within {tol} {spec.metric_unit}). "
-        f"Return only the scale factor."
-    )
+    prompt = fit_prompt(subfamily, task_inputs)
 
     run = _run_fit(spec, target, tol)
     status = run["final_status"]
