@@ -191,12 +191,76 @@ def _lp_matrices(case: DcCase) -> tuple[np.ndarray, sp.csr_matrix, np.ndarray, s
     return cost, a_eq, b_eq, a_ub, b_ub, bounds, constant
 
 
+def is_quadratic(case: DcCase) -> bool:
+    """Whether any generator has a quadratic cost term (the OPF is then a QP)."""
+    return any(g.cost_c2_per_mw2 > 0.0 for g in case.generators)
+
+
+def solve_independent_qp(case: DcCase) -> LpSolution:
+    """Solve the DC OPF of ``case`` as a convex QP with HiGHS (no pandapower solver code).
+
+    Same matrices as the LP (``_lp_matrices``) plus the Hessian of the quadratic costs:
+    with x = [theta, Pg] in per unit, cost = sum(c2 base^2 Pg^2 + c1 base Pg) + c0, so
+    H = diag(0, ..., 2 c2 base^2) in HiGHS's 0.5 x'Hx form. LMPs come from the nodal
+    balance rows' duals with the LP's sign convention; ``test_dc_opf`` checks that this
+    solver reproduces the LP on a linear case. 0023: IEEE 118, the one available case
+    with varied costs, has quadratic costs.
+    """
+    import highspy
+
+    cost, a_eq, b_eq, a_ub, b_ub, bounds, constant = _lp_matrices(case)
+    nb, ng = len(case.bus_ids), len(case.generators)
+    inf = highspy.kHighsInf
+    a = a_eq if a_ub is None else sp.vstack([a_eq, a_ub]).tocsr()
+    lower = np.r_[b_eq, np.full(0 if a_ub is None else a_ub.shape[0], -inf)]
+    upper = np.r_[b_eq, np.zeros(0) if b_ub is None else b_ub]
+    csc = a.tocsc()
+    lp = highspy.HighsLp()
+    lp.num_col_, lp.num_row_ = nb + ng, a.shape[0]
+    lp.col_cost_ = cost
+    lp.col_lower_ = np.array([-inf if lo is None else lo for lo, _ in bounds])
+    lp.col_upper_ = np.array([inf if hi is None else hi for _, hi in bounds])
+    lp.row_lower_, lp.row_upper_ = lower, upper
+    lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise
+    lp.a_matrix_.start_, lp.a_matrix_.index_, lp.a_matrix_.value_ = csc.indptr, csc.indices, csc.data
+    hessian = highspy.HighsHessian()
+    diagonal = np.r_[np.zeros(nb), [2.0 * g.cost_c2_per_mw2 * case.base_mva ** 2 for g in case.generators]]
+    hessian.dim_, hessian.format_ = nb + ng, highspy.HessianFormat.kTriangular
+    hessian.start_ = np.arange(nb + ng + 1, dtype=np.int32)
+    hessian.index_ = np.arange(nb + ng, dtype=np.int32)
+    hessian.value_ = diagonal
+    highs = highspy.Highs()
+    highs.setOptionValue("output_flag", False)
+    model = highspy.HighsModel()
+    model.lp_, model.hessian_ = lp, hessian
+    highs.passModel(model)
+    highs.run()
+    status = highs.getModelStatus()
+    name = {highspy.HighsModelStatus.kOptimal: "optimal", highspy.HighsModelStatus.kInfeasible: "infeasible",
+            highspy.HighsModelStatus.kUnbounded: "unbounded"}.get(status, "error")
+    info = highs.getInfo()
+    iterations = int(getattr(info, "qp_iteration_count", 0) or getattr(info, "simplex_iteration_count", 0) or 0)
+    if name != "optimal":
+        return LpSolution(status=name, message=str(status), objective_eur_per_h=None, dispatch_mw=None,
+                          lmp_eur_per_mwh=None, iterations=iterations)
+    solution = highs.getSolution()
+    x = np.asarray(solution.col_value)
+    duals = np.asarray(solution.row_dual)[:a_eq.shape[0]]
+    return LpSolution(status="optimal", message=str(status), objective_eur_per_h=float(highs.getObjectiveValue() + constant),
+                      dispatch_mw=(x[nb:] * case.base_mva).tolist(), lmp_eur_per_mwh=(-duals / case.base_mva).tolist(),
+                      iterations=iterations)
+
+
 def solve_independent_lp(case: DcCase) -> LpSolution:
     """Solve the DC OPF of ``case`` as an LP with HiGHS (no pandapower solver code).
+
+    A case with quadratic costs goes to :func:`solve_independent_qp`.
 
     LMPs are the nodal-balance duals: raising Pd at bus i by 1 MW lowers that row's
     right-hand side by 1/base, so LMP_i = -marginal_i / base (EUR/MWh).
     """
+    if is_quadratic(case):
+        return solve_independent_qp(case)
     cost, a_eq, b_eq, a_ub, b_ub, bounds, constant = _lp_matrices(case)
     nb = len(case.bus_ids)
     result = linprog(cost, A_ub=a_ub, b_ub=b_ub, A_eq=a_eq, b_eq=b_eq, bounds=bounds, method="highs")
@@ -240,13 +304,17 @@ def _cross_check(case: DcCase, lp: LpSolution, objective: float, dispatch: list[
     diffs = np.abs(np.asarray(dispatch) - np.asarray(lp["dispatch_mw"]))
     differing = [int(k) for k in np.flatnonzero(diffs > DISPATCH_ABS_TOLERANCE_MW)]
     outside = 0
-    probed = differing[:MAX_DEGENERACY_PROBES]
+    # Strictly convex quadratic costs make the dispatch unique, so a differing unit is a
+    # disagreement; the LP's optimal-face probe applies only to linear costs.
+    probed = [] if is_quadratic(case) else differing[:MAX_DEGENERACY_PROBES]
+    if is_quadratic(case):
+        outside = len(differing)
     cap = lp_obj + OBJECTIVE_REL_TOLERANCE * max(1.0, abs(lp_obj))
     for unit in probed:
         span = _optimal_range(case, unit, cap)
         if span is None or not (span[0] - DISPATCH_ABS_TOLERANCE_MW <= dispatch[unit] <= span[1] + DISPATCH_ABS_TOLERANCE_MW):
             outside += 1
-    unprobed = len(differing) - len(probed)
+    unprobed = 0 if is_quadratic(case) else len(differing) - len(probed)
     lmp_diff = float(np.max(np.abs(np.asarray(lmp) - np.asarray(lp["lmp_eur_per_mwh"])))) if lmp else 0.0
     agree = (rel_diff <= OBJECTIVE_REL_TOLERANCE and outside == 0 and unprobed == 0)
     # LMPs are unique only when the dual is; with a degenerate primal the duals still

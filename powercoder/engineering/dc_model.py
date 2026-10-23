@@ -53,6 +53,8 @@ class DcGenerator:
     p_max_mw: float
     cost_c1_per_mw: float
     cost_c0: float
+    # Quadratic coefficient (EUR/MW^2/h); nonzero makes the DC OPF a QP (dc_opf.solve_independent_qp).
+    cost_c2_per_mw2: float = 0.0
 
 
 @dataclass
@@ -97,25 +99,25 @@ def _branch_table_ids(net: pp.pandapowerNet) -> list[tuple[str, int]]:
     return ids  # type: ignore[return-value]
 
 
-def _costs(net: pp.pandapowerNet) -> dict[tuple[str, int], tuple[float, float]]:
-    """Linear generator costs ``(c1, c0)`` by ``(et, element)``; anything else is unsupported."""
+def _costs(net: pp.pandapowerNet) -> dict[tuple[str, int], tuple[float, float, float]]:
+    """Polynomial generator costs ``(c1, c0, c2)`` by ``(et, element)``; anything else is unsupported."""
     if len(net.pwl_cost):
         raise UnsupportedModel("piecewise-linear costs are not in the independent LP")
     costs: dict[tuple[str, int], tuple[float, float]] = {}
     for row in net.poly_cost.itertuples():
         if row.et not in ("gen", "ext_grid"):
             raise UnsupportedModel(f"cost on controllable {row.et} is not modelled")
-        if row.cp2_eur_per_mw2 != 0.0:
-            raise UnsupportedModel("quadratic costs make DC OPF a QP; the LP cross-check needs linear costs")
-        costs[(row.et, int(row.element))] = (float(row.cp1_eur_per_mw), float(row.cp0_eur))
+        if row.cp2_eur_per_mw2 < 0.0:
+            raise UnsupportedModel("a negative quadratic cost makes the DC OPF non-convex")
+        costs[(row.et, int(row.element))] = (float(row.cp1_eur_per_mw), float(row.cp0_eur), float(row.cp2_eur_per_mw2))
     return costs
 
 
 def build_dc_case(net: pp.pandapowerNet, with_costs: bool = True) -> DcCase:
     """Build the independent in-service DC model of ``net`` (not modified).
 
-    ``with_costs=False`` skips the cost model (sensitivities need only the network), so a
-    case with quadratic costs can still be analysed; generator costs are then zero.
+    ``with_costs=False`` skips the cost model (sensitivities need only the network);
+    generator costs are then zero.
 
     Why ``to_ppc(mode="opf")``: in ``"pf"`` mode pandapower writes a placeholder
     ``RATE_A = 100`` MVA for branches without ``max_loading_percent``
@@ -123,8 +125,8 @@ def build_dc_case(net: pp.pandapowerNet, with_costs: bool = True) -> DcCase:
     enforces (unlimited), so both formulations see the same limits.
 
     Raises:
-        UnsupportedModel: for controllable sgens/loads/storage, DC lines, quadratic or
-            piecewise costs, or a zero-reactance in-service branch.
+        UnsupportedModel: for controllable sgens/loads/storage, DC lines, piecewise or
+            negative-quadratic costs, or a zero-reactance in-service branch.
     """
     work = copy.deepcopy(net)
     for table in ("sgen", "load", "storage") if with_costs else ():
@@ -189,8 +191,8 @@ def build_dc_case(net: pp.pandapowerNet, with_costs: bool = True) -> DcCase:
             p_max = np.inf if np.isnan(p_max) else p_max
             if table == "gen" and not controllable:
                 p_min = p_max = float(row.p_mw) * float(row.get("scaling", 1.0))
-            c1, c0 = costs.get((table, int(element)), (0.0, 0.0))
-            generators.append(DcGenerator(table, int(element), ppc_bus_to_row[ppc_bus], p_min, p_max, c1, c0))
+            c1, c0, c2 = costs.get((table, int(element)), (0.0, 0.0, 0.0))
+            generators.append(DcGenerator(table, int(element), ppc_bus_to_row[ppc_bus], p_min, p_max, c1, c0, c2))
 
     ref_rows = [ppc_bus_to_row[int(v)] for v in np.flatnonzero(bus[:, BUS_TYPE] == REF) if int(v) in ppc_bus_to_row]
     return DcCase(

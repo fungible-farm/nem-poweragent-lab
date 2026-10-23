@@ -14,8 +14,8 @@ from powercoder.engineering.dc_opf import (
 )
 
 # Linear costs (EUR/MWh) for case9's ext_grid, gen 0 and gen 1. case9 ships quadratic
-# costs, which make DC OPF a QP the LP cross-check does not cover; distinct linear costs
-# give a unique merit order so dispatch and LMPs are unique and comparable.
+# costs (checked by the independent QP); distinct linear costs give a unique merit order
+# so the LP's dispatch and LMPs are unique and comparable.
 CASE9_LINEAR_COSTS: list[float] = [20.0, 30.0, 10.0]
 # Load multiplier that exceeds case9's total capacity (250 + 300 + 270 = 820 MW against
 # 315 MW of load): 5 x 315 = 1575 MW cannot be served, so the OPF is provably infeasible.
@@ -68,12 +68,38 @@ def test_an_infeasible_opf_is_proved_infeasible_not_solved(case9: pp.pandapowerN
 
 
 def test_without_an_independent_formulation_the_result_is_indeterminate(case9: pp.pandapowerNet) -> None:
-    """Quadratic costs: pandapower converges, but nothing proves it, so it is not solved."""
+    """Piecewise-linear costs: pandapower converges, but nothing proves it, so it is not solved."""
+    case9.poly_cost.drop(case9.poly_cost.index, inplace=True)
+    for et, element in (("ext_grid", 0), ("gen", 0), ("gen", 1)):
+        pp.create_pwl_cost(case9, element, et, [[0, 500, 20.0]])
     result = run_dc_opf(case9)
     assert not result["solved"]
     assert result["cross_check"]["status"] == "unavailable"
     assert result["proof"]["feasibility_status"] == "indeterminate"
     assert result["proof"]["optimality_gap_or_bound"] is None
+
+
+def test_quadratic_costs_are_checked_by_the_independent_qp(case9: pp.pandapowerNet) -> None:
+    """case9's native quadratic costs (0023): the QP's dispatch is unique, so it must match."""
+    result = run_dc_opf(case9)
+    cross = result["cross_check"]
+    assert result["solved"] and cross["status"] == "agree", cross["reason"]
+    assert cross["objective_rel_diff"] <= OBJECTIVE_REL_TOLERANCE
+    assert cross["max_dispatch_abs_diff_mw"] <= DISPATCH_ABS_TOLERANCE_MW
+    assert cross["max_lmp_abs_diff_eur_per_mwh"] <= LMP_ABS_TOLERANCE_EUR_PER_MWH
+
+
+def test_the_qp_solver_reproduces_the_lp_on_linear_costs(case9: pp.pandapowerNet) -> None:
+    """Same objective, dispatch and LMPs (so the same dual sign convention) when c2 = 0."""
+    from powercoder.engineering.dc_model import build_dc_case
+    from powercoder.engineering.dc_opf import solve_independent_lp, solve_independent_qp
+
+    case = build_dc_case(_linear_case9(case9))
+    lp, qp = solve_independent_lp(case), solve_independent_qp(case)
+    assert lp["status"] == qp["status"] == "optimal"
+    assert abs(lp["objective_eur_per_h"] - qp["objective_eur_per_h"]) <= OBJECTIVE_REL_TOLERANCE * abs(lp["objective_eur_per_h"])
+    assert max(abs(a - b) for a, b in zip(lp["dispatch_mw"], qp["dispatch_mw"])) <= DISPATCH_ABS_TOLERANCE_MW
+    assert max(abs(a - b) for a, b in zip(lp["lmp_eur_per_mwh"], qp["lmp_eur_per_mwh"])) <= LMP_ABS_TOLERANCE_EUR_PER_MWH
 
 
 @requires_snem

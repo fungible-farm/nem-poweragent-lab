@@ -24,6 +24,7 @@ dependencies = [
     "pypowsybl>=1.16.1; sys_platform != 'linux' or platform_machine != 'aarch64'",
     "rdflib>=7.6.0",
     "pyshacl>=0.40.1",
+    "highspy>=1.15.1",
 ]
 
 [dependency-groups]

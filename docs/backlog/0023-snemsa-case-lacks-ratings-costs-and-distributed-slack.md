@@ -1,6 +1,6 @@
 # 0023 — The SA case (snemSA) has no real branch ratings, one cost, and one slack
 
-- **Status:** open. Found 2026-10-23 while building the G2 tools (`powercoder/engineering/`, [0016](0016-g2-verified-engineering-mathematics.md)).
+- **Status:** **proposal 1 done** 2026-10-23 (below); proposals 2–3 open. Found 2026-10-23 while building the G2 tools (`powercoder/engineering/`, [0016](0016-g2-verified-engineering-mathematics.md)).
 - **Affects:**
   - G2's OPF and thermal checks, and G3's task generator ([0017](0017-g3-verifier-guided-investigative-learning.md));
   - any "outperform engineers" claim that relies on this network.
@@ -36,3 +36,23 @@ distributed reserve would.
    Never present invented values as data.
 3. **Use distributed slack** (pandapower `distributed_slack`, or a gen per island) for islanding
    studies, and report both conventions.
+
+## Proposal 1 done (2026-10-23): cases with limits and costs, measured
+`powercoder/engineering/cases.py` records each case's source, licence and measured
+suitability. The cases load from the already-fetched PowerAgentBench checkout. They are not in
+the evaluation's network enum, so prompts are unchanged.
+
+The G2 DC OPF needed one extension: **quadratic costs**, which IEEE 118 has, are now checked by an
+independent HiGHS QP (`dc_opf.solve_independent_qp`; `highspy` 1.15.1, MIT). Strictly convex
+costs make the dispatch unique. A test shows the QP reproduces the LP exactly on linear costs
+(same objective, dispatch and LMPs), which pins its dual sign. The "no independent formulation"
+test now uses piecewise costs.
+
+| Case | DC OPF | Thermal N-1 (exhaustive AC) | Use for |
+|---|---|---|---|
+| `ieee39-pab-stressed` (PowerAgentBench Level 1) | solved, cross-check agrees; 1 flow limit and 8 generator limits bind; LMPs 11.5–36.0 EUR/MWh | 31 of 46 outages add a thermal violation (max 175%) | **OPF, congestion and thermal tasks.** Costs are identical across units |
+| `ieee118-restorebench` | solved, QP agrees; only p_min binds; flat LMP 39.38 | none (ratings 16.6–41.4 kA; max 5.3%) | dispatch with varied costs, no congestion |
+| `pegase89-restorebench` | infeasible (HiGHS certifies) | 31 of 210, but 101 of 210 ratings are placeholders and the base case has 16 overloads | infeasibility and restoration tasks only |
+
+No available case has varied costs **and** binding ratings. IEEE 39 gives congestion and thermal
+signal; IEEE 118 gives cost-merit signal.
