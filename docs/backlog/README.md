@@ -27,7 +27,7 @@ research notes.
 | [0012](0012-answer-by-reference.md) | Idea: answer by reference (numbers rendered from cited tool output) | idea |
 | [0013](0013-sensitivity-newton-tool.md) | Idea: sensitivity/Newton tool with certificates; PCA and the one-interface generator dropped | absorbed into 0016 |
 | [0014](0014-grammar-engines-xgrammar-llguidance-gbnf.md) | Grammar engines: xgrammar kept in sync for vLLM; GBNF/llguidance for llama.cpp | decided |
-| [0015](0015-g1-typed-command-protocol-and-gateway.md) | PRD-0010 G1: typed command protocol (Rust IR, DSL) and policy gateway | open |
+| [0015](0015-g1-typed-command-protocol-and-gateway.md) | PRD-0010 G1: typed command protocol (Rust IR, DSL) and policy gateway | first step done (SOLVE/SIMULATE IR, byte-identical schema, DSL); 8 commands + gateway left |
 | [0016](0016-g2-verified-engineering-mathematics.md) | PRD-0010 G2: verified engineering mathematics (OPF, contingencies, sensitivities, state estimation, proof contract) | mostly done (DC/AC OPF, N-1/N-2, SE, V/Q); dynamics and short circuit left |
 | [0017](0017-g3-verifier-guided-investigative-learning.md) | PRD-0010 G3: verifier-guided learning (task generator, GRPO, distillation, search) | groundwork done (two-network pool, reward, bisection baseline); GRPO needs GPU |
 | [0018](0018-g4-cim-semantic-network-intelligence.md) | PRD-0010 G4: CIM/RDF/SHACL semantic network and versioned topology | mostly done (export, SHACL, CGMES vs pypowsybl, snapshots, bounded queries); switches and OWL left |

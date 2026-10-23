@@ -93,3 +93,8 @@ ac-analysis:
 # G3: a frozen pool of load-scale fits from snem-sa-2000 and snem-1803 (discovered elements), for the RL pilot (0017).
 procedural-pool dest per_network="50":
     uv run python -m powercoder.datasets.procedural --out-dir {{dest}} --per-network {{per_network}}
+
+# G1: the Rust command IR's tests, incl. byte-identity of its emitted schema with the served one (0015).
+command-ir-test:
+    cd rust && cargo test -p command-ir
+    uv run python -m pytest -q powercoder/inference/test_command_ir.py
