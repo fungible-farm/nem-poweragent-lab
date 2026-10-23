@@ -18,6 +18,7 @@ from typing import Any, TypedDict
 
 from powercoder.datasets.audit import load_rows
 from powercoder.inference.provenance import check as provenance_check
+from powercoder.inference.provenance import check_fields
 from powercoder.inference.compare_agents import compare, verified_run
 from training.unsloth.evaluate import (DOMAIN_IMPROVEMENT_THRESHOLD, FIT_SUBFAMILIES,
                                        REPORT_LOAD_TOL, REPORT_VOLT_TOL, score_answer, uncertainty)
@@ -28,6 +29,10 @@ from training.unsloth.evaluate import (DOMAIN_IMPROVEMENT_THRESHOLD, FIT_SUBFAMI
 # attempt's tool responses or prompt (provenance.py); v1 checked values only, so a
 # guessed or memorised value could pass. r4's v1 comparison files are unchanged.
 SCORER_VERSION: str = "solver-verified-traced-v2"
+# v3 (backlog 0010), reported alongside v2, which stays the headline so r6 comparisons
+# are unchanged: also requires the original tool evidence, and traces each number to
+# its own solver field or a tried scale (provenance.check_fields).
+SCORER_VERSION_V3: str = "solver-verified-field-traced-v3"
 NUMBER: str = r"([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)"
 # Use the existing documented tolerances, including exact discrete counts.
 REPORT_TOLERANCES: dict[str, float] = {
@@ -184,13 +189,27 @@ def rescore_run(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             raise ValueError("Scored answer disagrees with the actual model response")
         correct, evidence, diagnostics = score_numerical(task, answer)
         provenance = provenance_check(answer, events, task["task"].get("prompt", ""))
+        fields = check_fields(task, answer, events)
         results.append({"example_id": row["example_id"], "subfamily": task["subfamily"],
             "pass": completed and correct and provenance["traced"], "completed_attempt": completed,
             "untraced_numbers": provenance["untraced"],
+            "pass_v3": completed and correct and row["tool_evidence_pass"] and fields["traced"],
+            "untraced_v3": fields["reasons"],
             "strict_original_agent_pass": row["passed"], "tool_evidence_pass": row["tool_evidence_pass"],
             "answer": answer, "journal_sha256": row["journal_sha256"],
             "numerical_verification": evidence, "diagnostics": diagnostics})
     return summary, results
+
+
+def v3_comparison(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> dict[str, Any]:
+    """The v3 score of both runs, their delta and its paired interval (same method as v2)."""
+    as_v3 = lambda rows: [{"example_id": r["example_id"], "pass": r["pass_v3"]} for r in rows]
+    base, student = as_v3(first), as_v3(second)
+    base_rate, student_rate = sum(r["pass"] for r in base) / len(base), sum(r["pass"] for r in student) / len(student)
+    return {"scorer_version": SCORER_VERSION_V3, "base_n_pass": sum(r["pass"] for r in base),
+            "student_n_pass": sum(r["pass"] for r in student), "base_pass_at_1": base_rate,
+            "student_pass_at_1": student_rate, "delta_percentage_points": (student_rate - base_rate) * 100,
+            "uncertainty": uncertainty(base, student)}
 
 
 def compare_domain(base_dir: Path, student_dir: Path,
@@ -216,6 +235,7 @@ def compare_domain(base_dir: Path, student_dir: Path,
             "base_n_pass": sum(r["pass"] for r in first if r["subfamily"] == family),
             "student_n_pass": sum(r["pass"] for r in second if r["subfamily"] == family),
         } for family in sorted({r["subfamily"] for r in first})},
+        "v3": v3_comparison(first, second),
         "report_tolerances": REPORT_TOLERANCES, "base_results": first, "student_results": second,
         "g5_met": False, "g5_pending": "General Python regression and critical fabrication suites remain separate gates"}
 

@@ -89,3 +89,161 @@ def check(answer: str, events: list[dict[str, Any]], prompt: str) -> Provenance:
         if not any(abs(abs(source) - value) <= slack for source in sources):
             untraced.append(text)
     return {"numbers": printed, "untraced": untraced, "traced": not untraced}
+
+
+# ---------------------------------------------------------------------------
+# v3: field-level provenance (backlog 0010, review findings B4-B6).
+#
+# v2 (``check``) traces a number when it equals *any* number in the attempt's tool
+# responses or prompt. That accepted a schema limit or the case name's "2000" as a
+# violation count, ignored signs, split "1,039" in two, rejected truncation, and
+# passed an empty answer. v3 traces each labelled report value to its own solver
+# field, at no fewer decimals than the reference report prints; takes numbers only
+# from solver outputs (not the echoed request, the declared limits or the case
+# name); requires a fit's answer to be a scale that was actually tried; and fails
+# an answer with no numbers. ``check`` is unchanged, so r6 scores stay comparable.
+
+# A signed number, with thousands separators read as one number ("1,039" -> 1039).
+# A sign counts only where it cannot be a hyphen ("N-1", "snem-sa-2000").
+FIELD_NUMBER: re.Pattern[str] = re.compile(
+    r"(?<![\w.,])((?:(?<![\w-])-)?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][-+]?\d+)?)(?![\w])")
+# Labelled report values, in the reference wording (training trajectories and the benchmark's
+# report references), with the decimals that wording prints: voltages :.4f, loading :.2f.
+REPORT_FIELDS: tuple[tuple[str, re.Pattern[str], int], ...] = (
+    ("iterations", re.compile(r"converged in\s+(\S+)\s+iterations", re.I), 0),
+    ("min_bus_voltage_pu", re.compile(r"min(?:imum)? bus voltage\s*[=:]\s*(\S+?)\s*pu", re.I), 4),
+    ("max_bus_voltage_pu", re.compile(r"max(?:imum)? bus voltage\s*[=:]\s*(\S+?)\s*pu", re.I), 4),
+    ("max_line_loading_percent", re.compile(r"max(?:imum)? line loading\s*[=:]\s*(\S+?)\s*%", re.I), 2),
+    ("voltage_violations", re.compile(r"voltage violations\s*[=:]\s*(-?[\d,]+)", re.I), 0),
+)
+# Tool-response keys that are not solver outputs: the request echoed back, and declared limits.
+# A labelled report value must come from its own output field, never from these. An
+# unlabelled context number may cite a declared limit ("outside the 0.95-1.05 pu band")
+# or a prompt id: quoting them is not making a number up (r6b, 2026-10-23).
+NOT_OUTPUTS: frozenset[str] = frozenset({"study", "voltage_limit_pu", "thermal_limit_percent", "physical_scope"})
+DECLARED_LIMITS: frozenset[str] = frozenset({"voltage_limit_pu", "thermal_limit_percent"})
+# Markdown emphasis and code marks around a value ("**5**", "`39`").
+MARKUP: str = "*_`"
+CONTINGENCY_MENTION: re.Pattern[str] = re.compile(r"line\s+(\d+)\s+out of service", re.I)
+
+
+class FieldProvenance(TypedDict):
+    """v3 provenance: every number traced to a solver output field, a tried scale or the task's id."""
+
+    numbers: list[str]
+    untraced: list[str]
+    reasons: list[str]
+    traced: bool
+
+
+def parse_number(text: str) -> float:
+    """A printed number as a float, thousands separators removed."""
+    return float(text.replace(",", ""))
+
+
+def matches(text: str, source: float) -> bool:
+    """Does printed ``text`` equal ``source``, rounded or truncated to the digits it prints?"""
+    value = parse_number(text)
+    unit = 2 * printed_tolerance(text.replace(",", "").lstrip("-"))
+    slack = RELATIVE_SLACK * max(1.0, abs(source))
+    rounded = abs(source - value) <= unit / 2 + slack
+    truncated = 0 <= (source - value) * (1 if value >= 0 else -1) < unit + slack
+    return (value < 0) == (source < 0) and (rounded or truncated) if value else rounded
+
+
+def solver_outputs(events: list[dict[str, Any]]) -> tuple[dict[str, list[float]], list[float], list[float]]:
+    """Output fields (by name), all output numbers, and declared-limit numbers of successful responses."""
+    by_field: dict[str, list[float]] = {}
+    numbers: list[float] = []
+    limits: list[float] = []
+    for event in events:
+        if event["kind"] != "tool_response" or event["payload"]["result"].get("isError"):
+            continue
+        for content in event["payload"]["result"].get("content", []):
+            try:
+                observed = json.loads(content.get("text", ""))
+            except ValueError:
+                continue
+            data = observed.get("data") if isinstance(observed, dict) else None
+            if not isinstance(data, dict):
+                continue
+            for key, value in data.items():
+                if key in DECLARED_LIMITS:
+                    limits += json_numbers(value)
+                if key in NOT_OUTPUTS:
+                    continue
+                found = json_numbers(value)
+                by_field.setdefault(key, []).extend(found)
+                numbers += found
+    return by_field, numbers, limits
+
+
+def tried_scales(events: list[dict[str, Any]]) -> list[float]:
+    """Every ``scale`` the attempt sent to ``run_study_trial``."""
+    scales = []
+    for event in events:
+        if event["kind"] == "tool_request" and event["payload"]["function"]["name"] == "run_study_trial":
+            arguments = json.loads(event["payload"]["function"]["arguments"] or "{}")
+            if isinstance(arguments.get("scale"), (int, float)) and not isinstance(arguments["scale"], bool):
+                scales.append(float(arguments["scale"]))
+    return scales
+
+
+def check_fields(task: dict[str, Any], answer: str, events: list[dict[str, Any]]) -> FieldProvenance:
+    """v3 provenance (see the block comment above).
+
+    Args:
+        task: The benchmark row (its ``subfamily`` and ``task.inputs``).
+        answer: The attempt's final answer.
+        events: The attempt's journal.
+
+    Returns:
+        The numbers found, those that did not trace, why, and whether all traced.
+    """
+    inputs = task["task"].get("inputs", {})
+    text = answer.replace(str(inputs.get("case", "\0")), " ").replace("N-1", " ")
+    text = "".join(" " if char in MARKUP else char for char in text)
+    by_field, outputs, limits = solver_outputs(events)
+    context = outputs + limits + [float(n) for n in SOURCE_NUMBER.findall(task["task"].get("prompt", ""))]
+    numbers, untraced, reasons = [], [], []
+    claimed: list[tuple[int, int]] = []
+
+    def fail(printed: str, reason: str) -> None:
+        untraced.append(printed)
+        reasons.append(f"{printed}: {reason}")
+
+    if task["subfamily"] == "pf-report":
+        for name, pattern, decimals in REPORT_FIELDS:
+            for match in pattern.finditer(text):
+                printed = match.group(1).rstrip(".,;")
+                claimed.append(match.span(1))
+                numbers.append(printed)
+                if not FIELD_NUMBER.fullmatch(printed):
+                    fail(printed, f"not a number for {name}")
+                elif len(printed.partition(".")[2]) < decimals:
+                    fail(printed, f"{name} printed with fewer than {decimals} decimals")
+                elif not any(matches(printed, source) for source in by_field.get(name, [])):
+                    fail(printed, f"no {name} output equals it")
+        for match in CONTINGENCY_MENTION.finditer(text):
+            claimed.append(match.span(1))
+            numbers.append(match.group(1))
+            if int(match.group(1)) != inputs.get("contingency_line"):
+                fail(match.group(1), f"the task's contingency is {inputs.get('contingency_line')}")
+    else:
+        scales = tried_scales(events)
+        for match in FIELD_NUMBER.finditer(text):
+            if any(matches(match.group(1), scale) for scale in scales):
+                claimed.append(match.span(1))
+                numbers.append(match.group(1))
+        if not claimed:
+            fail("", "a fit answer must include a scale this attempt tried")
+    for match in FIELD_NUMBER.finditer(text):
+        if any(start <= match.start(1) < end for start, end in claimed):
+            continue
+        printed = match.group(1)
+        numbers.append(printed)
+        if not any(matches(printed, source) for source in context):
+            fail(printed, "no solver output, declared limit or prompt id equals it")
+    if not numbers and not untraced:
+        fail("", "the answer contains no number")
+    return {"numbers": numbers, "untraced": untraced, "reasons": reasons, "traced": not untraced}

@@ -42,3 +42,77 @@ def test_digits_inside_evidence_hashes_do_not_trace() -> None:
     hashed = [{"kind": "tool_response", "payload": {"result": {"content": [{"type": "text", "text": json.dumps(
         {"evidence": {"input_hash": "sha256:146f5102"}})}]}}}]
     assert check("converged in 5 iterations", hashed, "")["untraced"] == ["5"]
+
+
+# --- v3, field-level provenance (backlog 0010): each reproduced case from the review --------------
+from powercoder.inference.provenance import check_fields  # noqa: E402
+
+REPORT_TASK: dict = {"subfamily": "pf-report", "task": {"prompt": PROMPT,
+                                                        "inputs": {"case": "snem-sa-2000", "contingency_line": 208}}}
+FIT_TASK: dict = {"subfamily": "pf-load-scale-fit", "task": {"prompt": "Find s in [0.9, 1.1] ...",
+                                                             "inputs": {"case": "snem-sa-2000"}}}
+
+
+def trial(scale: float) -> list[dict]:
+    """A run_study_trial request at ``scale`` and its response."""
+    request = {"kind": "tool_request", "payload": {"function": {"name": "run_study_trial", "arguments": json.dumps(
+        {"network_id": "snem-sa-2000", "operation": "load_scale", "scale": scale})}}}
+    response = {"kind": "tool_response", "payload": {"result": {"content": [{"type": "text", "text": json.dumps(
+        {"status": "constraint_violation", "data": {"study": {"scale": scale}, "metric": 0.95,
+                                                     "voltage_limit_pu": [0.95, 1.05]}})}]}}}
+    return [request, response]
+
+
+def test_v3_traces_the_reference_report_field_by_field() -> None:
+    result = check_fields(REPORT_TASK, ANSWER, SOLVED)
+    assert result["traced"], result["reasons"]
+    assert result["numbers"] == ["5", "0.9070", "1.0941", "2.66", "39", "208"]
+
+
+def test_v3_rejects_a_value_that_matches_some_number_but_not_its_own_field() -> None:
+    """Review B4: 'converged in 100 iterations, voltage violations = 2000' traced to a limit and the case name."""
+    answer = ANSWER.replace("in 5 iterations", "in 100 iterations").replace("violations = 39", "violations = 2000")
+    assert set(check_fields(REPORT_TASK, answer, SOLVED)["untraced"]) == {"100", "2000"}
+
+
+def test_v3_fails_the_same_report_without_a_tool_call() -> None:
+    assert not check_fields(REPORT_TASK, ANSWER, [])["traced"]
+
+
+def test_v3_keeps_signs_and_reads_thousands_separators() -> None:
+    assert "-0.9070" in check_fields(REPORT_TASK, ANSWER.replace("= 0.9070", "= -0.9070"), SOLVED)["untraced"]
+    assert check_fields(REPORT_TASK, ANSWER.replace("= 39.", "= 1,039."), SOLVED)["untraced"] == ["1,039"]
+
+
+def test_v3_accepts_truncation_but_not_fewer_digits_than_the_report_prints() -> None:
+    assert check_fields(REPORT_TASK, ANSWER.replace("0.9070", "0.9069"), SOLVED)["traced"]
+    reasons = check_fields(REPORT_TASK, ANSWER.replace("0.9070", "0.91"), SOLVED)["reasons"]
+    assert reasons == ["0.91: min_bus_voltage_pu printed with fewer than 4 decimals"]
+
+
+def test_v3_requires_the_tasks_contingency() -> None:
+    assert check_fields(REPORT_TASK, ANSWER.replace("line 208", "line 94"), SOLVED)["untraced"] == ["94"]
+
+
+def test_v3_fit_answer_must_be_a_tried_scale_not_the_interval_end() -> None:
+    """Review B5: the prompt's interval end (1.1) traced under v2."""
+    assert check_fields(FIT_TASK, "1.037500", trial(1.0375))["traced"]
+    assert not check_fields(FIT_TASK, "1.100000", trial(1.0375))["traced"]
+
+
+def test_v3_an_empty_answer_is_not_traced() -> None:
+    """Review B6: v2 traced an empty answer vacuously."""
+    assert not check_fields(REPORT_TASK, "", SOLVED)["traced"]
+    assert not check_fields(FIT_TASK, "", trial(1.0))["traced"]
+
+
+def test_v3_context_may_quote_declared_limits_and_markdown_is_ignored() -> None:
+    """r6b Qwen base: 'outside the 0.95-1.05 pu band' cites the tool's declared limits, not a made-up number."""
+    solved = json.loads(json.dumps(SOLVED))
+    payload = json.loads(solved[0]["payload"]["result"]["content"][0]["text"])
+    payload["data"]["voltage_limit_pu"] = [0.95, 1.05]
+    solved[0]["payload"]["result"]["content"][0]["text"] = json.dumps(payload)
+    answer = ANSWER.replace("in 5 iterations", "in **5** iterations") + " 39 buses are outside the 0.95-1.05 pu band."
+    assert check_fields(REPORT_TASK, answer, solved)["traced"]
+    # A limit still cannot stand in for a labelled field.
+    assert not check_fields(REPORT_TASK, ANSWER.replace("violations = 39", "violations = 0.95"), solved)["traced"]
