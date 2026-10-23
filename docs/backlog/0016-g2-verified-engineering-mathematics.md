@@ -51,3 +51,19 @@ blocked.
   observed fit that. The threshold is `LNR_THRESHOLD`, pandapower's default. A size-aware
   threshold is a choice to make deliberately, not a default to change silently.
 - **Unobservable is refused** (`observable = False`, `indeterminate`), never estimated.
+
+## AC power flow proof and V/Q sensitivities done (2026-10-23): `powercoder/engineering/ac_analysis.py`
+- **`ac_power_flow`** returns the proof contract: iterations, the Kirchhoff residual recomputed
+  from the result tables, every limit violation, and cond(J). snemSA: converged in 5 iterations,
+  residual 6.7e-9 MVA, cond(J) 3.4e7, `infeasible` (its 39 base voltage violations). case9:
+  feasible, cond(J) 59.
+- **`vq_sensitivity`** (dV/dQ from the reduced Jacobian) is cross-checked against an independent
+  central finite difference (±0.1 Mvar re-solves). It agrees to 1e-5 relative on case9 and 7e-9
+  on snemSA (tolerance 1e-3).
+- **`qv_modal`** (smallest reduced-Jacobian eigenvalue and participating buses): case9 +5.71.
+  **snemSA: two negative modes (−16.29, −13.59) at buses 1753–1755**, confirmed real in the
+  linearised model by perturbation (ΔQ along the left eigenvector moves V by ΔQ/λ along the
+  right one; correlation 0.9996). They sit at the ends of lines 293 and 294, the case's only
+  negative-reactance branches (x ≈ −63 Ω, series-compensation equivalents). The eigenvalue
+  criterion assumes inductive branches, so this is **flagged, not read as voltage
+  instability**.

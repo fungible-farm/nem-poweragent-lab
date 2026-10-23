@@ -85,3 +85,7 @@ judgement-suite dest:
 # The scripted procedure as an agent on a frozen suite (G0 baseline a): its ceiling on that suite.
 script-baseline tasks dest:
     uv run python -m powercoder.inference.script_baseline --tasks {{tasks}} --exclude {{split}} --out {{dest}}
+
+# G2 analyses on snem-sa-2000: AC power-flow proof, the Q-V mode, and dV/dQ at its top bus (finite-difference checked).
+ac-analysis:
+    uv run python -c "import json; from powercoder.inference import powermcp as pm; from powercoder.engineering.ac_analysis import ac_power_flow, qv_modal, vq_sensitivity; net,_=pm._load_network_object('snem-sa-2000'); p=ac_power_flow(net)['proof']; m=qv_modal(net); print(json.dumps({'feasibility': p['feasibility_status'], 'kcl_residual_mva': p['equation_residuals'], 'conditioning': p['conditioning'], 'qv_mode': m, 'dv_dq': vq_sensitivity(net, m['participating_buses'][0][0])}, indent=1, default=str))"
