@@ -116,9 +116,27 @@ Bisection baseline over v3 (median calls, range):
 | ieee118 | 6 (4–7), n=34 | 6 (5–7), n=16 |
 | pegase89 | 6 (4–7), n=34 | 6 (4–7), n=16 |
 
+## Operating points and pool v4 (2026-10-24)
+
+IR 0.3.0 adds an optional `load_level` to `run_study_trial`, in [0.9, 1.1] like `scale`: every
+load's P/Q times it before the study.
+- It is refused with `load_scale`, which already scales every load.
+- Omitted, responses are byte-identical, and the r6b replay is unchanged.
+- `relevant_evidence` requires a study at the task's own operating point; a test shows base-load
+  evidence is rejected.
+- The generator, fit checker and procedures compose it like an outage, and the prompt states
+  "with every load at L times its base value".
+
+Pool v4 (`procedural-pool-20261024-v4`) has 210 fits:
+- v3's 150 load-scale fits;
+- 30 line-rating and 30 gen-dispatch fits at operating points 0.92/0.96/1.04/1.08, on all three
+  pool networks.
+
+Elements are discovered per network: lines loaded at least 1%, and generator–transformer pairs
+whose loading is strictly monotone in dispatch with a span of at least 0.1%. The scripted procedure
+passes 210/210, and the pool audits clean against all six suites. r7 trains on trajectories v6,
+with the 0.3.0 tool block; its messages are identical to v5's.
+
 **Left, and why:**
 - **GRPO run and distillation:** need the GPU. They start from the r7 students, after
   `powercoder-r7-chain`.
-- **Operating points other than the base load:** the study tool has no load-level argument. A
-  different operating point would be a new tool argument, so a schema change and a retrain. Until
-  then, the networks and N-1 outages are the variation.
