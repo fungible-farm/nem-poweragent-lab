@@ -54,8 +54,13 @@
 3. **Superseded by [0026](0026-walkable-path-namespace-ls-get.md)** (walkable `ls`/`get` namespace, 2026-10-23); the
    graph stays the source of truth behind it. Original plan: `find_elements` with 3–5 named queries, deterministic tests against the graph and against
    pandapower's tables, and trajectories that use it on a bad id. Evaluate as its own arm.
-4. Find out what `bus_data` `x y` are (CSIRO dataset documentation) before any spatial query uses
-   them.
+4. ~~Find out what `bus_data` `x y` are~~ **(checked 2026-10-23).** They come from CSIRO's
+   `Data/original/XY Position.csv` (`BUS#,x,y`; the dataset is CC BY 4.0). The repository documents
+   neither their units nor their meaning. Measured over its 2,340 buses: all integers,
+   x −4058…3065, y −6670…7565. They are therefore **not latitude/longitude** (they fall outside
+   ±180/±90) and not a projected easting/northing for South Australia (those run to 10^5–10^6 m),
+   so they are most plausibly single-line-diagram layout positions. Use them for drawing (backlog
+   0004's symbolic single-line), never for distance or geography.
 
 ## Acceptance
 - **Smoke run:** a smoke run with the new tool has no attempt that guesses an id after a refusal
