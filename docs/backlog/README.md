@@ -41,11 +41,12 @@ research notes.
 | [0026](0026-walkable-path-namespace-ls-get.md) | Walkable path namespace: one grammar, `ls`/`get`, answers that cite paths (80/20 of 0027) | open, next |
 | [0027](0027-functional-data-virtualization-layer.md) | Functional data-virtualization layer: CIM-named, memoised, Arrow-queryable `/proc` for the grid | deferred |
 | [0028](0028-short-circuit-and-system-strength-tasks.md) | Short-circuit and system-strength (SCR proxy) tasks on snemSA, IEC 60909 via pandapower | blocked (no transmission case with short-circuit data; measured) |
-| [0029](0029-cgmes-round-trip-with-pypowsybl.md) | Check the G4 CIM export against pypowsybl's CGMES | open (tool review #2) |
+| [0029](0029-cgmes-round-trip-with-pypowsybl.md) | Check the G4 CIM export against pypowsybl's CGMES | done (not importable; AC agrees to 8.6e-4 pu; gaps listed) |
 | [0030](0030-nem-dispatch-reruns-with-nempy.md) | Re-run historical NEM dispatch with nempy | blocked (NEMWeb access) |
 | [0031](0031-openstef-short-term-forecasting.md) | OpenSTEF as G7's first forecasting engine | blocked (G5 data) |
 | [0032](0032-energnn-screening-surrogate.md) | EnerGNN as a screening ranker, never a source of reported numbers | deferred |
 | [0033](0033-study-workbook-audit.md) | Audit an engineer's study workbook: every number traced, re-derived or flagged (prototype 6/6 on seeded errors) | deferred (user: skip Excel, don't reinvent) |
+| [0034](0034-cgmes-conformant-g4-export.md) | Make the G4 export importable as CGMES: EQ/TP/SSH/SV profiles with headers | open |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
