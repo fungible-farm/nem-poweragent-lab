@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 
 from powercoder.inference import powermcp as pm
-from powercoder.inference.studies import IR_STUDY_SCHEMA, MAX_ITERATIONS, SCALE_MAX, SCALE_MIN, tool_schema
+from powercoder.inference.studies import (IR_STUDY_SCHEMA, LOAD_LEVEL_MAX, LOAD_LEVEL_MIN, MAX_ITERATIONS, SCALE_MAX,
+                                          SCALE_MIN, tool_schema)
 
 
 def test_the_served_study_schema_is_the_one_the_ir_emits() -> None:
@@ -19,3 +20,4 @@ def test_the_ir_schema_agrees_with_the_solver_it_fronts() -> None:
     assert props["network_id"]["enum"] == list(pm.SERVED_NETWORKS)
     assert (props["scale"]["minimum"], props["scale"]["maximum"]) == (SCALE_MIN, SCALE_MAX)
     assert props["max_iter"]["maximum"] == MAX_ITERATIONS
+    assert (props["load_level"]["minimum"], props["load_level"]["maximum"]) == (LOAD_LEVEL_MIN, LOAD_LEVEL_MAX)

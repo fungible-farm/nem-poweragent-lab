@@ -109,6 +109,9 @@ def relevant_evidence(task: dict[str, Any], answer: str, events: list[dict[str, 
                 continue
             if study.get("contingency_line") != inputs.get("contingency_line"):
                 continue
+            # The operating point must be the task's too (IR 0.3.0; absent means the base load).
+            if study.get("load_level") != inputs.get("load_level"):
+                continue
             if task["subfamily"] == "pf-report":
                 if study.get("operation") == "none" and data.get("converged"):
                     return True

@@ -238,6 +238,17 @@ def with_outage(modifier: Modifier, line: int | None) -> Modifier:
     return mod
 
 
+def with_load_level(modifier: Modifier, level: float | None) -> Modifier:
+    """``modifier`` applied at an operating point: every load times ``level`` first (identity for None)."""
+    if level is None:
+        return modifier
+
+    def mod(base: pp.pandapowerNet, s: float) -> pp.pandapowerNet:
+        return modifier(scale_loads(base, level), s)
+
+    return mod
+
+
 def _make_evaluate(case: str, modifier: Modifier, reader: Reader) -> Callable[[float], float]:
     """Build evaluate(s) -> metric: a fresh scaled net, a real pp.runpp, then
     the reader. This is the real-solver `evaluate` that bisection_fit drives."""
@@ -359,8 +370,9 @@ def fit_prompt(subfamily: str, inputs: dict[str, Any], wording: str = CURRENT_WO
                 f"'{case}' such that the {METRIC_NAMES[subfamily]} equals {goal}")
     if wording != "v2":
         raise ValueError(f"Unknown prompt wording {wording!r}")
-    outage = inputs.get("contingency_line")
-    where = f"'{case}'" + (f" with line {outage} out of service (N-1 contingency)" if outage is not None else "")
+    outage, level = inputs.get("contingency_line"), inputs.get("load_level")
+    where = f"'{case}'" + (f" with line {outage} out of service (N-1 contingency)" if outage is not None else "") + (
+        f" with every load at {level} times its base value" if level is not None else "")
     ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
     scaled, observed = {
         "pf-load-scale-fit": ("every load's active and reactive demand", f"voltage at bus {ids[-1]}"),
@@ -379,6 +391,7 @@ def _gen_fit_example(
     base_seed: int,
     cache: EndpointCache,
     contingency_line: int | None = None,
+    load_level: float | None = None,
 ) -> dict[str, Any]:
     """Generate one fit-family example: pick an element (seeded), derive a
     target inside its measured endpoint range (seeded), fit with real
@@ -419,6 +432,12 @@ def _gen_fit_example(
         # all run with the line out, and the cache key keeps it apart from the intact fit.
         spec.modifier = with_outage(spec.modifier, contingency_line)
         spec.element_key = (*spec.element_key, "N-1", contingency_line)
+    if load_level is not None:
+        if subfamily == "pf-load-scale-fit":
+            raise ValueError("a load-scale fit already scales every load; it has no separate operating point")
+        # The operating point is applied before the outage and the fit's own modification, as the tool does.
+        spec.modifier = with_load_level(spec.modifier, load_level)
+        spec.element_key = (*spec.element_key, "level", load_level)
 
     # Endpoint metrics (cached per element): the metric at SCALE_LO, at the
     # base case (s=1.0), and at SCALE_HI. The metric is monotonic in s
@@ -469,6 +488,8 @@ def _gen_fit_example(
     }
     if contingency_line is not None:
         task_inputs["contingency_line"] = contingency_line
+    if load_level is not None:
+        task_inputs["load_level"] = load_level
     prompt = fit_prompt(subfamily, task_inputs)
 
     run = _run_fit(spec, target, tol)

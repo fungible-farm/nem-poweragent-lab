@@ -48,7 +48,7 @@ fn lift_inverts_lower_and_applies_the_tools_static_rules() {
     use serde_json::json;
 
     for dsl in ["SOLVE snem-sa-2000 OUTAGE 94", "SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985",
-                "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985", "SIMULATE snem-1803 line_rating 1.05 ELEMENT 7 OBSERVE 7"] {
+                "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985", "SIMULATE snem-1803 line_rating 1.05 ELEMENT 7 OBSERVE 7", "SIMULATE ieee118 line_rating 1.05 ELEMENT 7 OBSERVE 7 LEVEL 1.04"] {
         let command = parse(dsl).unwrap();
         assert_eq!(lift(&command.lower().unwrap()).unwrap(), command, "{dsl}");
     }
@@ -75,6 +75,11 @@ fn lift_inverts_lower_and_applies_the_tools_static_rules() {
         let ok = why.ends_with("ok");
         assert_eq!(lift(&bad).is_ok(), ok, "{why}");
     }
+    let level = |op: &str, l: f64| json!({"network_id": "ieee118", "operation": op, "scale": 1.05, "element_id": 3,
+        "observation": if op == "line_rating" { "line_loading" } else { "bus_voltage" }, "observation_id": 3, "max_iter": 50, "load_level": l});
+    assert!(lift(&level("line_rating", 1.04)).is_ok(), "an operating point for a rating fit");
+    assert!(lift(&level("line_rating", 1.3)).is_err(), "load_level out of range");
+    assert!(lift(&level("load_scale", 1.04)).is_err(), "load_scale already scales every load");
     let mismatch = json!({"network_id": "snem-sa-2000", "operation": "line_rating", "scale": 1.0, "element_id": 3,
                           "observation": "bus_voltage", "observation_id": 3, "max_iter": 50});
     assert!(lift(&mismatch).is_err(), "line_rating must observe line_loading");

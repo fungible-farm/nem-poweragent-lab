@@ -107,3 +107,16 @@ def test_a_modification_names_what_it_still_needs(operation: str, missing: set[s
 def test_load_scale_needs_no_element_id() -> None:
     result = trial(element_id=None)
     assert result.data["metric_valid"] and "element_id" not in result.data["study"]
+
+
+def test_load_level_sets_the_operating_point_and_is_refused_with_load_scale() -> None:
+    """IR 0.3.0: every load times load_level before the study; omitted, nothing changes."""
+    base = run_study_trial(network_id="ieee39", operation="none", max_iter=50)
+    heavier = run_study_trial(network_id="ieee39", operation="none", max_iter=50, load_level=1.08)
+    assert "operating_point" not in base.data and "load_level" not in base.data["study"]
+    assert heavier.data["study"]["load_level"] == 1.08 and heavier.data["operating_point"].startswith("every load at 1.08")
+    assert heavier.data["min_bus_voltage_pu"] < base.data["min_bus_voltage_pu"]
+    refused = trial(load_level=1.04)
+    assert refused.status == pm.ExecutionStatus.EXECUTION_FAILURE and "already scales every load" in refused.error
+    out_of_range = run_study_trial(network_id="ieee39", operation="none", max_iter=50, load_level=1.5)
+    assert out_of_range.status == pm.ExecutionStatus.EXECUTION_FAILURE

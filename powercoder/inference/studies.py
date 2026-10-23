@@ -22,6 +22,10 @@ from powercoder.inference import powermcp as pm
 # Match the existing fitting task interval; cap solver effort for tool calls.
 SCALE_MIN: float = 0.9
 SCALE_MAX: float = 1.1
+# Operating point (IR 0.3.0, backlog 0017): every load times load_level before the study. The same
+# interval as scale, over which the served networks' discovered elements were checked to solve.
+LOAD_LEVEL_MIN: float = SCALE_MIN
+LOAD_LEVEL_MAX: float = SCALE_MAX
 MAX_ITERATIONS: int = 100
 # How many de-energized bus ids a response lists (the count is always given);
 # matches run_power_flow's violating_bus_ids cap.
@@ -98,7 +102,7 @@ def unknown_element(role: str, element_id: int, index: Any, kind: str) -> ValueE
 def run_study_trial(
     network_id: str, operation: str, scale: float | None = None, element_id: int | None = None,
     observation: str | None = None, observation_id: int | None = None, max_iter: int | None = None,
-    contingency_line: int | None = None,
+    contingency_line: int | None = None, load_level: float | None = None,
 ) -> pm.PowerMCPResult:
     """Apply one explicit perturbation and measure a real, independently solved network.
 
@@ -112,6 +116,10 @@ def run_study_trial(
     Requiring them made a model invent an id the task never named (r6b Qwen student: bus 999,
     then 1, 2, 3, ...). Unused arguments that are sent are accepted and ignored. A call with
     every argument echoes and answers exactly as before.
+
+    ``load_level`` (IR 0.3.0) sets the operating point: every load's P/Q times it before the
+    study. It is refused with ``load_scale``, which already scales every load. Omitted, the base
+    load is studied and the response is byte-identical to 0.2.0.
     """
     arguments = {k: v for k, v in locals().items() if v is not None or k == "contingency_line"}
     start = time.monotonic()
@@ -126,6 +134,12 @@ def run_study_trial(
             missing.append("observation")
         if missing:
             raise ValueError(f"operation={operation} requires {', '.join(missing)}")
+        if load_level is not None:
+            if isinstance(load_level, bool) or not isinstance(load_level, (float, int)) or not math.isfinite(load_level) \
+                    or not LOAD_LEVEL_MIN <= load_level <= LOAD_LEVEL_MAX:
+                raise ValueError("load_level must be finite and within the declared interval")
+            if operation == "load_scale":
+                raise ValueError("load_scale already scales every load; omit load_level")
         scale = 1.0 if scale is None else scale
         if isinstance(scale, bool) or not isinstance(scale, (float, int)) or not math.isfinite(scale) or not SCALE_MIN <= scale <= SCALE_MAX:
             raise ValueError("scale must be finite and within the declared interval")
@@ -143,6 +157,8 @@ def run_study_trial(
         if operation == "none" and scale != 1.0:
             raise ValueError("operation=none requires scale=1")
         net, case_hash = pm._load_network_object(network_id)
+        if load_level is not None:
+            net.load.loc[:, ["p_mw", "q_mvar"]] *= load_level
         observes = observation_id is not None
         if observes:
             table, column = {"bus_voltage": ("res_bus", "vm_pu"), "line_loading": ("res_line", "loading_percent"), "trafo_loading": ("res_trafo", "loading_percent")}[observation]
@@ -193,6 +209,8 @@ def run_study_trial(
             "thermal_limit_percent": THERMAL_LIMIT_PERCENT,
             "physical_scope": "bus voltage band and line/transformer nameplate loading only",
         }
+        if load_level is not None:
+            data["operating_point"] = f"every load at {load_level} times its base value"
         if not observes:
             # A network-wide report observes no element: no metric fields at all, rather
             # than metric_valid=false, which reads as a failed study.

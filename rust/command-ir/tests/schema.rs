@@ -18,7 +18,7 @@ fn emitted_schema_is_byte_identical_to_the_served_one() {
 
 #[test]
 fn a_report_sends_no_placeholder_element_or_observation() {
-    let report = Command::Solve(Solve { network: "snem-sa-2000".into(), contingency_line: Some(94), observe: None, max_iter: 50 });
+    let report = Command::Solve(Solve { network: "snem-sa-2000".into(), contingency_line: Some(94), observe: None, max_iter: 50, load_level: None });
     assert_eq!(to_python_json(&report.lower().unwrap()),
                r#"{"network_id": "snem-sa-2000", "operation": "none", "contingency_line": 94, "max_iter": 50}"#);
     let observed = Command::Solve(Solve { observe: Some((Observation::BusVoltage, 985)),
@@ -29,7 +29,7 @@ fn a_report_sends_no_placeholder_element_or_observation() {
 #[test]
 fn simulate_observes_what_its_modification_moves_and_refuses_bad_scales() {
     let ok = Command::Simulate(Simulate { network: "snem-1803".into(), modification: Modification::LineRating, scale: 1.05,
-                                          element_id: Some(7), observation_id: 7, contingency_line: None, max_iter: 50 });
+                                          element_id: Some(7), observation_id: 7, contingency_line: None, max_iter: 50, load_level: None });
     assert!(to_python_json(&ok.lower().unwrap()).contains(r#""observation": "line_loading""#));
     let bad = Command::Simulate(Simulate { scale: 1.2, ..match ok.clone() { Command::Simulate(s) => s, _ => unreachable!() } });
     assert_eq!(bad.lower(), Err(IrError::ScaleOutOfRange(1.2)));
@@ -42,7 +42,7 @@ fn simulate_observes_what_its_modification_moves_and_refuses_bad_scales() {
 #[test]
 fn the_dsl_compiles_to_the_ir_and_rejects_what_the_tool_would() {
     assert_eq!(parse("SOLVE snem-sa-2000 OUTAGE 94").unwrap(),
-               Command::Solve(Solve { network: "snem-sa-2000".into(), contingency_line: Some(94), observe: None, max_iter: 50 }));
+               Command::Solve(Solve { network: "snem-sa-2000".into(), contingency_line: Some(94), observe: None, max_iter: 50, load_level: None }));
     assert!(matches!(parse("SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985").unwrap(),
                      Command::Solve(Solve { observe: Some((Observation::BusVoltage, 985)), .. })));
     assert!(matches!(parse("SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985").unwrap(), Command::Simulate(_)));

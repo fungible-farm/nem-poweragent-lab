@@ -21,17 +21,21 @@ use serde_json::{json, Map, Value};
 use std::fmt;
 
 /// IR version; bump on any change to command shape or lowering.
-pub const IR_VERSION: &str = "0.2.0";
+pub const IR_VERSION: &str = "0.3.0";
 /// The study tool's scale interval (`studies.SCALE_MIN`/`SCALE_MAX`).
 pub const SCALE_MIN: f64 = 0.9;
 pub const SCALE_MAX: f64 = 1.1;
 /// The study tool's solver-iteration cap (`studies.MAX_ITERATIONS`).
 pub const MAX_ITERATIONS: u32 = 100;
+/// The operating point's load multiplier interval (`studies.LOAD_LEVEL_MIN`/`MAX`): the same interval
+/// as `scale`, over which every served network's discovered elements were checked to solve.
+pub const LOAD_LEVEL_MIN: f64 = 0.9;
+pub const LOAD_LEVEL_MAX: f64 = 1.1;
 /// Iterations the trained procedure asks for (`trajectories.TRIAL_MAX_ITER`).
 pub const DEFAULT_MAX_ITER: u32 = 50;
 
 /// The served tool description, verbatim (`studies.tool_schema`); the fixture test guards it.
-pub const STUDY_TRIAL_DESCRIPTION: &str = "Run one fresh Newton-Raphson AC trial. Every response reports the network-wide results: convergence, iterations, min/max bus voltage, max line and transformer loading, and voltage violations. Use operation=none for base-case and N-1 reports; a report needs only network_id, max_iter and, for N-1, contingency_line. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. A modification needs scale, observation and observation_id; line_rating and gen_dispatch also need element_id, the modified line/generator. Use only ids the task or a tool response gave you. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. Returns actual measurements, not a fitted answer. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.";
+pub const STUDY_TRIAL_DESCRIPTION: &str = "Run one fresh Newton-Raphson AC trial. Every response reports the network-wide results: convergence, iterations, min/max bus voltage, max line and transformer loading, and voltage violations. Use operation=none for base-case and N-1 reports; a report needs only network_id, max_iter and, for N-1, contingency_line. load_scale multiplies ALL loads' P/Q and observes bus_voltage; line_rating scales one line max_i_ka and observes line_loading; gen_dispatch scales one generator P and observes trafo_loading. A modification needs scale, observation and observation_id; line_rating and gen_dispatch also need element_id, the modified line/generator. Use only ids the task or a tool response gave you. Omit contingency_line (or pass null) for the intact network; an integer takes that line out of service, and 0 is a real line. load_level sets the operating point: every load's P/Q times load_level before the study (omit it for the base load; not with load_scale, which already scales every load). Returns actual measurements, not a fitted answer. status=constraint_violation with metric_valid=true is still a usable measurement: compare voltage_violations with base_case_voltage_violations, which the unmodified case already has.";
 
 /// Networks the study tool serves, in its enum order (`powermcp.SERVED_NETWORKS`: the CSIRO cases,
 /// pandapower's standard cases, then fixtures).
@@ -93,6 +97,8 @@ pub struct Solve {
     pub contingency_line: Option<u32>,
     pub observe: Option<(Observation, u32)>,
     pub max_iter: u32,
+    /// Operating point: every load times this before the study (IR 0.3.0); None is the base load.
+    pub load_level: Option<f64>,
 }
 
 /// One perturbation trial.
@@ -107,6 +113,8 @@ pub struct Simulate {
     pub observation_id: u32,
     pub contingency_line: Option<u32>,
     pub max_iter: u32,
+    /// Operating point (IR 0.3.0); never with load scaling, which already scales every load.
+    pub load_level: Option<f64>,
 }
 
 /// NEM regions with cached demand (``powercoder.forecasting.hindcast``).
@@ -186,6 +194,14 @@ fn check_common(network: &str, max_iter: u32) -> Result<(), IrError> {
     Ok(())
 }
 
+fn check_load_level(level: Option<f64>) -> Result<(), IrError> {
+    match level {
+        Some(l) if !(l.is_finite() && (LOAD_LEVEL_MIN..=LOAD_LEVEL_MAX).contains(&l)) =>
+            Err(IrError::Invalid(format!("load_level {l} outside [{LOAD_LEVEL_MIN}, {LOAD_LEVEL_MAX}]"))),
+        _ => Ok(()),
+    }
+}
+
 impl Command {
     /// Check what the executors would refuse, before any call.
     pub fn validate(&self) -> Result<(), IrError> {
@@ -225,9 +241,16 @@ impl Command {
                 Ok(())
             }
             Command::Explain { claim } => if claim.trim().is_empty() { invalid("empty claim".into()) } else { Ok(()) },
-            Command::Solve(s) => check_common(&s.network, s.max_iter),
+            Command::Solve(s) => {
+                check_common(&s.network, s.max_iter)?;
+                check_load_level(s.load_level)
+            }
             Command::Simulate(s) => {
                 check_common(&s.network, s.max_iter)?;
+                check_load_level(s.load_level)?;
+                if s.modification == Modification::LoadScale && s.load_level.is_some() {
+                    return invalid("load_scale already scales every load; omit load_level".into());
+                }
                 if s.modification != Modification::LoadScale && s.element_id.is_none() {
                     return invalid(format!("{} requires element_id", s.modification.as_str()));
                 }
@@ -277,10 +300,11 @@ impl Command {
     pub fn lower(&self) -> Result<Value, IrError> {
         self.validate()?;
         let mut args = Map::new();
-        let (network, operation, scale, element_id, observe, contingency, max_iter) = match self {
-            Command::Solve(s) => (&s.network, "none", None, None, s.observe, s.contingency_line, s.max_iter),
+        let (network, operation, scale, element_id, observe, contingency, max_iter, level) = match self {
+            Command::Solve(s) => (&s.network, "none", None, None, s.observe, s.contingency_line, s.max_iter, s.load_level),
             Command::Simulate(s) => (&s.network, s.modification.as_str(), Some(s.scale), s.element_id,
-                                     Some((s.modification.observation(), s.observation_id)), s.contingency_line, s.max_iter),
+                                     Some((s.modification.observation(), s.observation_id)), s.contingency_line, s.max_iter,
+                                     s.load_level),
             other => return Err(IrError::Invalid(format!("{} does not lower to run_study_trial", other.name()))),
         };
         // An argument the operation does not use is left out, never filled with a placeholder.
@@ -300,6 +324,9 @@ impl Command {
             args.insert("contingency_line".into(), json!(line));
         }
         args.insert("max_iter".into(), json!(max_iter));
+        if let Some(level) = level {
+            args.insert("load_level".into(), json!(level));
+        }
         Ok(Value::Object(args))
     }
 }
@@ -326,7 +353,8 @@ pub fn study_trial_schema() -> Value {
                     "observation": {"type": "string", "enum": observations},
                     "observation_id": {"type": "integer"},
                     "contingency_line": {"type": ["integer", "null"]},
-                    "max_iter": {"type": "integer", "minimum": 1, "maximum": MAX_ITERATIONS}
+                    "max_iter": {"type": "integer", "minimum": 1, "maximum": MAX_ITERATIONS},
+                    "load_level": {"type": "number", "minimum": LOAD_LEVEL_MIN, "maximum": LOAD_LEVEL_MAX}
                 },
                 "required": ["network_id", "operation", "max_iter"]
             }
@@ -366,8 +394,8 @@ pub fn to_python_json(value: &Value) -> String {
 pub fn lift(args: &Value) -> Result<Command, IrError> {
     let invalid = |m: &str| IrError::Invalid(m.to_string());
     let obj = args.as_object().ok_or_else(|| invalid("arguments are not an object"))?;
-    const PROPERTIES: [&str; 8] =
-        ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "contingency_line", "max_iter"];
+    const PROPERTIES: [&str; 9] = ["network_id", "operation", "scale", "element_id", "observation", "observation_id",
+                                   "contingency_line", "max_iter", "load_level"];
     if let Some(extra) = obj.keys().find(|k| !PROPERTIES.contains(&k.as_str())) {
         return Err(IrError::Invalid(format!("unknown property {extra}")));
     }
@@ -391,6 +419,9 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
         Some(obj.get("scale").filter(|v| v.is_number()).and_then(Value::as_f64).ok_or_else(|| invalid("scale must be a number"))?)
     } else { None };
     // element_id is accepted and ignored where the operation does not use it, as the tool does.
+    let load_level = if present("load_level") {
+        Some(obj.get("load_level").filter(|v| v.is_number()).and_then(Value::as_f64).ok_or_else(|| invalid("load_level must be a number"))?)
+    } else { None };
     let element_id = optional_id("element_id")?;
     let observation_id = optional_id("observation_id")?;
     let max_iter = id("max_iter")?;
@@ -407,7 +438,7 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
             (None, Some(_)) => return Err(invalid("operation=none requires observation with observation_id")),
             _ => None,
         };
-        Command::Solve(Solve { network, contingency_line, observe, max_iter })
+        Command::Solve(Solve { network, contingency_line, observe, max_iter, load_level })
     } else {
         let modification = match operation {
             "load_scale" => Modification::LoadScale,
@@ -421,7 +452,7 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
             return Err(IrError::Invalid(format!("{operation} observes {}", modification.observation().as_str())));
         }
         let element_id = if modification == Modification::LoadScale { None } else { element_id };
-        Command::Simulate(Simulate { network, modification, scale, element_id, observation_id, contingency_line, max_iter })
+        Command::Simulate(Simulate { network, modification, scale, element_id, observation_id, contingency_line, max_iter, load_level })
     };
     command.validate()?;
     Ok(command)
@@ -430,7 +461,7 @@ pub fn lift(args: &Value) -> Result<Command, IrError> {
 /// Parse the textual DSL into a command.
 ///
 /// ```text
-/// SOLVE <network> [OUTAGE <line>] [OBSERVE <bus_voltage|line_loading|trafo_loading> <id>] [MAXITER <n>]
+/// SOLVE <network> [OUTAGE <line>] [OBSERVE <bus_voltage|line_loading|trafo_loading> <id>] [MAXITER <n>] [LEVEL <x>]
 /// SIMULATE <network> <load_scale|line_rating|gen_dispatch> <scale> [ELEMENT <id>] OBSERVE <id>
 ///          [OUTAGE <line>] [MAXITER <n>]
 /// ```
@@ -447,6 +478,10 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
     let network = words.get(1).ok_or_else(|| syntax("missing network"))?.to_string();
     let outage = match value_after("OUTAGE") { Some(w) => Some(number(w, "OUTAGE")?), None => None };
     let max_iter = match value_after("MAXITER") { Some(w) => number(w, "MAXITER")?, None => DEFAULT_MAX_ITER };
+    let load_level = match value_after("LEVEL") {
+        Some(w) => Some(w.ok_or_else(|| syntax("LEVEL needs a value"))?.parse::<f64>().map_err(|_| syntax("LEVEL must be a number"))?),
+        None => None,
+    };
     let command = match words.first().map(|w| w.to_ascii_uppercase()) {
         Some(ref verb) if verb == "SOLVE" => {
             let observe = match keyword("OBSERVE") {
@@ -458,7 +493,7 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
                     Some((observation, number(words.get(i + 2), "OBSERVE")?))
                 }
             };
-            Command::Solve(Solve { network, contingency_line: outage, observe, max_iter })
+            Command::Solve(Solve { network, contingency_line: outage, observe, max_iter, load_level })
         }
         Some(ref verb) if verb == "SIMULATE" => {
             let kind = words.get(2).ok_or_else(|| syntax("SIMULATE needs a modification"))?;
@@ -470,7 +505,7 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
             let element_id = match value_after("ELEMENT") { Some(w) => Some(number(w, "ELEMENT")?), None => None };
             let observation_id = number(value_after("OBSERVE").flatten(), "OBSERVE")?;
             Command::Simulate(Simulate { network, modification, scale, element_id, observation_id,
-                                         contingency_line: outage, max_iter })
+                                         contingency_line: outage, max_iter, load_level })
         }
         Some(ref verb) if verb == "RECALL" => {
             // RECALL <region> FROM <t> TO <t> [ASOF <t>]   (ASOF defaults to TO)

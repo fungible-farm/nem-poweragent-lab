@@ -50,6 +50,15 @@ SAFE_LINES_PER_NETWORK: int = 20
 # prompt is coherent and solvable; the grader is the same. Every FREE_TEXT_EVERY-th fit, offset
 # from the open-interval ones.
 FREE_TEXT_EVERY: int = 4
+# Operating points (IR 0.3.0 load_level): rating and dispatch fits posed with every load at one of
+# these multiples of base, inside the tool's declared [0.9, 1.1]; a load-scale fit has none, since
+# it already scales every load. OPERATING_POINT_FITS of each kind per network.
+OPERATING_POINTS: tuple[float, ...] = (0.92, 0.96, 1.04, 1.08)
+OPERATING_POINT_FITS: int = 10
+# A line carries flow worth fitting above this loading; a rating fit moves its percent as 1/s.
+MIN_LINE_LOADING_PERCENT: float = 1.0
+# A dispatch fit's transformer loading must move at least this much (percent) over DISCOVERY_SCALES.
+MIN_TRAFO_SPAN_PERCENT: float = 0.1
 FREE_TEXT_TEMPLATES: tuple[str, ...] = (
     "On case '{case}'{outage}, by what factor between {lo} and {hi} must every load's active and reactive demand "
     "be multiplied for the voltage at bus {bus} to reach {target} pu, within {tol} pu? Reply with only that factor.",
@@ -120,6 +129,41 @@ def safe_outages(case: str) -> list[int]:
     return kept
 
 
+def discover_rating_lines(case: str) -> list[dict[str, Any]]:
+    """Lines carrying at least MIN_LINE_LOADING_PERCENT at base, most loaded first, as generate expects."""
+    net, _ = pm._load_network_object(case)
+    pm._runpp_counted(net, numba=True)
+    loading = net.res_line.loading_percent
+    kept = sorted((int(line) for line in net.line.index if float(loading[line]) >= MIN_LINE_LOADING_PERCENT),
+                  key=lambda line: -float(loading[line]))
+    return [{"line": line} for line in kept[:ELEMENTS_PER_NETWORK]]
+
+
+def discover_dispatch_pairs(case: str) -> list[dict[str, Any]]:
+    """(generator, transformer) pairs whose transformer loading is strictly monotone in the generator's dispatch."""
+    base, _ = pm._load_network_object(case)
+    pairs = []
+    for gen in base.gen.index:
+        curves: dict[int, list[float]] = {}
+        for scale in DISCOVERY_SCALES:
+            net, _ = pm._load_network_object(case)
+            net.gen.loc[gen, "p_mw"] *= scale
+            try:
+                pm._runpp_counted(net, numba=True)
+            except (pp.LoadflowNotConverged, FloatingPointError):
+                break
+            for trafo in net.trafo.index:
+                curves.setdefault(int(trafo), []).append(float(net.res_trafo.loading_percent[trafo]))
+        for trafo, values in curves.items():
+            if len(values) != len(DISCOVERY_SCALES):
+                continue
+            steps = [b - a for a, b in zip(values, values[1:])]
+            if (all(d > 0 for d in steps) or all(d < 0 for d in steps)) and abs(values[-1] - values[0]) >= MIN_TRAFO_SPAN_PERCENT:
+                pairs.append({"gen": int(gen), "trafo": trafo, "span": abs(values[-1] - values[0])})
+    pairs.sort(key=lambda p: -p["span"])
+    return pairs[:ELEMENTS_PER_NETWORK]
+
+
 def free_text(row: dict[str, Any], template: str) -> str:
     """A free-text prompt for a load-scale fit, rendered from its inputs."""
     inputs = row["task"]["inputs"]
@@ -155,6 +199,23 @@ def build(per_network: int = PER_NETWORK) -> tuple[list[dict[str, Any]], dict[st
                 made += 1
             if made == per_network:
                 break
+        # Rating and dispatch fits at operating points other than the base load.
+        import random
+
+        rng = random.Random(f"{PROCEDURAL_SEED}:{case}:operating-points")
+        for subfamily, elements in (("pf-line-rating-fit", discover_rating_lines(case)),
+                                    ("pf-gen-dispatch-fit", discover_dispatch_pairs(case))):
+            discovered[f"{case}:{subfamily}"] = len(elements)
+            made = 0
+            for i in range(OPERATING_POINT_FITS * 3):
+                if not elements or made == OPERATING_POINT_FITS:
+                    break
+                row = generate._gen_fit_example(subfamily, case, elements, i, PROCEDURAL_SEED, cache,
+                                                load_level=rng.choice(OPERATING_POINTS))
+                if row["lifecycle"]["status"] == "verified":
+                    row["lifecycle"]["split"] = "train"
+                    rows.append(row)
+                    made += 1
     return rows, discovered
 
 
@@ -188,11 +249,13 @@ def main() -> int:
             stream.write(json.dumps(row, allow_nan=False) + "\n")
     by_network = {case: sum(r["topology"] == case for r in rows) for case in NETWORKS}
     (args.out_dir / "manifest.json").write_text(json.dumps({
-        "pool": "procedural-load-scale-v3", "seed": PROCEDURAL_SEED, "n_tasks": len(rows), "by_network": by_network,
+        "pool": "procedural-v4", "seed": PROCEDURAL_SEED, "n_tasks": len(rows), "by_network": by_network,
         "held_out_networks": list(HELD_OUT_NETWORKS), "audited_against": audits,
         "open_interval": sum(r["task"]["inputs"].get("prompt_variant") == "open-interval" for r in rows),
         "free_text": sum(str(r["task"]["inputs"].get("prompt_variant", "")).startswith("free-text") for r in rows),
         "contingency": sum(r["task"]["inputs"].get("contingency_line") is not None for r in rows),
+        "operating_points": sum(r["task"]["inputs"].get("load_level") is not None for r in rows),
+        "by_subfamily": {name: sum(r["subfamily"] == name for r in rows) for name in sorted({r["subfamily"] for r in rows})},
         "discovered_elements": discovered, "examples_sha256": hashlib.sha256(examples.read_bytes()).hexdigest()},
         indent=2) + "\n")
     print(json.dumps({"tasks": len(rows), "by_network": by_network, "discovered_elements": discovered}))
