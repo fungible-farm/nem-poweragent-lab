@@ -1,8 +1,8 @@
 """Shared pytest fixtures for powercoder.semantic: the snem-sa-2000 network and its CIM graph.
 
-rdflib is required for every test here; pyshacl only for the SHACL tests. Both are optional
-project dependencies, so each test module calls ``pytest.importorskip``. Run with the ephemeral
-overlay ``uv run --with rdflib --with pyshacl python -m pytest -q powercoder/semantic``.
+rdflib is required for every test here; pyshacl only for the SHACL tests. Both are project
+dependencies; each test module still calls ``pytest.importorskip`` so a partial environment
+reports a skip rather than an import error.
 """
 from __future__ import annotations
 

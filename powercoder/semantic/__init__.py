@@ -23,9 +23,6 @@ docstring for exactly what is and is not represented.
 
 Licences (recorded at adoption, docs/PSCADOSSE.md policy):
 
-- ``rdflib`` -- BSD-3-Clause. Already present in ``uv.lock`` (7.6.0) as a transitive dependency of
-  ``linkml``, but not a direct project dependency.
-- ``pyshacl`` -- Apache-2.0. Not in the project venv; tests run it via an ephemeral overlay
-  (``uv run --with rdflib --with pyshacl python -m pytest -q powercoder/semantic``) and skip
-  cleanly when it is absent. Adopt with ``uv add rdflib pyshacl``.
+- ``rdflib`` -- BSD-3-Clause (7.6.0), a direct project dependency since 2026-10-23.
+- ``pyshacl`` -- Apache-2.0 (0.40.1), a direct project dependency since 2026-10-23.
 """

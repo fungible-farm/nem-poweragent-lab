@@ -22,6 +22,8 @@ dependencies = [
     "cyclonedx-python-lib>=11.12.0",
     "kiwisolver>=1.5.0",
     "pypowsybl>=1.16.1; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "rdflib>=7.6.0",
+    "pyshacl>=0.40.1",
 ]
 
 [dependency-groups]
