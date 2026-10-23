@@ -30,7 +30,7 @@ research notes.
 | [0015](0015-g1-typed-command-protocol-and-gateway.md) | PRD-0010 G1: typed command protocol (Rust IR, DSL) and policy gateway | open |
 | [0016](0016-g2-verified-engineering-mathematics.md) | PRD-0010 G2: verified engineering mathematics (OPF, contingencies, sensitivities, state estimation, proof contract) | mostly done (DC/AC OPF, N-1/N-2, SE, V/Q); dynamics and short circuit left |
 | [0017](0017-g3-verifier-guided-investigative-learning.md) | PRD-0010 G3: verifier-guided learning (task generator, GRPO, distillation, search) | open |
-| [0018](0018-g4-cim-semantic-network-intelligence.md) | PRD-0010 G4: CIM/RDF/SHACL semantic network and versioned topology | open |
+| [0018](0018-g4-cim-semantic-network-intelligence.md) | PRD-0010 G4: CIM/RDF/SHACL semantic network and versioned topology | mostly done (export, SHACL, CGMES vs pypowsybl, snapshots, bounded queries); switches and OWL left |
 | [0019](0019-g5-observations-and-weather.md) | PRD-0010 G5: SCADA, sparse PMU, data lake and weather | blocked (data access); synthetic path open |
 | [0020](0020-g6-autonomous-engineering-investigations.md) | PRD-0010 G6: autonomous engineering investigations | open |
 | [0021](0021-g7-probabilistic-forecasting.md) | PRD-0010 G7: probabilistic forecasting and leakage-free hindcasting | first step done (leakage-free harness, baselines on cached SA demand); real data blocked by G5 |

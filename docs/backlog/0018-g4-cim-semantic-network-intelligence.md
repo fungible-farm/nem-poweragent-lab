@@ -41,5 +41,10 @@ opened).
 - the CGMES export, checked against pypowsybl to 1.38e-5 pu (0029, 0034);
 - the walkable `ls`/`get` namespace, the typed query surface (0026).
 
-**Left:** `cim:Switch` objects and switch-derived TopologicalNodes; OWL/RDFS schema ingestion;
-query budgets beyond `ls` paging.
+**Query budgets done the same day** (`powercoder/semantic/queries.py`). There are named SPARQL
+templates only, with typed parameters bound through `initBindings` (never pasted into the text), a
+row budget (default 50, maximum 500), and the true total with `truncated` on every answer.
+`buses_at_voltage(275)` matches pandapower's 52 buses exactly. An injection-shaped string parameter
+is refused by type.
+
+**Left:** `cim:Switch` objects and switch-derived TopologicalNodes; OWL/RDFS schema ingestion.
