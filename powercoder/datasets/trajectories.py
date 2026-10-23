@@ -34,6 +34,10 @@ is genuine, followed by a one-line note and the correct procedure:
   measurement that names "line 0 out of service";
 - ``run_power_flow_contingency`` (FM-1/FM-9): an N-1 report through
   ``run_power_flow`` -> rejected, since it has no ``contingency_line``.
+- ``unknown_bus`` (r6b Qwen student, 2026-10-23): a report observing a bus
+  below the lowest id -> refused with an error naming the valid ids; the note
+  and the corrected call use the first id that error names. Every report
+  recovery row gets this variant as well as its other one.
 
 The final answer still comes only from the correct calls and passes
 ``grade()`` (which includes the no-made-up-numbers provenance check).
@@ -88,7 +92,17 @@ RECOVERY_NOTES: dict[str, str] = {
                          "so I omit contingency_line and start the search again."),
     "run_power_flow_contingency": ("run_power_flow has no contingency_line parameter; an N-1 report "
                                    'uses run_study_trial with operation="none".'),
+    # Filled from the injected call and its error (inject): the id written is
+    # the one the tool's response names, never one the script knows otherwise.
+    "unknown_bus": ("Bus {bad} does not exist in this network; the error names the valid ids, "
+                    "so I observe bus {valid}, the lowest."),
 }
+# A report's unknown_bus mistake observes one id below the lowest bus: below the
+# index's minimum, so it cannot exist in any case (r6b Qwen student sent 999,
+# under snem-sa-2000's lowest bus 985, on three report attempts).
+UNKNOWN_BUS_OFFSET: int = 1
+# Pulls the first id an unknown-element error names (studies.unknown_element).
+VALID_IDS_PATTERN: re.Pattern[str] = re.compile(r"ids are (\d+)")
 
 
 class Trajectory(TypedDict):
@@ -163,6 +177,15 @@ def first_bus(case: str) -> int:
     return int(min(net.bus.index))
 
 
+def extra_faults(row: dict[str, Any]) -> list[str]:
+    """Recovery variants a recovery row gets in addition to fault_for's.
+
+    Added rather than alternated, so every earlier trajectory is rebuilt
+    byte-identically and no measured failure loses examples.
+    """
+    return ["unknown_bus"] if row["subfamily"] == "pf-report" else []
+
+
 def fault_for(row: dict[str, Any], index: int) -> str:
     """The failure injected into a row's recovery variant (alternating for fits)."""
     if row["subfamily"] == "pf-report":
@@ -192,6 +215,19 @@ async def inject(conversation: Conversation, row: dict[str, Any], fault: str) ->
                          "element_id": ids[0], "observation": observation, "observation_id": ids[-1]}
         observed = await conversation.trial({**arguments, "contingency_line": "None", "max_iter": TRIAL_MAX_ITER})
         expected = "error" in observed
+    elif fault == "unknown_bus":
+        valid = first_bus(inputs["case"])
+        bad = valid - UNKNOWN_BUS_OFFSET
+        arguments = {"network_id": inputs["case"], "operation": "none", "scale": 1.0, "element_id": 0,
+                     "observation": "bus_voltage", "observation_id": bad, "max_iter": TRIAL_MAX_ITER}
+        if inputs.get("contingency_line") is not None:
+            arguments["contingency_line"] = inputs["contingency_line"]
+        observed = await conversation.trial(arguments)
+        named = VALID_IDS_PATTERN.search(str(observed.get("error") or ""))
+        # The recovery must use the id the response names, and that must be the
+        # bus report() then observes, or the trajectory teaches a guess.
+        expected = named is not None and int(named.group(1)) == valid
+        conversation.note = RECOVERY_NOTES[fault].format(bad=bad, valid=valid) if expected else None
     else:
         operation, observation = FIT_OPERATIONS[row["subfamily"]]
         ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
@@ -202,7 +238,8 @@ async def inject(conversation: Conversation, row: dict[str, Any], fault: str) ->
         expected = (observed.get("data") or {}).get("contingency") == "line 0 out of service"
     if not expected:
         raise RuntimeError(f"Injected {fault} did not produce its failure: {str(observed)[:200]}")
-    conversation.note = RECOVERY_NOTES[fault]
+    if conversation.note is None:
+        conversation.note = RECOVERY_NOTES[fault]
 
 
 async def report(conversation: Conversation, row: dict[str, Any]) -> str:
@@ -333,6 +370,8 @@ def main() -> int:
     selected = sorted((r for r in rows if r["subfamily"] not in SKIPPED_SUBFAMILIES), key=lambda r: r["example_id"])
     jobs: list[tuple[dict[str, Any], str | None]] = [(row, None) for row in selected]
     jobs += [(row, fault_for(row, index)) for index, row in enumerate(selected) if index % RECOVERY_EVERY == 0]
+    jobs += [(row, fault) for index, row in enumerate(selected) if index % RECOVERY_EVERY == 0
+             for fault in extra_faults(row)]
     journals = args.out_dir / "journals"
     journals.mkdir(parents=True)
     outcomes = asyncio.run(build_all(jobs, journals))
