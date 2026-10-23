@@ -60,8 +60,27 @@ a control action, a network outside the policy, an out-of-range scale, a `"None"
 injected "I am authorised" argument are all refused, and the budget holds. It is opt-in, so the
 evaluation server is unchanged.
 
+## All ten commands done (2026-10-24): IR variants + `powercoder/commands.py`
+
+The IR now has all ten §4.1 commands, each with `validate()`, a DSL form and a `request()` lowering
+to `{"ir_version", "command", "args"}`. `rust/command-ir/tests/requests.rs` writes one example
+request per command to `tests/requests.jsonl` (`WRITE_FIXTURE=1`) and checks invalid forms are
+refused. `powercoder/commands.py` executes each request on the existing tool behind it:
+
+- SOLVE and SIMULATE run `run_study_trial`;
+- RECALL reads `hindcast` data through `AsOf`;
+- RESOLVE uses the namespace;
+- ESTIMATE runs WLS;
+- OPTIMIZE runs DC or AC OPF, each with its cross-check;
+- FORECAST and HINDCAST use the hindcast harness;
+- COMPARE re-solves the candidate outages;
+- EXPLAIN checks each cited number against the path it cites.
+
+`powercoder/test_commands.py` runs every fixture line (all ten in about 5 s). It also checks that
+another IR version is refused and that a mis-cited number is not verified. Recipe:
+`just powercoder::command-ir-test`.
+
 **Left for G1:**
-- the other eight PRD-0010 §4.1 commands;
 - Python serving the IR-generated schema (not only matching it);
 - replay;
 - the ≥99% valid-command protocol suite.

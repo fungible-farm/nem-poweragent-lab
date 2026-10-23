@@ -1,0 +1,43 @@
+//! One DSL example per command, lowered to executor requests. The requests are a fixture the
+//! Python executor runs (`powercoder/commands.py`, `test_commands.py`), so the two sides stay in step.
+
+use command_ir::{parse, to_python_json};
+
+/// One example per PC-REQ-001 command.
+pub const EXAMPLES: [&str; 10] = [
+    "SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985",
+    "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985",
+    "RECALL SA1 FROM 2026-06-10T00:00 TO 2026-06-10T01:00 ASOF 2026-06-10T00:30",
+    "RESOLVE /case/snem-sa-2000/bus/985/vn_kv",
+    "ESTIMATE fixture-2bus-ok SEED 1",
+    "OPTIMIZE ieee39-pab-stressed DC",
+    "FORECAST SA1 MODEL seasonal-naive AT 2026-06-20T12:00 HORIZONS 1,12,48",
+    "HINDCAST SA1 HORIZONS 12,48 FROMDAY 20 EVERY 288",
+    "COMPARE snem-sa-2000 OUTAGES 94,9,97 BY max_line_loading",
+    "EXPLAIN Bus 985 is at 165 kV (/case/snem-sa-2000/bus/985/vn_kv).",
+];
+
+fn lowered() -> String {
+    let lines: Vec<String> = EXAMPLES.iter()
+        .map(|e| to_python_json(&parse(e).unwrap_or_else(|err| panic!("{e}: {err}")).request().unwrap()))
+        .collect();
+    lines.join("\n") + "\n"
+}
+
+#[test]
+fn every_command_lowers_to_the_committed_requests() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/requests.jsonl");
+    if std::env::var("WRITE_FIXTURE").is_ok() {
+        std::fs::write(path, lowered()).unwrap();
+    }
+    assert_eq!(lowered(), std::fs::read_to_string(path).unwrap());
+}
+
+#[test]
+fn invalid_commands_are_refused_before_execution() {
+    for bad in ["RECALL XX1 FROM 2026-06-10T00:00 TO 2026-06-10T01:00", "FORECAST SA1 MODEL oracle AT 2026-06-20T12:00 HORIZONS 1",
+                "FORECAST SA1 MODEL persistence AT 2026-06-20T12:00 HORIZONS 999", "OPTIMIZE nowhere AC",
+                "COMPARE snem-sa-2000 OUTAGES 1 BY max_line_loading", "RESOLVE case/x", "EXPLAIN    "] {
+        assert!(parse(bad).is_err(), "{bad} should be refused");
+    }
+}

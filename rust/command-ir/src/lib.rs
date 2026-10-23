@@ -103,17 +103,56 @@ pub struct Simulate {
     pub max_iter: u32,
 }
 
-/// A typed command.
+/// NEM regions with cached demand (``powercoder.forecasting.hindcast``).
+pub const REGIONS: [&str; 5] = ["NSW1", "QLD1", "SA1", "TAS1", "VIC1"];
+/// Forecasting baselines the harness serves (``hindcast.MODELS``).
+pub const FORECAST_MODELS: [&str; 3] = ["persistence", "seasonal-naive", "seasonal-naive-empirical-quantiles"];
+/// Networks with real limits and costs for OPTIMIZE (``engineering.cases``), besides the served ones.
+pub const OPTIMIZE_CASES: [&str; 3] = ["ieee39-pab-stressed", "ieee118-restorebench", "pegase89-restorebench"];
+/// The longest forecast horizon, in 5-minute intervals: one day.
+pub const MAX_HORIZON: u32 = 288;
+/// The most candidates one COMPARE may re-solve.
+pub const MAX_CANDIDATES: usize = 10;
+
+/// OPTIMIZE formulations (``dc_opf.run_dc_opf``, ``ac_opf.run_ac_opf``).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Formulation {
+    Dc,
+    Ac,
+}
+
+/// What COMPARE ranks candidate outages by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompareMetric {
+    MaxLineLoading,
+    MinBusVoltage,
+}
+
+/// A typed command: PRD-0010 PC-REQ-001's ten.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     Solve(Solve),
     Simulate(Simulate),
+    /// Observations as known at ``as_of`` (cached AEMO regional demand).
+    Recall { region: String, from: String, to: String, as_of: String },
+    /// A namespace path's value or children (``namespace.get``/``ls``).
+    Resolve { path: String },
+    /// WLS state estimation from synthetic measurements seeded by ``seed`` (G5 is blocked).
+    Estimate { network: String, seed: u64 },
+    Optimize { case: String, formulation: Formulation },
+    Forecast { region: String, model: String, issue_time: String, horizons: Vec<u32> },
+    /// Rolling-origin hindcast from ``start_day`` of the cached month, every ``every`` intervals.
+    Hindcast { region: String, horizons: Vec<u32>, start_day: u32, every: u32 },
+    Compare { network: String, candidate_lines: Vec<u32>, metric: CompareMetric },
+    /// Resolve every cited number in a claim against the path it cites.
+    Explain { claim: String },
 }
 
 /// Why a command was refused before reaching the tool.
 #[derive(Debug, PartialEq)]
 pub enum IrError {
     UnknownNetwork(String),
+    Invalid(String),
     ScaleOutOfRange(f64),
     MaxIterOutOfRange(u32),
     Syntax(String),
@@ -123,6 +162,7 @@ impl fmt::Display for IrError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             IrError::UnknownNetwork(n) => write!(f, "unknown network {n:?}; served: {NETWORKS:?}"),
+            IrError::Invalid(msg) => write!(f, "invalid: {msg}"),
             IrError::ScaleOutOfRange(s) => write!(f, "scale {s} outside [{SCALE_MIN}, {SCALE_MAX}]"),
             IrError::MaxIterOutOfRange(m) => write!(f, "max_iter {m} outside [1, {MAX_ITERATIONS}]"),
             IrError::Syntax(msg) => write!(f, "syntax: {msg}"),
@@ -141,9 +181,44 @@ fn check_common(network: &str, max_iter: u32) -> Result<(), IrError> {
 }
 
 impl Command {
-    /// Check what the schema (and `studies.run_study_trial`) would refuse, before any call.
+    /// Check what the executors would refuse, before any call.
     pub fn validate(&self) -> Result<(), IrError> {
+        let invalid = |m: String| Err(IrError::Invalid(m));
+        let iso = |t: &str| t.len() >= 16 && t.as_bytes()[4] == b'-' && t.as_bytes()[10] == b'T';
+        let horizons_ok = |h: &Vec<u32>| !h.is_empty() && h.iter().all(|x| (1..=MAX_HORIZON).contains(x));
         match self {
+            Command::Recall { region, from, to, as_of } => {
+                if !REGIONS.contains(&region.as_str()) { return invalid(format!("region {region} not in {REGIONS:?}")); }
+                if ![from, to, as_of].iter().all(|t| iso(t)) { return invalid("times must be ISO 8601 (YYYY-MM-DDTHH:MM)".into()); }
+                if from > to { return invalid("from is after to".into()); }
+                Ok(())
+            }
+            Command::Resolve { path } => if path.starts_with('/') { Ok(()) } else { invalid("a path starts with /".into()) },
+            Command::Estimate { network, .. } => check_common(network, DEFAULT_MAX_ITER),
+            Command::Optimize { case, .. } => {
+                if NETWORKS.contains(&case.as_str()) || OPTIMIZE_CASES.contains(&case.as_str()) { Ok(()) }
+                else { invalid(format!("case {case} is neither served nor in {OPTIMIZE_CASES:?}")) }
+            }
+            Command::Forecast { region, model, issue_time, horizons } => {
+                if !REGIONS.contains(&region.as_str()) { return invalid(format!("region {region} not in {REGIONS:?}")); }
+                if !FORECAST_MODELS.contains(&model.as_str()) { return invalid(format!("model {model} not in {FORECAST_MODELS:?}")); }
+                if !iso(issue_time) { return invalid("issue_time must be ISO 8601".into()); }
+                if !horizons_ok(horizons) { return invalid(format!("horizons must be 1..={MAX_HORIZON}")); }
+                Ok(())
+            }
+            Command::Hindcast { region, horizons, every, .. } => {
+                if !REGIONS.contains(&region.as_str()) { return invalid(format!("region {region} not in {REGIONS:?}")); }
+                if !horizons_ok(horizons) || *every == 0 { return invalid("horizons 1..=288 and every >= 1".into()); }
+                Ok(())
+            }
+            Command::Compare { network, candidate_lines, .. } => {
+                check_common(network, DEFAULT_MAX_ITER)?;
+                if !(2..=MAX_CANDIDATES).contains(&candidate_lines.len()) {
+                    return invalid(format!("2..={MAX_CANDIDATES} candidates"));
+                }
+                Ok(())
+            }
+            Command::Explain { claim } => if claim.trim().is_empty() { invalid("empty claim".into()) } else { Ok(()) },
             Command::Solve(s) => check_common(&s.network, s.max_iter),
             Command::Simulate(s) => {
                 check_common(&s.network, s.max_iter)?;
@@ -155,6 +230,39 @@ impl Command {
         }
     }
 
+    /// The command's name in the DSL.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Command::Solve(_) => "SOLVE", Command::Simulate(_) => "SIMULATE", Command::Recall { .. } => "RECALL",
+            Command::Resolve { .. } => "RESOLVE", Command::Estimate { .. } => "ESTIMATE", Command::Optimize { .. } => "OPTIMIZE",
+            Command::Forecast { .. } => "FORECAST", Command::Hindcast { .. } => "HINDCAST", Command::Compare { .. } => "COMPARE",
+            Command::Explain { .. } => "EXPLAIN",
+        }
+    }
+
+    /// The executor request: ``{"command": NAME, "args": {...}}``. SOLVE and SIMULATE carry the
+    /// `run_study_trial` arguments of [`Command::lower`]; the Python executor
+    /// (`powercoder/commands.py`) runs every command.
+    pub fn request(&self) -> Result<Value, IrError> {
+        self.validate()?;
+        let args = match self {
+            Command::Solve(_) | Command::Simulate(_) => self.lower()?,
+            Command::Recall { region, from, to, as_of } => json!({"region": region, "from": from, "to": to, "as_of": as_of}),
+            Command::Resolve { path } => json!({"path": path}),
+            Command::Estimate { network, seed } => json!({"network_id": network, "seed": seed}),
+            Command::Optimize { case, formulation } =>
+                json!({"case": case, "formulation": if *formulation == Formulation::Ac { "ac" } else { "dc" }}),
+            Command::Forecast { region, model, issue_time, horizons } =>
+                json!({"region": region, "model": model, "issue_time": issue_time, "horizons": horizons}),
+            Command::Hindcast { region, horizons, start_day, every } =>
+                json!({"region": region, "horizons": horizons, "start_day": start_day, "every": every}),
+            Command::Compare { network, candidate_lines, metric } => json!({"network_id": network, "candidate_lines": candidate_lines,
+                "metric": if *metric == CompareMetric::MinBusVoltage { "min_bus_voltage" } else { "max_line_loading" }}),
+            Command::Explain { claim } => json!({"claim": claim}),
+        };
+        Ok(json!({"ir_version": IR_VERSION, "command": self.name(), "args": args}))
+    }
+
     /// The `run_study_trial` arguments, in schema property order. `contingency_line` is
     /// omitted for the intact network, as the trained procedure omits it (FM-18).
     pub fn lower(&self) -> Result<Value, IrError> {
@@ -164,6 +272,7 @@ impl Command {
             Command::Solve(s) => (&s.network, "none", json!(1.0), 0, s.observation, s.observation_id, s.contingency_line, s.max_iter),
             Command::Simulate(s) => (&s.network, s.modification.as_str(), json!(s.scale), s.element_id, s.modification.observation(),
                                      s.observation_id, s.contingency_line, s.max_iter),
+            other => return Err(IrError::Invalid(format!("{} does not lower to run_study_trial", other.name()))),
         };
         args.insert("network_id".into(), json!(network));
         args.insert("operation".into(), json!(operation));
@@ -273,7 +382,52 @@ pub fn parse(text: &str) -> Result<Command, IrError> {
             Command::Simulate(Simulate { network, modification, scale, element_id, observation_id,
                                          contingency_line: outage, max_iter })
         }
-        _ => return Err(syntax("a command starts with SOLVE or SIMULATE")),
+        Some(ref verb) if verb == "RECALL" => {
+            // RECALL <region> FROM <t> TO <t> [ASOF <t>]   (ASOF defaults to TO)
+            let get = |k: &str| value_after(k).flatten().map(|w| w.to_string()).ok_or_else(|| syntax(&format!("RECALL needs {k} <time>")));
+            let to = get("TO")?;
+            Command::Recall { region: network, from: get("FROM")?, as_of: value_after("ASOF").flatten().map(|w| w.to_string()).unwrap_or(to.clone()), to }
+        }
+        Some(ref verb) if verb == "RESOLVE" => Command::Resolve { path: network },
+        Some(ref verb) if verb == "ESTIMATE" => {
+            let seed = match value_after("SEED") { Some(w) => number(w, "SEED")? as u64, None => 1 };
+            Command::Estimate { network, seed }
+        }
+        Some(ref verb) if verb == "OPTIMIZE" => {
+            let formulation = match words.get(2).map(|w| w.to_ascii_uppercase()) {
+                Some(ref f) if f == "AC" => Formulation::Ac, Some(ref f) if f == "DC" => Formulation::Dc,
+                _ => return Err(syntax("OPTIMIZE <case> <DC|AC>")),
+            };
+            Command::Optimize { case: network, formulation }
+        }
+        Some(ref verb) if verb == "FORECAST" || verb == "HINDCAST" => {
+            let horizons: Vec<u32> = value_after("HORIZONS").flatten().ok_or_else(|| syntax("needs HORIZONS h1,h2,..."))?
+                .split(',').map(|h| h.parse::<u32>().map_err(|_| syntax("horizons are integers"))).collect::<Result<_, _>>()?;
+            if verb == "FORECAST" {
+                let model = value_after("MODEL").flatten().ok_or_else(|| syntax("FORECAST needs MODEL <name>"))?.to_string();
+                let issue_time = value_after("AT").flatten().ok_or_else(|| syntax("FORECAST needs AT <issue time>"))?.to_string();
+                Command::Forecast { region: network, model, issue_time, horizons }
+            } else {
+                let start_day = match value_after("FROMDAY") { Some(w) => number(w, "FROMDAY")?, None => 9 };
+                let every = match value_after("EVERY") { Some(w) => number(w, "EVERY")?, None => 12 };
+                Command::Hindcast { region: network, horizons, start_day, every }
+            }
+        }
+        Some(ref verb) if verb == "COMPARE" => {
+            let lines: Vec<u32> = value_after("OUTAGES").flatten().ok_or_else(|| syntax("COMPARE needs OUTAGES l1,l2,..."))?
+                .split(',').map(|h| h.parse::<u32>().map_err(|_| syntax("lines are integers"))).collect::<Result<_, _>>()?;
+            let metric = match value_after("BY").flatten().map(|w| w.to_ascii_lowercase()) {
+                Some(ref m) if m == "min_bus_voltage" => CompareMetric::MinBusVoltage,
+                Some(ref m) if m == "max_line_loading" => CompareMetric::MaxLineLoading,
+                _ => return Err(syntax("COMPARE needs BY <max_line_loading|min_bus_voltage>")),
+            };
+            Command::Compare { network, candidate_lines: lines, metric }
+        }
+        Some(ref verb) if verb == "EXPLAIN" => {
+            let claim = text.trim_start()[7..].trim().to_string();
+            Command::Explain { claim }
+        }
+        _ => return Err(syntax("a command starts with one of SOLVE SIMULATE RECALL RESOLVE ESTIMATE OPTIMIZE FORECAST HINDCAST COMPARE EXPLAIN")),
     };
     command.validate()?;
     Ok(command)

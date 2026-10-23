@@ -97,4 +97,8 @@ procedural-pool dest per_network="50":
 # G1: the Rust command IR's tests, incl. byte-identity of its emitted schema with the served one (0015).
 command-ir-test:
     cd rust && cargo test -p command-ir
-    uv run python -m pytest -q powercoder/inference/test_command_ir.py
+    uv run python -m pytest -q powercoder/inference/test_command_ir.py powercoder/test_commands.py
+
+# Execute IR requests (JSON lines on stdin), e.g. the Rust fixture: just powercoder::execute < rust/command-ir/tests/requests.jsonl
+execute:
+    uv run python -m powercoder.commands
