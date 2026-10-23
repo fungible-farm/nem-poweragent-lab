@@ -54,10 +54,13 @@ from training.run_comparison import (
     CONCURRENCY, GPU_MEMORY_FRACTION, GRANITE_GPU_MEMORY_FRACTION, HF_HUB, MEMINFO, QWEN_BASE_SNAPSHOT, REPO,
     command, meminfo_bytes, serve, stop_server, verify_evaluation, write_comparison, write_numerical_comparison)
 
-BENCHMARK: Path = Path("benchmarks/power-agent-bench-lite/results/domain-stratified-100-20261022/examples.jsonl")
-SMOKE: Path = Path("training/unsloth/out/smoke-validation-20-20261022/examples.jsonl")
+# Fit prompts in wording v2 (powercoder/datasets/reword.py, 2026-10-24): v1 said "applied to bus B"
+# for a fit that scales every load. Same tasks, ids and references; r1-r6b ran the v1 files
+# (domain-stratified-100-20261022, smoke-validation-20-20261022, smoke/splits/train.jsonl).
+BENCHMARK: Path = Path("benchmarks/power-agent-bench-lite/results/domain-stratified-100-20261024-v2/examples.jsonl")
+SMOKE: Path = Path("training/unsloth/out/smoke-validation-20-20261024-v2/examples.jsonl")
 # Independence for both suites is audited against the students' training rows.
-TRAIN_SPLIT: Path = Path("powercoder/datasets/smoke/splits/train.jsonl")
+TRAIN_SPLIT: Path = Path("training/unsloth/out/train-split-20261024-v2/examples.jsonl")
 GRANITE_BASE: Path = Path("training/unsloth/out/granite-4.2-8b-base")
 STUDENTS: dict[str, Path] = {
     "qwen-student": Path("training/unsloth/out/agent-sft-qwen35-4b-20261022-v2"),

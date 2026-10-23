@@ -10,7 +10,8 @@
 #      (never the full tests/ suite: it loads a llama-swap model, see the OOM memory note);
 #   4. train both r7 students (scripts/launch_agent_sft.sh r7) and wait for them;
 #   5. launch the r7 study: four models on the smoke gate, the 100-task benchmark, the judgement
-#      suite (incl. held-out snem-1803) and the unsolvable suite, then error ledgers.
+#      suite (incl. held-out snem-1803) and the unsolvable suite, then error ledgers. Every suite and
+#      the training split are in fit-prompt wording v2 (powercoder/datasets/reword.py).
 #
 # Usage (as a supervised unit, so it survives the session):
 #   systemd-run --user --unit=powercoder-r7-chain --working-directory="$MAIN" \
@@ -27,7 +28,7 @@ CARGO="$(command -v cargo || echo "$HOME/.cargo/bin/cargo")"
 POLL_S=300
 R6B_UNITS=(powercoder-agent-study-r6b-strict powercoder-agent-study-r6b-prompted-wait powercoder-agent-study-r6b-prompted
            powercoder-agent-study-r6b-restorebench-wait powercoder-agent-study-r6b-restorebench)
-TESTS=(powercoder/inference/test_command_ir.py powercoder/inference/test_studies.py powercoder/inference/test_replay.py
+TESTS=(powercoder/datasets/test_reword.py powercoder/inference/test_command_ir.py powercoder/inference/test_studies.py powercoder/inference/test_replay.py
        powercoder/test_commands.py powercoder/inference/test_protocol_suite.py powercoder/inference/test_error_ledger.py
        powercoder/inference/test_gateway.py powercoder/datasets/test_trajectories.py training/test_run_agent_study.py
        tests/integration/test_study_tools.py tests/integration/test_canonical_mcp_transport.py)
@@ -71,5 +72,5 @@ log "5/5 launching the r7 study"
 exec ./scripts/launch_agent_study.sh "$OUT/agent-study-r7" \
   --student "qwen-student=$OUT/agent-sft-qwen35-4b-20261024-r7" \
   --student "granite-student=$OUT/agent-sft-granite42-8b-20261024-r7" \
-  --suite "judgement=$OUT/judgement-20261024/examples.jsonl" \
-  --suite "unsolvable=$OUT/unsolvable-20261024/examples.jsonl"
+  --suite "judgement=$OUT/judgement-20261024-v2/examples.jsonl" \
+  --suite "unsolvable=$OUT/unsolvable-20261024-v2/examples.jsonl"

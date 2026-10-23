@@ -199,8 +199,9 @@ tool's report fields match the reference exactly on all 71 report tasks checked.
 - Latency and peak memory are measured separately: `powercoder/inference/latency_bench.py` runs on an idle server, and host MemAvailable is sampled for each server's whole life.
 
 **Fixed from r7 on** (`scripts/r7_chain.sh`; r6 results are not comparable with r7 for tool errors, since the tool's schema, description and unknown-id message changed):
-- FM-26/FM-28: IR 0.2.0 tool and schema; students retrained on `trajectories-20261024-v3` (238 procedures without placeholder ids, 238 recovery variants incl. id-free `invented_observation`/`wrong_element`, 25 `pf-unsolvable` refusals). Hyperparameters unchanged.
+- FM-26/FM-28: IR 0.2.0 tool and schema; students retrained on `trajectories-20261024-v4` (238 procedures without placeholder ids, 238 recovery variants incl. id-free `invented_observation`/`wrong_element`, 25 `pf-unsolvable` refusals). Hyperparameters unchanged.
 - PC-REQ-3/4: every r7 root records each directory's error ledger and IR protocol validity (`run_agent_study.record_ledgers`); tool time is journaled (`tool_seconds`), never shown to the model.
+- Fit prompts in wording v2 (`powercoder/datasets/reword.py`): v1 said "applied to bus B" for a load-scale fit, which scales every load, so a model told to refuse incoherent tasks could rightly refuse it. Every suite and the training split were re-rendered from their inputs (297 fit prompts, 0 refused); the scripted procedure still scores 20/20 smoke and 100/100 benchmark; trajectories v4 differ from v3 only in 422 user prompts.
 - Abstract skill is measured, not assumed: the judgement suite's snem-1803 reports (a network no training row uses) and the 28-task unsolvable suite (incl. never-trained unsolvable N-1 reports) run in every model's benchmark session.
 
 r4 also runs 8 attempts per server concurrently, with base and student side by side and Granite training alongside. Concurrent batching changes floating-point reduction order, which is one more reason (with FM-3) not to expect bitwise reproduction of an earlier run.

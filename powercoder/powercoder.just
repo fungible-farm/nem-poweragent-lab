@@ -10,8 +10,8 @@
 set working-directory := '..'
 
 out := "training/unsloth/out"
-smoke := "training/unsloth/out/smoke-validation-20-20261022/examples.jsonl"
-split := "powercoder/datasets/smoke/splits/train.jsonl"
+smoke := "training/unsloth/out/smoke-validation-20-20261024-v2/examples.jsonl"
+split := "training/unsloth/out/train-split-20261024-v2/examples.jsonl"
 
 # Default: list this module's recipes.
 default:
