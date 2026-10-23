@@ -18,6 +18,13 @@ components — Apache-2.0, MIT, BSD — ideally foundation-backed. Where such a
 component exists for a needed capability, this repo assimilates it rather than
 reaching for a proprietary or novel re-implementation.
 
+**User decisions, 2026-10-23:**
+- **Copyleft is acceptable.** OSI-approved copyleft licences (GPL, AGPL, EUPL, MPL and so on) may
+  be used, as well as permissive ones. Record every licence at adoption, as before. Permissive is
+  still preferred where both exist.
+- **LibreOffice is not used.** Spreadsheet formulas are recalculated in Python (`formulas`,
+  EUPL-1.1+).
+
 ### Verified license map (checked from installed metadata / vendored files, not assumed)
 
 | Component | Role on the golden path | License | Notes |
@@ -44,6 +51,8 @@ reaching for a proprietary or novel re-implementation.
 | rdflib / pyshacl | G4 CIM graph export and SHACL validation (`powercoder/semantic/`) | BSD-3-Clause / Apache-2.0 | direct project dependencies since 2026-10-23 (rdflib 7.6.0 was already a transitive dependency of linkml; pyshacl 0.40.1) |
 | highspy | G2 DC OPF independent QP cross-check (`powercoder/engineering/dc_opf.py`) | MIT | 1.15.1, direct dependency since 2026-10-23; SciPy's bundled HiGHS covers LP only |
 | lark | dev only: the namespace grammar test (`powercoder/inference/test_namespace.py`) | MIT | 1.3.1, `[dependency-groups].dev` |
+| PowerAgentBench Steady Levels 1-2 + shared library | Lab 11 benchmark (N-1 audit/mitigation, agentic N-2 search on IEEE 39) | **none at the repository root — used as MIT by user direction, 2026-10-23 (an assumption)** | GitHub reports `license: null` ([PowerAgentBench#11](https://github.com/Power-Agent/PowerAgentBench/issues/11)); the Power-Agent organisation's PowerMCP, PowerFM and PowerWF are MIT. Fetched into gitignored `data/`, never vendored. Level 3 (RestoreBench, Lab 10) keeps its own MIT code / CC BY 4.0 corpora. Dynamic Levels 1-2 need PSS/E and PowerFactory (commercial) and are not used |
+| pypsa / linopy / highspy | Lab 11's own environment (`labs/11-poweragentbench-steady/uv.lock`), not the repo venv | MIT / MIT / MIT | from installed metadata (pypsa 1.2.4, linopy 0.10.1, highspy 1.15.1); plus geopandas/shapely (BSD-3-Clause), xarray (Apache-2.0), netCDF4/pyproj/pyogrio (MIT) |
 
 ### The distinction that keeps the policy honest
 

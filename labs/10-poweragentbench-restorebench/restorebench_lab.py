@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -34,11 +35,27 @@ LEVEL_3: Path = REPO_ROOT / "data/poweragentbench/benchmarks/steady/level_3"
 CORPORA: tuple[str, ...] = ("ieee118", "pegase89")
 RESULTS: Path = LAB / "results"
 EXPECTED_WITNESS: Path = LAB / "expected_witness_summary.json"
+# The systemd user manager's PATH has no ~/.local/bin, so a bare "uv" fails when
+# the agent study runs this lab from a unit (AGENTS.md FM-24; r6b's Lab 10 pilot,
+# 2026-10-23). Same fallback as the launch scripts.
+UV_FALLBACK: Path = Path.home() / ".local/bin/uv"
+
+
+def uv() -> str:
+    """The uv executable: from PATH, else the standard user install.
+
+    Raises:
+        RuntimeError: if neither exists.
+    """
+    found = shutil.which("uv") or (str(UV_FALLBACK) if UV_FALLBACK.is_file() else None)
+    if found is None:
+        raise RuntimeError(f"uv not found on PATH or at {UV_FALLBACK}")
+    return found
 
 
 def in_restorebench(*args: str, capture: bool = False) -> subprocess.CompletedProcess[str]:
     """Run a command inside RestoreBench's frozen environment, from its own directory."""
-    return subprocess.run(["uv", "run", "--frozen", "--project", str(LEVEL_3), *args], cwd=LEVEL_3,
+    return subprocess.run([uv(), "run", "--frozen", "--project", str(LEVEL_3), *args], cwd=LEVEL_3,
                           text=True, capture_output=capture, check=False)
 
 
@@ -50,7 +67,7 @@ def ensure_environment() -> None:
     """
     if not (LEVEL_3 / "uv.lock").is_file():
         raise RuntimeError("RestoreBench is not fetched; run --step fetch first")
-    subprocess.run(["uv", "sync", "--frozen", "--project", str(LEVEL_3)], cwd=LEVEL_3, check=True,
+    subprocess.run([uv(), "sync", "--frozen", "--project", str(LEVEL_3)], cwd=LEVEL_3, check=True,
                    capture_output=True)
 
 

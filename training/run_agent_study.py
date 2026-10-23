@@ -326,6 +326,35 @@ def prompted_arm(args: argparse.Namespace, events: TextIO) -> None:
     record(events, "pipeline_complete", {"arm": "prompted-base", "tasks": str(SMOKE), "comparisons": outcomes})
 
 
+def restorebench_arm(args: argparse.Namespace, events: TextIO) -> None:
+    """Run only the Lab 10 RestoreBench pilot for the models an r6 root evaluated.
+
+    r6b's own pilot stage failed after its evaluations and comparisons had
+    completed (FM-24 recurrence: a bare ``uv`` in restorebench_lab.py), so the
+    pilot is rerun here into a fresh root, exactly as ``run`` would have: same
+    sources, memory fractions, corpus and scenario limit. The model list is the
+    ``evaluated`` list r6's ``comparisons_complete`` recorded, so a model the
+    smoke gate excluded stays excluded.
+
+    Raises:
+        RuntimeError: if the r6 root has no ``comparisons_complete`` record.
+    """
+    records = [json.loads(line) for line in (args.r6_root / "pipeline.jsonl").read_text().splitlines()]
+    completed = [r["payload"] for r in records if r["kind"] == "comparisons_complete"]
+    if not completed:
+        raise RuntimeError(f"{args.r6_root} has no comparisons_complete record")
+    evaluated = completed[-1]["evaluated"]
+    students = {label: verify_student(directory, events) for label, directory in STUDENTS.items()}
+    sources = {"qwen-base": (HF_HUB, QWEN_BASE_SNAPSHOT), "qwen-student": (students["qwen-student"], ""),
+               "granite-base": (GRANITE_BASE, ""), "granite-student": (students["granite-student"], "")}
+    fractions = {"qwen": GPU_MEMORY_FRACTION, "granite": GRANITE_GPU_MEMORY_FRACTION}
+    for label in evaluated:
+        session(label, "restorebench", *sources[label], fractions[label.split("-")[0]], args.root, events,
+                [], latency=False, restorebench=True)
+    record(events, "pipeline_complete", {"arm": "restorebench-pilot", "r6_root": str(args.r6_root),
+                                         "evaluated": evaluated})
+
+
 def main() -> None:
     """Create a fresh run root and durable journal; refuse automatic re-execution."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -334,11 +363,15 @@ def main() -> None:
                         help="Run only the strict-tool-calling 2x2 on the smoke suite (backlog 0011)")
     parser.add_argument("--prompted-arm", action="store_true",
                         help="Run only G0's prompted-base baseline on the smoke suite (needs --r6-root, --strict-root)")
+    parser.add_argument("--restorebench-arm", action="store_true",
+                        help="Run only Lab 10's RestoreBench pilot for --r6-root's evaluated models")
     parser.add_argument("--r6-root", type=Path, help="Completed r6 root (its student smoke runs)")
     parser.add_argument("--strict-root", type=Path, help="Completed strict-arm root (its plain base cells)")
     args = parser.parse_args()
     if args.prompted_arm and not (args.r6_root and args.strict_root):
         parser.error("--prompted-arm needs --r6-root and --strict-root")
+    if args.restorebench_arm and not args.r6_root:
+        parser.error("--restorebench-arm needs --r6-root")
     args.root.mkdir()
     # A supervisor's stop arrives as SIGTERM; unwind so the journal records it.
     signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
@@ -348,7 +381,8 @@ def main() -> None:
                               for parent in (REPO / "powercoder/inference", REPO / "powercoder/datasets", REPO / "training")
                               for p in parent.glob("*.py")}})
         try:
-            (prompted_arm if args.prompted_arm else strict_arm if args.strict_arm else run)(args, events)
+            (prompted_arm if args.prompted_arm else strict_arm if args.strict_arm
+             else restorebench_arm if args.restorebench_arm else run)(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
             raise
