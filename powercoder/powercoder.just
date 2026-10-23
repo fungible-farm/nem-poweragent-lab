@@ -122,3 +122,7 @@ unsolvable-suite source dest:
 # r7: after the r6b queue, fast-forward main, retrain both students on IR 0.2.0 trajectories, run r7 (supervised unit).
 r7-chain:
     systemd-run --user --unit=powercoder-r7-chain --working-directory=/home/brianh/promptexecution/fungible/nem-poweragent-lab /bin/bash {{justfile_directory()}}/../scripts/r7_chain.sh
+
+# G3 GRPO pilot (0017): armed behind r7 as unit powercoder-grpo-wait; this launches the waiter.
+grpo-wait:
+    systemd-run --user --unit=powercoder-grpo-wait --working-directory=/home/brianh/promptexecution/fungible/nem-poweragent-lab /bin/bash {{justfile_directory()}}/../scripts/grpo_wait.sh

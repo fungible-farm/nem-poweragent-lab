@@ -82,13 +82,18 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
         cwd=str(Path(__file__).resolve().parents[2]),
     )
     first_choice = getattr(args, "first_turn_tool_choice", "auto")
+    # Evaluation is greedy (0.0). G3's GRPO rollouts sample (training/grpo.py) and ask vLLM for
+    # the exact prompt and completion token ids, so the update trains on what the policy saw and
+    # produced rather than a re-rendered conversation (FM-22/FM-23). Both default off.
+    temperature = float(getattr(args, "temperature", 0.0))
+    extra = {"return_token_ids": True} if getattr(args, "return_token_ids", False) else None
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": args.prompt.read_text()},
     ]
     record(journal, "start", {
         "model": args.model, "base_url": args.base_url, "messages": messages,
-        "max_tokens": MAX_TOKENS, "temperature": 0.0,
+        "max_tokens": MAX_TOKENS, "temperature": temperature,
         "max_turns": MAX_TURNS, "max_tool_calls": MAX_TOOL_CALLS,
         "inference_timeout_s": INFERENCE_TIMEOUT_S,
         "first_turn_tool_choice": first_choice,
@@ -111,8 +116,8 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
                 try:
                     result = await asyncio.to_thread(
                         client.chat_completion, args.model, messages,
-                        max_tokens=MAX_TOKENS, temperature=0.0, tools=tools,
-                        tool_choice=first_choice if turn == 0 else "auto",
+                        max_tokens=MAX_TOKENS, temperature=temperature, tools=tools,
+                        tool_choice=first_choice if turn == 0 else "auto", extra=extra,
                     )
                 except httpx.HTTPStatusError as error:
                     # The conversation outgrew the server's context: this

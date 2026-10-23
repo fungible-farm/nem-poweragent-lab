@@ -137,6 +137,42 @@ whose loading is strictly monotone in dispatch with a span of at least 0.1%. The
 passes 210/210, and the pool audits clean against all six suites. r7 trains on trajectories v6,
 with the 0.3.0 tool block; its messages are identical to v5's.
 
+## GRPO pilot, built and armed (2026-10-24)
+
+**Code:**
+- `training/grpo.py`, two steps:
+  - `rollout` (host): k sampled attempts per task through the evaluation's own harness, graded
+    by `grade()` and rewarded by `rl_reward`. vLLM returns exact prompt and completion token ids,
+    so no re-rendering is involved (FM-22/23).
+  - `update` (training image): group-relative advantages, then −A × mean completion-token
+    log-probability per sampled turn. The adapter is saved, independently reloaded, merged and
+    hashed, as `agent_sft` does.
+  - Named stand-in: REINFORCE with GRPO's group baseline; no ratio, clipping or KL.
+- `training/run_grpo_pilot.py` drives it:
+  - 2 iterations × 64 tasks × 4 samples at temperature 0.8 on pool v4. Serving and training
+    alternate, never overlap.
+  - Then the r7 Qwen student against the RL student, greedy, on the held-out pool
+    `procedural-heldout-20261024-v4` (90 fits on snem-1803 and ieee39) and the smoke suite.
+  - It records strict and solver-verified comparisons, calls against bisection, and error ledgers.
+- `scripts/grpo_wait.sh` (unit `powercoder-grpo-wait`): waits for r7's `pipeline_complete`, then
+  launches the pilot. It refuses if r7 failed or the r7 Qwen student failed its smoke gate.
+
+**Verified on CPU:**
+- advantages; distinct task slices per iteration;
+- token-exact sequences;
+- a full rollout through the real harness, grader and reward, with a scripted policy;
+- the loss direction in the training image (a positive advantage raises the completion's
+  probability, a negative one lowers it);
+- the calls metric reads 0 against bisection over the scripted baseline's 50 held-out fits.
+
+On the real model and adapter, the update ran through base verification, trainable-adapter
+loading and gradient checkpointing. It then stopped at Qwen3.5's linear attention, whose Triton
+kernels need a GPU, so the first update runs on the GPU. The scripted procedure solves 90/90 of
+the held-out pool.
+
 **Left, and why:**
-- **GRPO run and distillation:** need the GPU. They start from the r7 students, after
-  `powercoder-r7-chain`.
+- **The pilot's GPU run:** queued behind r7.
+- **Distillation:** blocked on a ruling. `powercoder/distillation/teacher.py`'s teacher is the
+  llama-swap Qwen3.8 GGUF models on this host. r00t DEC-013 forbids GGUF inference on shinyDGX
+  (OPEN-001 is the user's to resolve), sm3lly's GPU is off-limits by user direction, and a 96 GB
+  teacher beside the GPU queue is the FM-10 OOM shape.

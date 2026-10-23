@@ -173,11 +173,16 @@ def free_text(row: dict[str, Any], template: str) -> str:
                            target=f"{inputs['target']:.6f}", tol=inputs["tolerance"])
 
 
-def build(per_network: int = PER_NETWORK) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Verified load-scale fits from every network, and the discovered element count per network."""
+def build(per_network: int = PER_NETWORK, networks: tuple[str, ...] = POOL_NETWORKS,
+          split: str = "train") -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Verified fits from each network, and the discovered element count per network.
+
+    ``networks=HELD_OUT_NETWORKS, split="test"`` builds the G3 pilot's evaluation pool: the same
+    generator, on networks no pool trains on.
+    """
     rows, discovered = [], {}
     cache = generate.EndpointCache()
-    for case in NETWORKS:
+    for case in networks:
         elements = discover_load_scale_buses(case)
         outages = safe_outages(case)
         discovered[case] = len(elements)
@@ -187,7 +192,7 @@ def build(per_network: int = PER_NETWORK) -> tuple[list[dict[str, Any]], dict[st
             row = generate._gen_fit_example("pf-load-scale-fit", case, elements, i, PROCEDURAL_SEED, cache,
                                             contingency_line=line)
             if row["lifecycle"]["status"] == "verified":
-                row["lifecycle"]["split"] = "train"
+                row["lifecycle"]["split"] = split
                 if made % OPEN_INTERVAL_EVERY == OPEN_INTERVAL_EVERY - 1:
                     row["task"]["prompt"] = generate.fit_prompt(row["subfamily"], row["task"]["inputs"], interval=False)
                     row["task"]["inputs"]["prompt_variant"] = "open-interval"
@@ -213,7 +218,7 @@ def build(per_network: int = PER_NETWORK) -> tuple[list[dict[str, Any]], dict[st
                 row = generate._gen_fit_example(subfamily, case, elements, i, PROCEDURAL_SEED, cache,
                                                 load_level=rng.choice(OPERATING_POINTS))
                 if row["lifecycle"]["status"] == "verified":
-                    row["lifecycle"]["split"] = "train"
+                    row["lifecycle"]["split"] = split
                     rows.append(row)
                     made += 1
     return rows, discovered
@@ -224,16 +229,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--per-network", type=int, default=PER_NETWORK)
+    parser.add_argument("--held-out", action="store_true",
+                        help="Build the evaluation pool on HELD_OUT_NETWORKS (split test), audited against --against")
+    parser.add_argument("--against", type=Path, action="append", default=[],
+                        help="A further frozen pool this one must not overlap (e.g. the rollout pool)")
     parser.add_argument("--suites-root", type=Path, default=generate.REPO_ROOT,
                         help="Checkout holding the frozen evaluation suites (gitignored, so a worktree has none)")
     args = parser.parse_args()
     if args.out_dir.exists():
         raise ValueError("Refusing to overwrite a frozen pool")
-    rows, discovered = build(args.per_network)
+    networks, split = (HELD_OUT_NETWORKS, "test") if args.held_out else (POOL_NETWORKS, "train")
+    rows, discovered = build(args.per_network, networks, split)
     from powercoder.datasets.audit import audit_rows, load_rows
 
     audits = {}
-    for suite in EVALUATION_SUITES:
+    for suite in [*EVALUATION_SUITES, *map(str, args.against)]:
         path = args.suites_root / suite
         if path.exists():
             audit = audit_rows(rows, load_rows(path))
@@ -247,10 +257,11 @@ def main() -> int:
     with examples.open("x") as stream:
         for row in rows:
             stream.write(json.dumps(row, allow_nan=False) + "\n")
-    by_network = {case: sum(r["topology"] == case for r in rows) for case in NETWORKS}
+    by_network = {case: sum(r["topology"] == case for r in rows) for case in networks}
     (args.out_dir / "manifest.json").write_text(json.dumps({
         "pool": "procedural-v4", "seed": PROCEDURAL_SEED, "n_tasks": len(rows), "by_network": by_network,
-        "held_out_networks": list(HELD_OUT_NETWORKS), "audited_against": audits,
+        "held_out_networks": list(HELD_OUT_NETWORKS), "networks": list(networks), "split": split,
+        "audited_against": audits,
         "open_interval": sum(r["task"]["inputs"].get("prompt_variant") == "open-interval" for r in rows),
         "free_text": sum(str(r["task"]["inputs"].get("prompt_variant", "")).startswith("free-text") for r in rows),
         "contingency": sum(r["task"]["inputs"].get("contingency_line") is not None for r in rows),
