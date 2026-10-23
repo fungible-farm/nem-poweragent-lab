@@ -30,3 +30,24 @@
 
 ## Cheapest first step
 DC OPF and PTDF on `snem-sa-2000`, cross-checked against an independent implementation.
+
+## WLS state estimation done (2026-10-23): `powercoder/engineering/state_estimation.py`
+It runs pandapower's WLS estimation, chi-square test and largest-normalised-residual (LNR)
+removal, and returns a typed result with the proof contract, an observability verdict and the
+identity of every measurement removed. **The measurements are synthetic**: seeded noise around a
+solved AC power flow, with the accuracy classes in `MEASUREMENT_STD` *assumed*, because G5 is
+blocked.
+
+| Case | Measurements | Clean estimate (max \|V − truth\|) | 50σ gross error on one flow |
+|---|---|---|---|
+| case9 | 45 | 1.28e-3 pu, no bad data suspected | detected; **exactly that measurement** removed (two trials) |
+| snemSA | 3,295 | 4.06e-3 pu, no bad data suspected | detected and removed, **plus 10 good measurements** |
+
+- **Measure both ends of a branch.** With one end only, a flow can be a *critical* measurement:
+  its residual is zero, so a 25 MW error went undetected on case9. SCADA usually measures both
+  ends, so the synthetic set does too.
+- **LNR at |r_N| > 3 over-removes on a large set.** Each good measurement exceeds 3 by chance
+  with probability about 0.27%, so 3,295 × 0.0027 ≈ 8.9 false removals are expected. The 10
+  observed fit that. The threshold is `LNR_THRESHOLD`, pandapower's default. A size-aware
+  threshold is a choice to make deliberately, not a default to change silently.
+- **Unobservable is refused** (`observable = False`, `indeterminate`), never estimated.
