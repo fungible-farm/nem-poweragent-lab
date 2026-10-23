@@ -62,3 +62,17 @@ must be material for the network they're seeded into.
    deterministic layers check each mapping, and each finding cites a cell and a solver result.
 3. **A report** an engineer would accept: each cell's source (tool result, cited input, formula,
    unsourced), with re-derived values and their solver citations.
+
+## openpyxl-mcp-server (evaluated 2026-10-23)
+[jonemo/openpyxl-mcp-server](https://github.com/jonemo/openpyxl-mcp-server) (MIT, commit 6fb0863) is a
+reference for the workbook tools, not something to load as-is. Defects were reproduced on a clean
+workbook and filed upstream:
+- [#10](https://github.com/jonemo/openpyxl-mcp-server/issues/10) empty tool descriptions;
+- [#11](https://github.com/jonemo/openpyxl-mcp-server/issues/11) ranges sorted as strings (`A9:A11` is empty);
+- [#12](https://github.com/jonemo/openpyxl-mcp-server/issues/12) values wrapped in set braces;
+- [#13](https://github.com/jonemo/openpyxl-mcp-server/issues/13) the pinned `mcp` 1.4.1 fails with current pydantic;
+- [#14](https://github.com/jonemo/openpyxl-mcp-server/issues/14) no formula results, no hidden-row or hidden-sheet state.
+
+It also opens any filesystem path, while PowerCoder's tools take identifiers only. Plan: a workbook
+tool group in PowerCoder's own MCP server with workbooks by id, formula plus recalculated value
+(`formulas`), and hidden state. The harness connects each attempt to one stdio server.
