@@ -21,7 +21,7 @@ research notes.
 | [0006](0006-lab5-advanced-transient-visualization-techniques.md) | Research: advanced Lab 5 transient-visualization techniques (symmetrical components, R-X impedance trajectory, spectrogram, network-wide sag propagation) beyond the existing six views | done (all four options implemented: symmetrical components, R-X impedance trajectory, spectrogram, network-wide sag propagation) |
 | [0007](0007-clif-x-grammar-constrained-generation.md) | Idea: a CLIF (Common Logic Interchange Format) x-grammar for LLM constrained generation, demoed against the self-hosted Phi-4-mini pod | demo done (`labs/_shared/clif_demo/`), idea not adopted -- see doc for the "grammar-constrained can be semantically evasive" finding |
 | [0008](0008-powercoder-benchmark-cannot-measure-agent-value.md) | PowerCoder benchmark cannot measure agent value (one network, fixed interval, 36/69 keys shared with training, scripted policy); add baselines and judgement tasks — PRD-0010 **G0** | open — priority 1 |
-| [0009](0009-recovery-training-supervised-the-injected-mistake.md) | Recovery training supervised the injected mistake | fixed `8314e14`; journal verification pending |
+| [0009](0009-recovery-training-supervised-the-injected-mistake.md) | Recovery training supervised the injected mistake | done (`8314e14`; verified on r6b journals: students 0 of 1,310 calls) |
 | [0010](0010-provenance-check-hardening.md) | Provenance check (PC-REQ-1) is weaker than its requirement | open |
 | [0011](0011-strict-tool-calling-arm-redesign.md) | Strict-tool-calling arm: redesign as a 2×2 before running it | implemented; queued after r6 |
 | [0012](0012-answer-by-reference.md) | Idea: answer by reference (numbers rendered from cited tool output) | idea |
