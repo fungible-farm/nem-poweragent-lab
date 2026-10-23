@@ -25,6 +25,14 @@ MAX_ITERATIONS: int = 100
 # How many de-energized bus ids a response lists (the count is always given);
 # matches run_power_flow's violating_bus_ids cap.
 DE_ENERGIZED_IDS_SHOWN: int = 10
+# How many valid ids an unknown-element error lists, lowest first (the count is
+# always given); the same cap. Element ids are sparse (snem-sa-2000's 503 buses
+# run 985..10106), so a range would name ids that do not exist, and load_network
+# returns counts only: without this, a model that sent a wrong id could only
+# guess (r6b Qwen student, three report attempts, bus 999 then 1, 2, 3, ...).
+VALID_IDS_SHOWN: int = 10
+# Plural names for the pandapower tables an id can refer to, as error messages say them.
+ELEMENT_KINDS: dict[str, str] = {"bus": "buses", "line": "lines", "trafo": "transformers", "gen": "generators"}
 # Nameplate loading screening, in percent; not a full operational safety study.
 THERMAL_LIMIT_PERCENT: float = 100.0
 
@@ -88,6 +96,23 @@ def base_case_voltage_violations(network_id: str) -> int | None:
     return int(((vm < pm.VOLTAGE_LIMIT_LOW_PU) | (vm > pm.VOLTAGE_LIMIT_HIGH_PU)).sum())
 
 
+def unknown_element(role: str, element_id: int, index: Any, kind: str) -> ValueError:
+    """An unknown-id error that names the valid ids, so a model can recover from the response.
+
+    Args:
+        role: What the id was for ("observation element", "modification element", "contingency line").
+        element_id: The id the model sent.
+        index: The pandapower table index the id had to be in.
+        kind: The table's element name, plural ("buses", "lines", ...).
+
+    Returns:
+        The ValueError to raise; its message is the tool's ``error`` field.
+    """
+    shown = ", ".join(str(int(value)) for value in sorted(index)[:VALID_IDS_SHOWN])
+    return ValueError(f"Unknown {role} {element_id}: the network has {len(index)} {kind}; "
+                      f"the lowest {min(len(index), VALID_IDS_SHOWN)} ids are {shown}")
+
+
 def run_study_trial(
     network_id: str, operation: str, scale: float, element_id: int,
     observation: str, observation_id: int, max_iter: int,
@@ -122,17 +147,19 @@ def run_study_trial(
         table, column = {"bus_voltage": ("res_bus", "vm_pu"), "line_loading": ("res_line", "loading_percent"), "trafo_loading": ("res_trafo", "loading_percent")}[observation]
         element_table = {"bus_voltage": "bus", "line_loading": "line", "trafo_loading": "trafo"}[observation]
         if observation_id not in net[element_table].index:
-            raise ValueError("Unknown observation element")
+            raise unknown_element("observation element", observation_id, net[element_table].index,
+                                  ELEMENT_KINDS[element_table])
         if operation == "load_scale":
             net.load.loc[:, ["p_mw", "q_mvar"]] *= scale
         elif operation in {"line_rating", "gen_dispatch"}:
             modified_table, modified_column = ("line", "max_i_ka") if operation == "line_rating" else ("gen", "p_mw")
             if element_id not in net[modified_table].index:
-                raise ValueError("Unknown modification element")
+                raise unknown_element("modification element", element_id, net[modified_table].index,
+                                      ELEMENT_KINDS[modified_table])
             net[modified_table].loc[element_id, modified_column] *= scale
         if contingency_line is not None:
             if contingency_line not in net.line.index:
-                raise ValueError("Unknown contingency line")
+                raise unknown_element("contingency line", contingency_line, net.line.index, ELEMENT_KINDS["line"])
             net.line.loc[contingency_line, "in_service"] = False
         iterations = pm._runpp_counted(net, numba=True, max_iteration=max_iter)
         vm = net.res_bus.vm_pu

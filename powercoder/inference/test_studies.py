@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from powercoder.inference import powermcp as pm
-from powercoder.inference.studies import base_case_voltage_violations, run_study_trial, tool_schema
+from powercoder.inference.studies import VALID_IDS_SHOWN, base_case_voltage_violations, run_study_trial, tool_schema
 
 # fixture-2bus-ok has a bus 1 load and no voltage violations, so it runs in milliseconds.
 NETWORK: str = "fixture-2bus-ok"
@@ -55,3 +55,27 @@ def test_an_outage_that_isolates_buses_is_a_valid_study_with_them_listed() -> No
 def test_an_intact_network_response_has_no_de_energized_fields() -> None:
     """Responses without isolation stay byte-identical to the trained ones."""
     assert "de_energized_buses" not in trial().data
+
+
+@pytest.mark.skipif(not (pm.REPO_ROOT / pm.CASE_FILES[CASE]).exists(),
+                    reason="needs data/ (scripts/fetch_csiro_nem_data.py)")
+def test_an_unknown_bus_error_names_valid_ids_to_recover_with() -> None:
+    """r6b Qwen student: bus 999 was refused with no valid id in reach, so it guessed 1, 2, 3, ..."""
+    net, _ = pm._load_network_object(CASE)
+    lowest = sorted(int(bus) for bus in net.bus.index)[:VALID_IDS_SHOWN]
+    result = run_study_trial(network_id=CASE, operation="none", scale=1.0, element_id=0, observation="bus_voltage",
+                             observation_id=999, max_iter=50, contingency_line=94)
+    assert result.status is pm.ExecutionStatus.EXECUTION_FAILURE
+    assert f"Unknown observation element 999: the network has {len(net.bus)} buses" in result.error
+    assert result.error.endswith("ids are " + ", ".join(map(str, lowest)))
+    # The first id named is valid: the recovery the error enables actually works.
+    retry = run_study_trial(network_id=CASE, operation="none", scale=1.0, element_id=0, observation="bus_voltage",
+                            observation_id=lowest[0], max_iter=50, contingency_line=94)
+    assert retry.data["converged"]
+
+
+def test_unknown_contingency_and_modification_ids_name_valid_ids_too() -> None:
+    """Every id the tool can refuse gets the same recoverable message."""
+    assert trial(contingency_line=99).error.endswith("contingency line 99: the network has 1 lines; the lowest 1 ids are 0")
+    assert "Unknown modification element 7" in trial(operation="line_rating", element_id=7,
+                                                      observation="line_loading", observation_id=0).error
