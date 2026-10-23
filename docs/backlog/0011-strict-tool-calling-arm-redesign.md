@@ -62,3 +62,29 @@ Follow-ups, in merit order:
    test with enough power to compare with r6b's `auto` result.
 3. **Drop the forcing factor** from further runs unless the token analysis in follow-up 1 shows
    that forcing changes reasoning length.
+
+## Qwen half measured (2026-10-23, `strict_arm_metrics`; Granite cells still running)
+
+| Cell | Pass | Calls | Schema errors | `"None"` | Off-task trials | Turns | Truncated | Median reasoning tokens/turn | First-turn median | Server level |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen base auto/auto | 3 | 116 | 6 | 6 | 7 | 130 | 14 | 700.5 | 572.5 | auto |
+| Qwen base auto/required | 1 | 119 | 5 | 4 | 4 | 129 | 18 | 769.0 | 577.5 | auto |
+| Qwen base parameter/auto | 2 | 103 | 3 | 3 | 3 | 117 | 14 | 783.0 | 569.5 | parameter |
+| Qwen base parameter/required | 2 | 105 | 2 | 2 | 7 | 116 | 17 | 783.0 | 564.0 | parameter |
+| Qwen student, all 4 cells | 17 | 102 | 0 | 0 | 0 | 122 | 0 | 1.0 | 1.0 | as set |
+
+What the table shows:
+- **The student is unaffected.** All four of its cells are identical. It already calls tools
+  correctly and reasons almost not at all (median 1 reasoning token per turn).
+- **Forcing doesn't shorten the base's reasoning.** The first-turn median is 564–578 tokens in
+  every cell, so `required` does not cut the reasoning before the first call (FM-2's question).
+- **`parameter` enforcement looks partial.** Base schema errors by turn:
+  - first turn: auto 4 of 25 and 4 of 22 calls, **parameter 0 of 25 and 0 of 22**;
+  - later turns: auto 2 of 91 and 1 of 97, parameter 3 of 78 and 2 of 83.
+
+  The server did log `tool_strict_level: 'parameter'`, yet later-turn calls still carried
+  `contingency_line: "None"` (e.g. `qwen-base-strict-parameter-first-auto/ex_d92e03950c02a97a`). So
+  the argument schema was enforced on the first turn but not on later ones. Why is not yet
+  established, and the counts are small (4 → 0), so this is suggestive, not conclusive. The Granite
+  cells add evidence. If it holds, the "parameter" cells measure first-turn enforcement only, and
+  that should be said wherever they are quoted.
