@@ -76,3 +76,33 @@ workbook and filed upstream:
 It also opens any filesystem path, while PowerCoder's tools take identifiers only. Plan: a workbook
 tool group in PowerCoder's own MCP server with workbooks by id, formula plus recalculated value
 (`formulas`), and hidden state. The harness connects each attempt to one stdio server.
+
+## excel-mcp-server (evaluated 2026-10-23): use this one
+[haris-musa/excel-mcp-server](https://github.com/haris-musa/excel-mcp-server) v2.2.2 (MIT, released
+2026-10-21, `mcp` 2.x). I read its source before running it: no subprocess or shell calls, and its
+`eval` is its own formula engine walking a parsed expression. Probed read-only on the seeded study
+workbook:
+- **8 read-only tools, with descriptions:** `describe_workbook`, `list_workbooks`,
+  `export_workbook`, `describe_sheet`, `read_range`, `find_cells`, `trace_formula`, `read_vba`.
+- **Formula results:** `read_range(mode="values")` returns them at full precision
+  (`0.9070106356318516`; the `"ok"`/`"LOW"` flags evaluated), using a built-in calculator.
+  Results Excel saved are preferred. A formula it cannot reproduce exactly is returned as null
+  and listed in `uncalculated` with the reason, "never guessed" (its README; checked against
+  more than 2,500 formulas recorded from Excel). That suits the provenance rule.
+- **Hidden rows** are reported by `describe_sheet` (`"hidden_rows":["11:11"]`).
+- **`trace_formula` gives provenance.** The seeded H5 has only D5 as a precedent, where its
+  column's flags depend on D*n* and the limit cell K1, which exposes the hard-coded 0.9.
+- **Confined:** `--allow-dir`, resolving symlinks, refused `/etc/passwd`. `--read-only` registers
+  only read tools; `--tools` limits which tool areas are advertised (core is 8,900 characters of
+  descriptions and schemas, per its README).
+- **Compatible:** the repo's `mcp` 1.12.2 client works with it as a separate stdio process
+  (protocol 2025-06-18). Its own dependencies (`mcp` 2.x, pillow, starlette, uvicorn) stay in its
+  own environment.
+
+**What changes in the plan.** Use excel-mcp-server (read-only, confined to a workbook directory)
+for the workbook layer instead of reimplementing it. PowerCoder's own server keeps the
+power-engineering parts: quantity and unit mapping, plausibility checks, and solver
+re-derivation. The evaluation harness connects each attempt to one stdio server
+(`tool_probe`), so using both needs a small two-session multiplexer (tool names don't clash).
+That changes the tool set, so it needs its own run root. Interactive use (Claude Code, pi) can
+register it in `.mcp.json` directly.
