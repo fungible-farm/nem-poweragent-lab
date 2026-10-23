@@ -1,6 +1,6 @@
 # 0028 — Short-circuit and system-strength tasks on snemSA (IEC 60909)
 
-- **Status:** open. **Merit: first** of the 2026-10-23 tool review (0028–0032).
+- **Status:** **blocked on data** (step 1 measured 2026-10-23, below). **Merit: first** of the 2026-10-23 tool review (0028–0032).
 - **Affects:**
   - G2's engineering tools (`powercoder/engineering/`);
   - G3's task generator;
@@ -35,3 +35,19 @@ solver.
   every bus.
 - **No invented inputs:** tasks are generated only where the case has the data the method needs,
   and a test asserts it.
+
+## Step 1 result (measured 2026-10-23): no transmission case has short-circuit data
+- **snemSA lacks the inputs IEC 60909 needs.** It has no external grid and no generator
+  subtransient reactance (`xdss_pu`), power factor (`cos_phi`) or rated voltage (`vn_kv`), so
+  `pandapower.shortcircuit.calc_sc` fails (`'DataFrame' object has no attribute 'vn_kv'`). Lines
+  and transformers have impedances, so the gap is in the sources. MATPOWER-format cases (snemSA,
+  IEEE 39/118, PEGASE 89) generally don't carry this data.
+- **pandapower's CIGRE benchmarks:**
+  - **MV** (15 buses; external grid 5000 MVA, R/X 0.1) runs: 1.198–26.243 kA.
+  - **LV** (44 buses) runs: 1.14–16.934 kA.
+  - **HV** (13 buses, 3 generators) has no external-grid short-circuit data.
+  - **MV with DER** lacks the inverters' `k` factors.
+- **So system-strength (SCR) tasks would need a transmission case with real source data**
+  (subtransient reactances, grid equivalents). Inventing them is ruled out. A
+  distribution-level fault-level family on CIGRE MV/LV would be possible, but it isn't what
+  AEMO's system-strength work asks about.

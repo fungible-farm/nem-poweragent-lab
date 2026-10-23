@@ -40,7 +40,7 @@ research notes.
 | [0025](0025-podman-desktop-packaging-of-on-demand-services.md) | Podman Desktop packaging of optional, on-demand, memory-heavy services | awaiting requirements |
 | [0026](0026-walkable-path-namespace-ls-get.md) | Walkable path namespace: one grammar, `ls`/`get`, answers that cite paths (80/20 of 0027) | open, next |
 | [0027](0027-functional-data-virtualization-layer.md) | Functional data-virtualization layer: CIM-named, memoised, Arrow-queryable `/proc` for the grid | deferred |
-| [0028](0028-short-circuit-and-system-strength-tasks.md) | Short-circuit and system-strength (SCR proxy) tasks on snemSA, IEC 60909 via pandapower | open (tool review #1) |
+| [0028](0028-short-circuit-and-system-strength-tasks.md) | Short-circuit and system-strength (SCR proxy) tasks on snemSA, IEC 60909 via pandapower | blocked (no transmission case with short-circuit data; measured) |
 | [0029](0029-cgmes-round-trip-with-pypowsybl.md) | Check the G4 CIM export against pypowsybl's CGMES | open (tool review #2) |
 | [0030](0030-nem-dispatch-reruns-with-nempy.md) | Re-run historical NEM dispatch with nempy | blocked (NEMWeb access) |
 | [0031](0031-openstef-short-term-forecasting.md) | OpenSTEF as G7's first forecasting engine | blocked (G5 data) |
