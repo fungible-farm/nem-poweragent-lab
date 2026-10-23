@@ -80,7 +80,26 @@ refused. `powercoder/commands.py` executes each request on the existing tool beh
 another IR version is refused and that a mis-cited number is not verified. Recipe:
 `just powercoder::command-ir-test`.
 
+## Replay done (2026-10-24): `powercoder/inference/replay.py`
+
+Each recorded tool call is re-run through `mcp_server.respond`, the function the server itself
+now builds responses with. The re-derived JSON is compared exactly, floats included, with what
+the model was shown. Calls the SDK refused are replayed by validating them against the schema
+the journal recorded.
+
+The whole r6b root, all four models, was replayed on 2026-10-24:
+
+| Outcome | Calls |
+|---|---|
+| Identical | 2,149 |
+| Schema refusal reproduced | 58 |
+| Different | 104 |
+
+All 104 differences are `/error` on `run_study_trial`. Each recorded `ValueError: Unknown
+observation element` is a prefix of today's message, which Fix 2 extended with the id sent and
+the valid ids. No solver number changed. Recipe: `just powercoder::replay <root>`; tests in
+`test_replay.py`.
+
 **Left for G1:**
 - Python serving the IR-generated schema (not only matching it);
-- replay;
 - the ≥99% valid-command protocol suite.

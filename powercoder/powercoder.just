@@ -102,3 +102,7 @@ command-ir-test:
 # Execute IR requests (JSON lines on stdin), e.g. the Rust fixture: just powercoder::execute < rust/command-ir/tests/requests.jsonl
 execute:
     uv run python -m powercoder.commands
+
+# G1 replay: re-run every recorded tool call in a run root's journals and diff against what the model saw (0015).
+replay root:
+    uv run python -m powercoder.inference.replay {{root}}/*/ex_*.jsonl | tail -1

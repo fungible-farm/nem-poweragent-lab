@@ -42,6 +42,29 @@ def tool_definitions(study_tools: bool = False, namespace_tools: bool = False) -
             for schema in schemas for f in [schema["function"]]]
 
 
+def respond(backend: PowerMCP, name: str, arguments: dict[str, Any], study_tools: bool = False,
+            namespace_tools: bool = False) -> str:
+    """The text a tool call returns to the model; ``replay`` re-derives journals through this.
+
+    Backend access must be serialized: its iteration observer temporarily patches
+    pandapower's NR function and must not run concurrently in one process.
+    """
+    import json
+
+    if namespace_tools and name in {"ls", "get"}:
+        from powercoder.inference.namespace import call
+
+        return json.dumps(call(name, arguments), allow_nan=False)
+    if study_tools and name == "run_study_trial":
+        from powercoder.inference.studies import run_study_trial
+
+        result = run_study_trial(**arguments)
+    else:
+        result = backend.execute_tool(name, arguments)
+    visible = {k: v for k, v in asdict(result).items() if k not in MODEL_HIDDEN_FIELDS}
+    return json.dumps(visible, allow_nan=False)
+
+
 def create_server(study_tools: bool = False, namespace_tools: bool = False, policy_role: str | None = None,
                   policy_networks: frozenset[str] | None = None) -> Server:
     """Expose canonical schemas and real solver outcomes through SDK transport.
@@ -76,20 +99,7 @@ def create_server(study_tools: bool = False, namespace_tools: bool = False, poli
             if not decision["allowed"]:
                 refused = {"status": "policy_denied", "data": {}, "error": f"PolicyDenied: {decision['reason']}"}
                 return [TextContent(type="text", text=json.dumps(refused))]
-        # Serialize backend access: its iteration observer temporarily patches
-        # pandapower's NR function and must not run concurrently in one process.
-        if namespace_tools and name in {"ls", "get"}:
-            from powercoder.inference.namespace import call
-
-            return [TextContent(type="text", text=json.dumps(call(name, arguments), allow_nan=False))]
-        if study_tools and name == "run_study_trial":
-            from powercoder.inference.studies import run_study_trial
-
-            result = run_study_trial(**arguments)
-        else:
-            result = backend.execute_tool(name, arguments)
-        visible = {k: v for k, v in asdict(result).items() if k not in MODEL_HIDDEN_FIELDS}
-        return [TextContent(type="text", text=json.dumps(visible, allow_nan=False))]
+        return [TextContent(type="text", text=respond(backend, name, arguments, study_tools, namespace_tools))]
 
     return server
 
