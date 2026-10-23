@@ -99,7 +99,15 @@ workbook:
   (protocol 2025-06-18). Its own dependencies (`mcp` 2.x, pillow, starlette, uvicorn) stay in its
   own environment.
 
-**What changes in the plan.** Use excel-mcp-server (read-only, confined to a workbook directory)
+**Deferred (user, 2026-10-23): not in the harness.** Its core tools alone advertise 8,900 characters
+of descriptions and schemas on every request, about twice PowerCoder's whole tool block (about 4.2k
+characters), and that isn't necessary. It stays the reference for behaviour worth copying
+(full-precision formula results, a calculator that never guesses, hidden rows, precedents, folder
+confinement). The workbook layer is instead a small tool group in PowerCoder's own server:
+openpyxl to read, `formulas` to recalculate, descriptions kept short and measured. The plan
+originally considered:
+
+Use excel-mcp-server (read-only, confined to a workbook directory)
 for the workbook layer instead of reimplementing it. PowerCoder's own server keeps the
 power-engineering parts: quantity and unit mapping, plausibility checks, and solver
 re-derivation. The evaluation harness connects each attempt to one stdio server
