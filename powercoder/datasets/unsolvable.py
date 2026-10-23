@@ -123,3 +123,53 @@ def grade(task: dict[str, Any], answer: str) -> tuple[bool, dict[str, Any], list
         [] if names else ["The answer does not name the absent element"]) + (
         ["The answer states a value the task cannot have"] if claims else [])
     return refuses and names and not claims, {"verification": "refusal of an unsolvable task"}, diagnostics
+
+
+# An evaluation suite takes at most this many rewrites of each source family.
+PER_SOURCE_FAMILY: int = 10
+
+
+def main() -> int:
+    """Freeze an unsolvable evaluation suite rewritten from another frozen suite's rows.
+
+    Fits give the shape the students were trained on. N-1 reports naming an absent line were
+    never trained, and on the held-out snem-1803 they test whether refusal transfers.
+    """
+    import argparse
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("--from", dest="source", type=Path, required=True, help="A frozen suite's examples.jsonl")
+    parser.add_argument("--out-dir", type=Path, required=True)
+    args = parser.parse_args()
+    if args.out_dir.exists():
+        raise ValueError("Refusing to overwrite a frozen suite directory")
+    rows = [json.loads(line) for line in args.source.read_text().splitlines() if line.strip()]
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row["subfamily"] == "pf-report" and row["task"]["inputs"].get("contingency_line") is None:
+            continue
+        if row["subfamily"] not in {"pf-report", "pf-load-scale-fit", "pf-line-rating-fit", "pf-gen-dispatch-fit"}:
+            continue
+        family = f"{row['subfamily'] if row['subfamily'] == 'pf-report' else 'fit'}:{row['topology']}"
+        group = groups.setdefault(family, [])
+        if len(group) < PER_SOURCE_FAMILY:
+            group.append(make_unsolvable(row, topology_salt="evaluation"))
+    suite = [row for family in sorted(groups) for row in groups[family]]
+    for row in suite:
+        row["lifecycle"] = {**row["lifecycle"], "split": "test"}
+    args.out_dir.mkdir(parents=True)
+    examples = args.out_dir / "examples.jsonl"
+    with examples.open("x") as stream:
+        for row in suite:
+            stream.write(json.dumps(row, allow_nan=False) + "\n")
+    by_family = {family: len(group) for family, group in sorted(groups.items())}
+    (args.out_dir / "manifest.json").write_text(json.dumps({
+        "suite": "unsolvable-v1", "source": str(args.source), "n_tasks": len(suite), "by_source_family": by_family,
+        "examples_sha256": hashlib.sha256(examples.read_bytes()).hexdigest()}, indent=2) + "\n")
+    print(json.dumps({"tasks": len(suite), "by_source_family": by_family}))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -150,9 +151,13 @@ async def probe(args: argparse.Namespace, journal: TextIO) -> int:
                     except (ValueError, TypeError) as error:
                         record(journal, "terminal", {"state": "invalid_tool_arguments", "actual_tool_calls": calls, "error": str(error)})
                         return 1
+                    started = time.monotonic()
                     response = await session.call_tool(call["function"]["name"], arguments)
                     observed = response.model_dump(mode="json", by_alias=True)
-                    record(journal, "tool_response", {"tool_call_id": call["id"], "result": observed})
+                    # tool_seconds is journal-only: the message below carries the result alone, so
+                    # wall-clock time never reaches the model (FM-3). The error ledger costs it (PC-REQ-4).
+                    record(journal, "tool_response", {"tool_call_id": call["id"], "result": observed,
+                                                      "tool_seconds": time.monotonic() - started})
                     calls += 1
                     messages.append({"role": "tool", "tool_call_id": call["id"],
                                      "content": json.dumps(observed, allow_nan=False)})

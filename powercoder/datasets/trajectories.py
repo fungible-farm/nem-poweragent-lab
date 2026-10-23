@@ -321,9 +321,14 @@ async def refuse(conversation: Conversation, row: dict[str, Any]) -> str:
     """
     inputs = row["task"]["inputs"]
     source = {"subfamily": inputs["source"]["subfamily"], "task": {"inputs": inputs["source"]["inputs"]}}
-    observed = await conversation.trial(fit_arguments(source, inputs["source"]["inputs"]["scale_lo"],
-                                                      element=inputs["absent_id"]))
-    if f" element {inputs['absent_id']}:" not in str(observed.get("error") or ""):
+    if source["subfamily"] == "pf-report":
+        # An N-1 report naming an absent line: the outage itself cannot be applied.
+        source["task"]["inputs"] = {**source["task"]["inputs"], "contingency_line": inputs["absent_id"]}
+        observed = await conversation.trial(report_arguments(source))
+    else:
+        observed = await conversation.trial(fit_arguments(source, inputs["source"]["inputs"]["scale_lo"],
+                                                          element=inputs["absent_id"]))
+    if f" {inputs['absent_id']}:" not in str(observed.get("error") or ""):
         raise RuntimeError(f"The absent element was not refused: {str(observed)[:200]}")
     return row["expected"]["answer"]
 
