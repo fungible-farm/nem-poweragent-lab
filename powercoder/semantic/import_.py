@@ -48,13 +48,29 @@ def _f(g: Graph, s: URIRef, p: URIRef, default: float = NAN) -> float:
 def _i(g: Graph, s: URIRef, p: URIRef, default: int | None = None) -> int | None:
     """Integer value of ``s p ?o``, or ``default`` when absent."""
     v = g.value(s, p)
-    return default if v is None else int(v.toPython())
+    return default if v is None else int(float(v.toPython()))
 
 
 def _b(g: Graph, s: URIRef, p: URIRef, default: bool | None = None) -> bool | None:
-    """Boolean value of ``s p ?o``, or ``default`` when absent."""
+    """Boolean value of ``s p ?o``, or ``default`` when absent.
+
+    A plain literal (CGMES RDF/XML carries no datatypes, cgmes.py) is read from its lexical
+    form: ``bool("false")`` is True in Python, which would silently connect every
+    disconnected terminal.
+
+    Raises:
+        ValueError: for a lexical form that is not a boolean.
+    """
     v = g.value(s, p)
-    return default if v is None else bool(v.toPython())
+    if v is None:
+        return default
+    value = v.toPython()
+    if isinstance(value, str):
+        lexical = value.strip().lower()
+        if lexical not in {"true", "false", "1", "0"}:
+            raise ValueError(f"{p} is not a boolean: {value!r}")
+        return lexical in {"true", "1"}
+    return bool(value)
 
 
 def _name(g: Graph, s: URIRef, kind: str, index: int) -> str | None:
@@ -115,7 +131,10 @@ def import_network(graph: Graph) -> pp.pandapowerNet:
             a clearer report, so validate first.
     """
     g = graph
-    header = next(g.subjects(RDF.type, MD.FullModel), None)
+    # The header holding the network fields. A CGMES profile split (cgmes.py) adds one
+    # md:FullModel per profile, so "the first header" could be one without them.
+    headers = list(g.subjects(RDF.type, MD.FullModel))
+    header = next((h for h in headers if (h, PCX.snMva, None) in g), headers[0] if headers else None)
     sn_mva = _f(g, header, PCX.snMva, 1.0) if header is not None else 1.0
     f_hz = _f(g, header, PCX.frequencyHz, 50.0) if header is not None else 50.0
     net = pp.create_empty_network(sn_mva=sn_mva, f_hz=f_hz)

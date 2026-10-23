@@ -46,7 +46,7 @@ research notes.
 | [0031](0031-openstef-short-term-forecasting.md) | OpenSTEF as G7's first forecasting engine | blocked (G5 data) |
 | [0032](0032-energnn-screening-surrogate.md) | EnerGNN as a screening ranker, never a source of reported numbers | deferred |
 | [0033](0033-study-workbook-audit.md) | Audit an engineer's study workbook: every number traced, re-derived or flagged (prototype 6/6 on seeded errors) | deferred (user: skip Excel, don't reinvent) |
-| [0034](0034-cgmes-conformant-g4-export.md) | Make the G4 export importable as CGMES: EQ/TP/SSH/SV profiles with headers | open |
+| [0034](0034-cgmes-conformant-g4-export.md) | Make the G4 export importable as CGMES: EQ/TP/SSH/SV profiles with headers | done (pypowsybl imports all and agrees to 1.38e-5 pu) |
 
 Independent reviews behind items: [`reviews/2026-10-23-r6-merit-review.md`](reviews/2026-10-23-r6-merit-review.md)
 (a separate AI reviewer, read-only; kept as evidence).
