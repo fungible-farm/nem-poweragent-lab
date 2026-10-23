@@ -28,3 +28,18 @@
 ## Cheapest first step
 Export `snemSA.m` to a CGMES-shaped RDF graph. Validate it with SHACL, and round-trip it to
 pandapower with identical power-flow results.
+
+## Versioned topology snapshots done (2026-10-23): `powercoder/semantic/snapshots.py`
+A snapshot records the SSH switching state (`ACDCTerminal.connected`) and the tap steps, plus the
+model version (sha256 of the non-state triples), its validity interval, source and quality. The
+store is append-only, refuses overlapping intervals and foreign model versions, and answers
+"the state at time t". **Historical snapshots reproduce:** re-applying a stored snapshot gives
+exactly the islands it was captured with (`test_snapshots.py`, on snemSA with an isolating line
+opened).
+
+**Also done for G4:**
+- the CGMES export, checked against pypowsybl to 1.38e-5 pu (0029, 0034);
+- the walkable `ls`/`get` namespace, the typed query surface (0026).
+
+**Left:** `cim:Switch` objects and switch-derived TopologicalNodes; OWL/RDFS schema ingestion;
+query budgets beyond `ls` paging.

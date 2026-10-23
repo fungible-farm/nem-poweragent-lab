@@ -10,9 +10,9 @@ Both are computed from the graph alone (no pandapower), so they can be cross-che
 ``pandapower.topology`` on the imported network. The switching state is the SSH
 ``ACDCTerminal.connected`` flag; :func:`set_equipment_connected` changes it.
 
-Not yet built (named, PC-REQ-021 remainder): versioned snapshots with model version, validity
-interval, tap positions, source and quality; ``cim:Switch`` objects (the subset refuses switch
-tables); TopologicalNode re-derivation from closed switches.
+Versioned snapshots (model version, validity interval, tap positions, source, quality) are in
+:mod:`powercoder.semantic.snapshots`. Not yet built (named, PC-REQ-021 remainder): ``cim:Switch``
+objects (the subset refuses switch tables); TopologicalNode re-derivation from closed switches.
 """
 from __future__ import annotations
 
