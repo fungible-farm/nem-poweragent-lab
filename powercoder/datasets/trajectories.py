@@ -34,10 +34,21 @@ is genuine, followed by a one-line note and the correct procedure:
   measurement that names "line 0 out of service";
 - ``run_power_flow_contingency`` (FM-1/FM-9): an N-1 report through
   ``run_power_flow`` -> rejected, since it has no ``contingency_line``.
-- ``unknown_bus`` (r6b Qwen student, 2026-10-23): a report observing a bus
-  below the lowest id -> refused with an error naming the valid ids; the note
-  and the corrected call use the first id that error names. Every report
-  recovery row gets this variant as well as its other one.
+- ``invented_observation`` (r6b Qwen student, 2026-10-23: bus 999, then 1, 2, 3, ...): a
+  report observing a bus the network lacks -> refused; the note says a network-wide report
+  needs no element, and the report is sent without one (IR 0.2.0);
+- ``wrong_element``: a fit's first call uses an id the network lacks in place of the one the
+  task names -> refused; the note says to use the task's id, never to search for one.
+
+Both bad ids are drawn by ``unsolvable.absent_id`` from gaps in that network's own ids,
+seeded by the row, so no fixed number is learnt (user rule 2026-10-24: abstract skills, no
+model-specific magic numbers). Reports and load-scale fits send no argument their operation
+does not use, so no placeholder id appears in any call either.
+
+Unsolvable rows (``pf-unsolvable``, ``unsolvable.make_unsolvable``): every
+``UNSOLVABLE_EVERY``-th fit is rewritten to name an element its network lacks. The trajectory
+asks the tool about it once and refuses without a value ("NEVER GUESS"; refuse only when the
+task is unsolvable).
 
 The final answer still comes only from the correct calls and passes
 ``grade()`` (which includes the no-made-up-numbers provenance check).
@@ -63,7 +74,6 @@ from mcp.client.stdio import stdio_client
 
 from powercoder.datasets import common
 from powercoder.datasets.audit import load_rows
-from powercoder.inference import powermcp as pm
 from powercoder.inference.evaluate_agent import grade
 from powercoder.inference.tool_probe import MAX_TOOL_CALLS, MAX_TURNS, SYSTEM_PROMPT, record
 
@@ -92,26 +102,17 @@ RECOVERY_NOTES: dict[str, str] = {
                          "so I omit contingency_line and start the search again."),
     "run_power_flow_contingency": ("run_power_flow has no contingency_line parameter; an N-1 report "
                                    'uses run_study_trial with operation="none".'),
-    # Filled from the injected call and its error (inject): the id written is
-    # the one the tool's response names, never one the script knows otherwise.
-    "unknown_bus": ("Bus {bad} does not exist in this network; the error names the valid ids, "
-                    "so I observe bus {valid}, the lowest."),
-    # The same recovery with ls/get (backlog 0026), in two turns: list, then use the first id.
-    "unknown_bus_ls": "Bus {bad} does not exist in this network, so I list /case/{case}/bus.",
-    "unknown_bus_listed": "Bus {valid} is the first bus listed, so I observe it.",
+    "invented_observation": ("Bus {bad} is not in this network, and the task names no element: a "
+                             "network-wide report needs none, so I omit the observation."),
+    "wrong_element": ("{kind} {bad} is not in this network; the task names {kind} {named}, so I use "
+                      "that id rather than search for another."),
 }
-# The injected failures (RECOVERY_NOTES also holds the namespace recovery's two notes).
-FAULTS: tuple[str, ...] = ("none_string", "contingency_zero", "run_power_flow_contingency", "unknown_bus")
-# A report's unknown_bus mistake observes one id below the lowest bus: below the
-# index's minimum, so it cannot exist in any case. CORRECTION 2026-10-24: the r6b
-# Qwen student's 999 (three report attempts) is *above* snem-sa-2000's lowest bus
-# 985, in the gap before 1632, so this offset does not reproduce the observed
-# mistake. The report prompt names no bus at all; see backlog 0008/0015.
-UNKNOWN_BUS_OFFSET: int = 1
-# Pulls the first id an unknown-element error names (studies.unknown_element).
-VALID_IDS_PATTERN: re.Pattern[str] = re.compile(r"ids are (\d+)")
-
-
+FAULTS: tuple[str, ...] = ("none_string", "contingency_zero", "run_power_flow_contingency",
+                           "invented_observation", "wrong_element")
+# One unsolvable rewrite for every UNSOLVABLE_EVERY-th fit (example_id order): enough to learn
+# to refuse an absent element, few enough that refusal stays rare beside ~200 solvable fits.
+UNSOLVABLE_EVERY: int = 8
+ELEMENT_WORDS: dict[str, str] = {"bus": "Bus", "line": "Line", "gen": "Generator", "trafo": "Transformer"}
 class Trajectory(TypedDict):
     """One graded conversation, ready for chat-template rendering."""
 
@@ -180,10 +181,35 @@ class Conversation:
                                           "accuracy_claim": False})
 
 
-def first_bus(case: str) -> int:
-    """The lowest bus index: run_study_trial requires an existing observation element."""
-    net, _ = pm._load_network_object(case)
-    return int(min(net.bus.index))
+def fit_arguments(row: dict[str, Any], scale: float, element: int | None = None) -> dict[str, Any]:
+    """The fit procedure's trial: only the arguments its operation uses (IR 0.2.0).
+
+    ``element`` replaces the task's named id (an injected mistake); otherwise the ids are the
+    ones the prompt names, never one the script knows otherwise.
+    """
+    inputs = row["task"]["inputs"]
+    operation, observation = FIT_OPERATIONS[row["subfamily"]]
+    ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
+    arguments: dict[str, Any] = {"network_id": inputs["case"], "operation": operation, "scale": scale}
+    if operation != "load_scale":
+        arguments["element_id"] = ids[0] if element is None else element
+    observed = ids[-1] if element is None or operation == "gen_dispatch" else element
+    return arguments | {"observation": observation, "observation_id": observed, "max_iter": TRIAL_MAX_ITER}
+
+
+def report_arguments(row: dict[str, Any]) -> dict[str, Any]:
+    """A network-wide report: no scale, element or observation, which it does not use."""
+    inputs = row["task"]["inputs"]
+    arguments: dict[str, Any] = {"network_id": inputs["case"], "operation": "none"}
+    if inputs.get("contingency_line") is not None:
+        arguments["contingency_line"] = inputs["contingency_line"]
+    return arguments | {"max_iter": TRIAL_MAX_ITER}
+
+
+def named_element(row: dict[str, Any]) -> tuple[str, int]:
+    """The kind and id of the element a fit modifies (``inputs.element``, e.g. "line 232")."""
+    kind = {"pf-load-scale-fit": "bus", "pf-line-rating-fit": "line", "pf-gen-dispatch-fit": "gen"}[row["subfamily"]]
+    return kind, int(re.findall(r"\d+", row["task"]["inputs"]["element"])[0])
 
 
 def extra_faults(row: dict[str, Any]) -> list[str]:
@@ -192,7 +218,7 @@ def extra_faults(row: dict[str, Any]) -> list[str]:
     Added rather than alternated, so every earlier trajectory is rebuilt
     byte-identically and no measured failure loses examples.
     """
-    return ["unknown_bus"] if row["subfamily"] == "pf-report" else []
+    return ["invented_observation"] if row["subfamily"] == "pf-report" else ["wrong_element"]
 
 
 def fault_for(row: dict[str, Any], index: int) -> str:
@@ -208,50 +234,30 @@ async def inject(conversation: Conversation, row: dict[str, Any], fault: str) ->
     Raises:
         RuntimeError: if the server did not respond as the failure mode predicts.
     """
+    from powercoder.datasets.unsolvable import absent_id, element_ids
+
     inputs = row["task"]["inputs"]
     if fault == "run_power_flow_contingency":
         observed = await conversation.trial({"network_id": inputs["case"], "contingency_line": inputs["contingency_line"]},
                                             tool="run_power_flow")
         expected = "error" in observed
     elif fault == "none_string":
-        if row["subfamily"] == "pf-report":
-            arguments = {"network_id": inputs["case"], "operation": "none", "scale": 1.0, "element_id": 0,
-                         "observation": "bus_voltage", "observation_id": first_bus(inputs["case"])}
-        else:
-            operation, observation = FIT_OPERATIONS[row["subfamily"]]
-            ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
-            arguments = {"network_id": inputs["case"], "operation": operation, "scale": inputs["scale_lo"],
-                         "element_id": ids[0], "observation": observation, "observation_id": ids[-1]}
-        observed = await conversation.trial({**arguments, "contingency_line": "None", "max_iter": TRIAL_MAX_ITER})
+        arguments = report_arguments(row) if row["subfamily"] == "pf-report" else fit_arguments(row, inputs["scale_lo"])
+        observed = await conversation.trial({**arguments, "contingency_line": "None"})
         expected = "error" in observed
-    elif fault == "unknown_bus":
-        valid = first_bus(inputs["case"])
-        bad = valid - UNKNOWN_BUS_OFFSET
-        arguments = {"network_id": inputs["case"], "operation": "none", "scale": 1.0, "element_id": 0,
-                     "observation": "bus_voltage", "observation_id": bad, "max_iter": TRIAL_MAX_ITER}
-        if inputs.get("contingency_line") is not None:
-            arguments["contingency_line"] = inputs["contingency_line"]
-        observed = await conversation.trial(arguments)
-        if conversation.namespace:
-            # With ls/get, the recovery walks the namespace rather than reading the error.
-            conversation.note = RECOVERY_NOTES["unknown_bus_ls"].format(bad=bad, case=inputs["case"])
-            listing = await conversation.trial({"path": f"/case/{inputs['case']}/bus"}, tool="ls")
-            listed = (listing.get("data") or {}).get("children") or []
-            expected = "error" in observed and bool(listed) and listed[0] == valid
-            conversation.note = RECOVERY_NOTES["unknown_bus_listed"].format(valid=valid) if expected else None
-        else:
-            named = VALID_IDS_PATTERN.search(str(observed.get("error") or ""))
-            # The recovery must use the id the response names, and that must be the
-            # bus report() then observes, or the trajectory teaches a guess.
-            expected = named is not None and int(named.group(1)) == valid
-            conversation.note = RECOVERY_NOTES[fault].format(bad=bad, valid=valid) if expected else None
+    elif fault == "invented_observation":
+        bad = absent_id(element_ids(inputs["case"], "bus"), f"{row['example_id']}:{fault}")
+        observed = await conversation.trial({**report_arguments(row), "observation": "bus_voltage", "observation_id": bad})
+        expected = f"Unknown observation element {bad}" in str(observed.get("error") or "")
+        conversation.note = RECOVERY_NOTES[fault].format(bad=bad)
+    elif fault == "wrong_element":
+        kind, named = named_element(row)
+        bad = absent_id(element_ids(inputs["case"], kind), f"{row['example_id']}:{fault}")
+        observed = await conversation.trial(fit_arguments(row, inputs["scale_lo"], element=bad))
+        expected = f" element {bad}:" in str(observed.get("error") or "")
+        conversation.note = RECOVERY_NOTES[fault].format(kind=ELEMENT_WORDS[kind], bad=bad, named=named)
     else:
-        operation, observation = FIT_OPERATIONS[row["subfamily"]]
-        ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
-        observed = await conversation.trial({"network_id": inputs["case"], "operation": operation,
-                                             "scale": inputs["scale_lo"], "element_id": ids[0],
-                                             "observation": observation, "observation_id": ids[-1],
-                                             "contingency_line": 0, "max_iter": TRIAL_MAX_ITER})
+        observed = await conversation.trial({**fit_arguments(row, inputs["scale_lo"]), "contingency_line": 0})
         expected = (observed.get("data") or {}).get("contingency") == "line 0 out of service"
     if not expected:
         raise RuntimeError(f"Injected {fault} did not produce its failure: {str(observed)[:200]}")
@@ -263,12 +269,7 @@ async def report(conversation: Conversation, row: dict[str, Any]) -> str:
     """One ``operation="none"`` trial, answered in the reference report wording."""
     inputs = row["task"]["inputs"]
     contingency = inputs.get("contingency_line")
-    arguments = {"network_id": inputs["case"], "operation": "none", "scale": 1.0, "element_id": 0,
-                 "observation": "bus_voltage", "observation_id": first_bus(inputs["case"]),
-                 "max_iter": TRIAL_MAX_ITER}
-    if contingency is not None:
-        arguments["contingency_line"] = contingency
-    observed = await conversation.trial(arguments)
+    observed = await conversation.trial(report_arguments(row))
     data = observed["data"]
     where = (f" with line {contingency} out of service (N-1 contingency)"
              if contingency is not None else " (base case)")
@@ -285,14 +286,10 @@ async def fit(conversation: Conversation, row: dict[str, Any]) -> str:
         RuntimeError: if a trial fails or the target is not bracketed.
     """
     inputs = row["task"]["inputs"]
-    operation, observation = FIT_OPERATIONS[row["subfamily"]]
-    ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
     target, tolerance = inputs["target"], inputs["tolerance"]
 
     async def measure(scale: float) -> float:
-        observed = await conversation.trial({
-            "network_id": inputs["case"], "operation": operation, "scale": scale, "element_id": ids[0],
-            "observation": observation, "observation_id": ids[-1], "max_iter": TRIAL_MAX_ITER})
+        observed = await conversation.trial(fit_arguments(row, scale))
         if not (observed["data"] or {}).get("metric_valid"):
             raise RuntimeError(f"Trial at s={scale} returned no valid metric: {observed['status']}")
         return observed["data"]["metric"]
@@ -316,6 +313,21 @@ async def fit(conversation: Conversation, row: dict[str, Any]) -> str:
     return f"{best[0]:.{SCALE_DECIMALS}f}"
 
 
+async def refuse(conversation: Conversation, row: dict[str, Any]) -> str:
+    """Ask the tool about the named element once; it is absent, so refuse without a value.
+
+    Raises:
+        RuntimeError: if the tool did not report the element as unknown.
+    """
+    inputs = row["task"]["inputs"]
+    source = {"subfamily": inputs["source"]["subfamily"], "task": {"inputs": inputs["source"]["inputs"]}}
+    observed = await conversation.trial(fit_arguments(source, inputs["source"]["inputs"]["scale_lo"],
+                                                      element=inputs["absent_id"]))
+    if f" element {inputs['absent_id']}:" not in str(observed.get("error") or ""):
+        raise RuntimeError(f"The absent element was not refused: {str(observed)[:200]}")
+    return row["expected"]["answer"]
+
+
 async def build(row: dict[str, Any], journals: Path, fault: str | None = None,
                 namespace: bool = False) -> tuple[Trajectory | None, str]:
     """Script, journal and grade one row (optionally a recovery variant); return it or the drop reason."""
@@ -337,7 +349,8 @@ async def build(row: dict[str, Any], journals: Path, fault: str | None = None,
             try:
                 if fault:
                     await inject(conversation, row, fault)
-                text = await (report if row["subfamily"] == "pf-report" else fit)(conversation, row)
+                script = {"pf-report": report, "pf-unsolvable": refuse}.get(row["subfamily"], fit)
+                text = await script(conversation, row)
             except RuntimeError as error:
                 return None, f"script: {error}"
             conversation.answer(text)
@@ -394,6 +407,10 @@ def main() -> int:
     jobs += [(row, fault_for(row, index)) for index, row in enumerate(selected) if index % RECOVERY_EVERY == 0]
     jobs += [(row, fault) for index, row in enumerate(selected) if index % RECOVERY_EVERY == 0
              for fault in extra_faults(row)]
+    from powercoder.datasets.unsolvable import make_unsolvable
+
+    fits = [row for row in selected if row["subfamily"] in FIT_OPERATIONS]
+    jobs += [(make_unsolvable(row), None) for index, row in enumerate(fits) if index % UNSOLVABLE_EVERY == 0]
     journals = args.out_dir / "journals"
     journals.mkdir(parents=True)
     outcomes = asyncio.run(build_all(jobs, journals, args.namespace_tools))

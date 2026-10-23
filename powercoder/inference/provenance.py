@@ -256,6 +256,9 @@ def check_fields(task: dict[str, Any], answer: str, events: list[dict[str, Any]]
             numbers.append(match.group(1))
             if int(match.group(1)) != inputs.get("contingency_line"):
                 fail(match.group(1), f"the task's contingency is {inputs.get('contingency_line')}")
+    elif task["subfamily"] == "pf-unsolvable":
+        # A refusal claims no value: any number must be the prompt's own id or a tool output.
+        pass
     else:
         scales = tried_scales(events)
         for match in FIELD_NUMBER.finditer(text):

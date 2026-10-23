@@ -86,6 +86,10 @@ def relevant_evidence(task: dict[str, Any], answer: str, events: list[dict[str, 
         from powercoder.datasets.judgement import studied_every_candidate
 
         return studied_every_candidate(task, events)
+    if task["subfamily"] == "pf-unsolvable":
+        from powercoder.datasets.unsolvable import checked_absent_element
+
+        return checked_absent_element(task, events)
     scale = extract_scale(answer) if task["subfamily"] in FIT_SUBFAMILIES else None
     for event in events:
         if event["kind"] != "tool_response":
@@ -132,7 +136,12 @@ def grade(task: dict[str, Any], journal: Path) -> TaskResult:
     completed = terminal["kind"] == "terminal" and terminal["payload"]["state"] == "answered"
     responses = [e["payload"] for e in events if e["kind"] == "model_response"]
     answer = (responses[-1]["choices"][0]["message"].get("content") or "") if responses else ""
-    correct, verification, diagnostics = score_answer(task, answer)
+    if task["subfamily"] == "pf-unsolvable":
+        from powercoder.datasets.unsolvable import grade as grade_unsolvable
+
+        correct, verification, diagnostics = grade_unsolvable(task, answer)
+    else:
+        correct, verification, diagnostics = score_answer(task, answer)
     evidence = relevant_evidence(task, answer, events)
     provenance = provenance_check(answer, events, task["task"].get("prompt", ""))
     return {

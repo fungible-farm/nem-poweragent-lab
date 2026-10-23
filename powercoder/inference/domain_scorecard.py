@@ -170,6 +170,10 @@ def score_numerical(task: dict[str, Any], answer: str) -> tuple[bool, dict[str, 
         from powercoder.datasets.judgement import grade_worst_contingency
 
         return grade_worst_contingency(task, answer)
+    if task["subfamily"] == "pf-unsolvable":
+        from powercoder.datasets.unsolvable import grade as grade_unsolvable
+
+        return grade_unsolvable(task, answer)
     if task["subfamily"] != "pf-report":
         raise ValueError(f"Unsupported domain family: {task['subfamily']}")
     expected, evidence = solve_report(task)
