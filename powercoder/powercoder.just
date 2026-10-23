@@ -77,3 +77,11 @@ with-code code_dir +cmd:
 # Leakage-free demand hindcast on the cached AEMO month (backlog 0021), e.g. region=VIC1.
 hindcast region="SA1":
     uv run python -m powercoder.forecasting.hindcast --region {{region}}
+
+# Build the 40-task judgement suite (0008: intent, open fit, worst contingency, held-out network), frozen.
+judgement-suite dest:
+    uv run python -m powercoder.datasets.judgement --out-dir {{dest}}
+
+# The scripted procedure as an agent on a frozen suite (G0 baseline a): its ceiling on that suite.
+script-baseline tasks dest:
+    uv run python -m powercoder.inference.script_baseline --tasks {{tasks}} --exclude {{split}} --out {{dest}}

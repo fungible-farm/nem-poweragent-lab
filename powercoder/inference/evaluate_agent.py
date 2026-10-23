@@ -82,6 +82,10 @@ def relevant_evidence(task: dict[str, Any], answer: str, events: list[dict[str, 
     from powercoder.distillation.filter import _parse_element
 
     inputs = task["task"]["inputs"]
+    if task["subfamily"] == "pf-worst-contingency":
+        from powercoder.datasets.judgement import studied_every_candidate
+
+        return studied_every_candidate(task, events)
     scale = extract_scale(answer) if task["subfamily"] in FIT_SUBFAMILIES else None
     for event in events:
         if event["kind"] != "tool_response":

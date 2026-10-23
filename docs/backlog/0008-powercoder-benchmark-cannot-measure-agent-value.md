@@ -26,3 +26,34 @@ A student that reproduces the template will clear +10 pp against bases near 5% w
 
 ## Cheapest decisive experiment
 Baseline (b) on the 20 smoke tasks for both base models, about 1–2 h of GPU. If a prompted base matches the student, fine-tuning added nothing measurable.
+
+## Judgement suite built (2026-10-23): `powercoder/datasets/judgement.py`, `just powercoder::judgement-suite`
+The suite has 40 tasks, frozen with a manifest. It is audited clean against the training split:
+40 unique prompts, no overlap. Every reference answer passes its own solver-checked grader. The
+four families, 10 each:
+
+| Family | What the model must do | Grader | Scripted procedure |
+|---|---|---|---|
+| intent | Answer a report phrased as an engineer's question (no procedure named) | existing report grader | 10/10* |
+| open fit | Fit with no interval in the prompt | existing independent fit checker | 10/10* |
+| worst contingency (`pf-worst-contingency`) | Study 3 outages and name the one with the highest max line loading, and that loading | new, re-solves every candidate; tool evidence for each | **0/10** |
+| held-out network (`snem-1803`) | Report on a network no training row uses | existing report grader | 10/10* |
+
+\*The scripted procedure reads each task's structured `inputs` (case, contingency, interval),
+which a model never sees. Rewording or an omitted interval cannot affect it, but a model must
+recover them from the prose. **The template ceiling here is 30/40.** Worst contingency needs a
+multi-study comparison the trained template does not do.
+
+**What it took:**
+- **Ranking by loading, not voltage.** On snemSA an outage moves the minimum voltage by as little as
+  1.8e-7 pu, so a voltage ranking would be ill-posed. Candidate sets are kept only when the top
+  two loadings differ by at least 0.05 %.
+- **A flat-start retry so `snem-1803` solves at all.** Its zero-reactance branches break
+  pandapower's default DC pre-solve (`FloatingPointError`). `powermcp._runpp_counted` now retries
+  with `init="flat"` on exactly that error, as Lab 2 documents for the same case. snemSA never
+  takes that path: the trajectory rebuild is byte-identical (`e7988135`).
+
+"Violations versus the base case" is not built, because no tool lists violating elements by id.
+
+**Next (GPU):** run the four models on the suite. It is the first r6-style measurement where
+reproducing the template cannot pass every task.

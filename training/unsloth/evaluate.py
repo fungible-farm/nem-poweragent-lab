@@ -184,6 +184,13 @@ def compare(subfamily: str, model_text: str, expected_text: str) -> bool:
         if mv.get("final_status") != ev.get("final_status"):
             return False
         return "iterations" not in ev or mv.get("iterations") == ev["iterations"]
+    if subfamily == "pf-worst-contingency":
+        # Judgement suite (powercoder/datasets/judgement.py): same line, loading within tolerance.
+        from powercoder.datasets.judgement import WORST_ANSWER
+
+        mv, ev = WORST_ANSWER.search(model_text), WORST_ANSWER.search(expected_text)
+        return (mv is not None and ev is not None and int(mv.group(1)) == int(ev.group(1))
+                and abs(float(mv.group(2)) - float(ev.group(2))) <= REPORT_LOAD_TOL)
     # Unknown subfamily: fall back to exact string match.
     return model_text.strip() == expected_text.strip()
 

@@ -166,6 +166,10 @@ def score_numerical(task: dict[str, Any], answer: str) -> tuple[bool, dict[str, 
     """Check fits at the final candidate and reports against a fresh AC solve."""
     if task["subfamily"] in FIT_SUBFAMILIES:
         return score_answer(task, answer)
+    if task["subfamily"] == "pf-worst-contingency":
+        from powercoder.datasets.judgement import grade_worst_contingency
+
+        return grade_worst_contingency(task, answer)
     if task["subfamily"] != "pf-report":
         raise ValueError(f"Unsupported domain family: {task['subfamily']}")
     expected, evidence = solve_report(task)

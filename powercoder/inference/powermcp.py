@@ -135,6 +135,9 @@ def _runpp_counted(net: pp.pandapowerNet, **kwargs: Any) -> int | None:
         The iteration count reported by the solver, or None if the solver
         raised before returning (non-convergence / execution failure).
 
+    A ``FloatingPointError`` from the default DC pre-solve (zero-reactance branches,
+    snem-1803) is retried once with ``init="flat"`` unless the caller chose ``init``.
+
     Raises:
         Whatever ``pp.runpp`` raises (LoadflowNotConverged, etc.).
     """
@@ -150,7 +153,16 @@ def _runpp_counted(net: pp.pandapowerNet, **kwargs: Any) -> int | None:
 
     nr.newtonpf = counting_newtonpf
     try:
-        pp.runpp(net, **kwargs)
+        try:
+            pp.runpp(net, **kwargs)
+        except FloatingPointError:
+            # snem-1803 has zero-reactance branches; pandapower's default DC pre-solve
+            # (init="auto" -> "dc") divides by x and raises before Newton-Raphson starts.
+            # A flat start skips that pre-solve (Lab 2's documented deviation for the same
+            # case). Only this failure is retried, so a case that solves is unaffected.
+            if "init" in kwargs:
+                raise
+            pp.runpp(net, init="flat", **kwargs)
     finally:
         nr.newtonpf = original
     return state["it"]
