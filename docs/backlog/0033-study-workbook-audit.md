@@ -1,6 +1,6 @@
 # 0033 — Audit an engineer's study workbook: every number traced, re-derived or flagged
 
-- **Status:** prototype measured 2026-10-23 (scratchpad, not committed); open. **Merit: above
+- **Status:** **deferred** (user, 2026-10-23: skip Excel; don't reinvent the wheel). Prototype measured 2026-10-23 (scratchpad, not committed). **Merit: above
   0030–0032,** because it needs no blocked data.
 - **Affects:**
   - PC-REQ-004 provenance, applied to the engineer's own artefacts;
