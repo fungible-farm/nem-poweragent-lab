@@ -110,3 +110,29 @@ def test_prompted_arm_runs_each_base_and_compares_with_its_plain_run_and_student
                         ("granite-base-strict-auto-first-auto", "granite-base-prompted-smoke", spans)]
     final = json.loads((tmp_path / "events.jsonl").read_text().splitlines()[-1])
     assert final["kind"] == "pipeline_complete"
+
+
+def test_restorebench_arm_reruns_the_pilot_for_exactly_the_models_r6_evaluated(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """r6b's pilot failed after its comparisons (FM-24); the rerun keeps r6's evaluated list."""
+    r6 = tmp_path / "r6b"
+    r6.mkdir()
+    (r6 / "pipeline.jsonl").write_text(json.dumps(
+        {"kind": "comparisons_complete", "payload": {"evaluated": ["qwen-base", "granite-student"]}}) + "\n")
+    sessions = []
+    monkeypatch.setattr(driver, "verify_student", lambda directory, _events: directory)
+    monkeypatch.setattr(driver, "session", lambda label, tag, *_a, restorebench=False, **_k:
+                        sessions.append((label, tag, restorebench)))
+    root = tmp_path / "pilot"
+    root.mkdir()
+    with (tmp_path / "events.jsonl").open("x") as stream:
+        driver.restorebench_arm(driver.argparse.Namespace(root=root, r6_root=r6), stream)
+    assert sessions == [("qwen-base", "restorebench", True), ("granite-student", "restorebench", True)]
+    final = json.loads((tmp_path / "events.jsonl").read_text().splitlines()[-1])
+    assert final["kind"] == "pipeline_complete" and final["payload"]["arm"] == "restorebench-pilot"
+
+
+def test_restorebench_arm_refuses_an_r6_root_without_comparisons(tmp_path: Path) -> None:
+    (tmp_path / "pipeline.jsonl").write_text(json.dumps({"kind": "driver_error", "payload": {}}) + "\n")
+    with (tmp_path / "events.jsonl").open("x") as stream, pytest.raises(RuntimeError, match="comparisons_complete"):
+        driver.restorebench_arm(driver.argparse.Namespace(root=tmp_path, r6_root=tmp_path), stream)
