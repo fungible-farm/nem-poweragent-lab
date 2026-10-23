@@ -1,6 +1,6 @@
 # 0017 — G3: verifier-guided investigative learning
 
-- **Status:** open; **CPU groundwork done** 2026-10-24 (below). The GRPO run needs the GPU. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G3, priority A4. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md))
+- **Status:** open; **CPU groundwork done** 2026-10-24, incl. held-out networks and pool v2 (below). The GRPO run needs the GPU and starts from the r7 students. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G3, priority A4. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md))
   and G2 ([0016](0016-g2-verified-engineering-mathematics.md)).
 - **Requirements:** PC-REQ-050–055, PC-CON-004.
 
@@ -60,10 +60,41 @@ discovers sensitivity-guided steps.
   An RL student "discovers sensitivity-guided steps" (0013) only if it reaches tolerance in
   fewer calls than these, at the same pass rate.
 
-## Caveat (2026-10-24): the procedural pool uses the held-out network
+## Held-out networks and pool v2 (2026-10-24) — resolves the caveat above
 
-`powercoder/datasets/procedural.py` draws load-scale fits from snem-1803, which the r7 study
-holds out (the judgement suite's held-out-network reports, the unsolvable suite's snem-1803
-reports) to test whether skills transfer. A GRPO pilot trained on that pool would make those
-measurements in-distribution. Before the pilot, either hold out a different network for the
-evaluation or draw the pool from snem-sa-2000 plus the IEEE/PEGASE cases.
+The v1 pool drew from snem-1803, the network r7 holds out. The tools now also serve pandapower's
+built-in IEEE 39, IEEE 118 and PEGASE 89 cases (BSD-3; `powermcp.STANDARD_CASES`, identified by
+the hash of their serialised data). All three solve in 3-4 Newton iterations. The network roles
+are fixed in `procedural.py`, and an assert forbids overlap:
+
+| Role | Networks |
+|---|---|
+| SFT trajectories (r7) | snem-sa-2000 |
+| RL pool (`POOL_NETWORKS`) | snem-sa-2000, ieee118, pegase89 |
+| Held out (`HELD_OUT_NETWORKS`) | snem-1803 (r7 judgement and unsolvable suites), ieee39 |
+
+The widened network list is in the schema r7 trains on (trajectories v5), so RL rollouts later
+use the same tool block as the r7 students: no train/serve skew.
+
+Pool v2 (`training/unsloth/out/procedural-pool-20261024-v2`, `just powercoder::procedural-pool`):
+
+- 150 load-scale fits, 50 per pool network, with 40 discovered elements each;
+- prompt wording v2; 36 fits are unbracketed (no interval in the prompt);
+- audited clean against six suites: benchmark 100 v1/v2, smoke 20 v1/v2, judgement v2 and
+  unsolvable v2. `main` refuses to freeze a pool that is unclean or audited against nothing.
+
+The baseline to beat, bisection replayed through the study tool over pool v2:
+
+| Network | Median calls | Range |
+|---|---|---|
+| snem-sa-2000 | 6 | 4–8 |
+| ieee118 | 6 | 4–7 |
+| pegase89 | 6 | 4–7 |
+
+**Left, and why:**
+- **GRPO run and distillation:** need the GPU. They start from the r7 students, after the r7 chain.
+- **Contingency fits:** `score_answer`'s independent fit check re-solves the intact network, so
+  an N-1 fit needs a grader that applies the outage first. Without one, those fits would be scored
+  against the wrong network.
+- **Operating points and free-text objectives:** not built. The judgement suite's intent prompts
+  are the model for free-text objectives.

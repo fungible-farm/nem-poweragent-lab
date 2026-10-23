@@ -91,8 +91,8 @@ ac-analysis:
     uv run python -c "import json; from powercoder.inference import powermcp as pm; from powercoder.engineering.ac_analysis import ac_power_flow, qv_modal, vq_sensitivity; net,_=pm._load_network_object('snem-sa-2000'); p=ac_power_flow(net)['proof']; m=qv_modal(net); print(json.dumps({'feasibility': p['feasibility_status'], 'kcl_residual_mva': p['equation_residuals'], 'conditioning': p['conditioning'], 'qv_mode': m, 'dv_dq': vq_sensitivity(net, m['participating_buses'][0][0])}, indent=1, default=str))"
 
 # G3: a frozen pool of load-scale fits from snem-sa-2000 and snem-1803 (discovered elements), for the RL pilot (0017).
-procedural-pool dest per_network="50":
-    uv run python -m powercoder.datasets.procedural --out-dir {{dest}} --per-network {{per_network}}
+procedural-pool dest per_network="50" suites_root="/home/brianh/promptexecution/fungible/nem-poweragent-lab":
+    uv run python -m powercoder.datasets.procedural --out-dir {{dest}} --per-network {{per_network}} --suites-root {{suites_root}}
 
 # G1: the Rust command IR's tests, incl. byte-identity of its emitted schema with the served one (0015).
 command-ir-test:

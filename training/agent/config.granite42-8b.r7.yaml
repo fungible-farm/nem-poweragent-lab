@@ -16,11 +16,11 @@ lora:
   target_modules: '^model\.layers\.\d+\.(self_attn\.(q|k|v|o)_proj|mlp\.(gate|up|down)_proj)$'
   bias: none
 dataset:
-  # r7 (2026-10-24; v4 = v3 with fit prompts in wording v2): the same 238 procedures under IR 0.2.0 (no placeholder ids), 25
+  # r7 (2026-10-24; v5 = v3 with fit prompts in wording v2 and the 7-network tool schema): the same 238 procedures under IR 0.2.0 (no placeholder ids), 25
   # pf-unsolvable refusals and 238 recovery variants, two of them id-free (invented_observation,
   # wrong_element; bad ids drawn per row from the network's id gaps). Hyperparameters are
   # unchanged from v2, so the data is the only difference.
-  trajectories: training/unsloth/out/trajectories-20261024-v4/trajectories.jsonl
+  trajectories: training/unsloth/out/trajectories-20261024-v5/trajectories.jsonl
 training:
   # The longest rendered trajectory is 7,001 tokens (Qwen) / 6,501 (Granite).
   seq_len: 8192
