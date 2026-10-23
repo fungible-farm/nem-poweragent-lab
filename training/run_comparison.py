@@ -36,6 +36,8 @@ INFERENCE_IMAGE: str = "d53cb735dd1822378c352da65b4ef1580c9764df7aed4bc8805c6c26
 # not, so a host profile for one (training/run_grpo_pilot.PROFILES) turns the wait off.
 INFERENCE_PYTHON: str = "/opt/venv/bin/python"
 AWAIT_HOST_MEMORY: bool = True
+# Extra `podman run` arguments for model servers, e.g. a host's required memory cap; none on GB10.
+INFERENCE_CONTAINER_ARGS: tuple[str, ...] = ()
 TRAINING_IMAGE: str = "74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda15c00ff"
 # Prompt + max_tokens must fit (AGENTS.md FM-5): the largest r2/r3 prompt was
 # 7,583 tokens, and tool_probe.MAX_TOKENS is 8,192, so 16,384 had no headroom.
@@ -171,7 +173,7 @@ def serve(source: Path, name: str, model: str, reasoning: str, root: Path, event
     # vLLM preallocates this fraction of total memory, so that is the floor.
     if AWAIT_HOST_MEMORY:
         await_memory(name, int(memory_fraction * meminfo_bytes("MemTotal")), events)
-    args = ["podman", "run", "-d", "--name", name, "--device", "nvidia.com/gpu=all",
+    args = ["podman", "run", "-d", "--name", name, *INFERENCE_CONTAINER_ARGS, "--device", "nvidia.com/gpu=all",
             "--security-opt", "label=disable", "--shm-size", "1g", "-p", f"127.0.0.1:{port}:8000",
             "-v", f"{source.resolve()}:/student:ro", "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1",
             "--entrypoint", INFERENCE_PYTHON, INFERENCE_IMAGE,

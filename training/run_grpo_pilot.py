@@ -68,23 +68,34 @@ class Profile(TypedDict):
     await_host_memory: bool
     training_image: str
     suspend_units: list[str]
+    # Extra `podman run` arguments for the model server and for the update container.
+    inference_container_args: list[str]
+    training_container_args: list[str]
 
 
 PROFILES: dict[str, Profile] = {
     # GB10 (shinyDGX): unified memory, the r6/r7 images.
     "gb10": Profile(inference_image=run_comparison.INFERENCE_IMAGE, inference_python=run_comparison.INFERENCE_PYTHON,
                     gpu_memory_fraction=GPU_MEMORY_FRACTION, await_host_memory=True, training_image=TRAINING_IMAGE,
-                    suspend_units=[]),
+                    suspend_units=[], inference_container_args=[], training_container_args=[]),
     # sm3lly's RTX 3090 (24 GB, x86-64; user approval 2026-10-24, "3090 on sm3lly approved for
     # GRPO"). Upstream vLLM 0.31.0 (GB10's version), and the x86 training image built from
     # training/agent/Containerfile.x86 at the GB10 image's package versions. A discrete GPU's
     # memory is not host memory, so no host wait. vLLM takes 0.85 of the card; the 4B weights need
     # ~8.5 GB, which leaves the rest for KV cache. The llama.cpp service holding the card is
     # suspended for the pilot only, and restarted when it ends or fails (user decision 2026-10-24).
+    # sm3lly's shared-node protocol rejects any container without a memory cap (OCI hook
+    # /usr/local/bin/b00t-limits-hook; uncapped workloads crashed the node twice on 2026-07-17), so
+    # both containers carry one; the pilot complies rather than taking the b00t.unlimited opt-out.
+    # 31 GB of host RAM, ~18 GB available, and the two never run at once: the server needs ~8 GB to
+    # load the 4B weights plus its runtime (14 GB); the update loads the base twice, once to train
+    # and once to merge (16 GB).
     "sm3lly": Profile(inference_image="docker.io/vllm/vllm-openai:v0.31.0", inference_python="/usr/bin/python3",
                       gpu_memory_fraction=0.85, await_host_memory=False,
                       training_image="localhost/powercoder-train-x86:20261024",
-                      suspend_units=["b00t-hive-inference-heretic-neo-coder.service"]),
+                      suspend_units=["b00t-hive-inference-heretic-neo-coder.service"],
+                      inference_container_args=["--memory", "14g", "--memory-swap", "14g"],
+                      training_container_args=["--memory", "16g", "--memory-swap", "16g"]),
 }
 
 
@@ -93,6 +104,7 @@ def apply_profile(profile: Profile) -> None:
     run_comparison.INFERENCE_IMAGE = profile["inference_image"]
     run_comparison.INFERENCE_PYTHON = profile["inference_python"]
     run_comparison.AWAIT_HOST_MEMORY = profile["await_host_memory"]
+    run_comparison.INFERENCE_CONTAINER_ARGS = tuple(profile["inference_container_args"])
 
 
 def calls_against_bisection(directory: Path, tasks: Path) -> dict[str, object]:
@@ -134,7 +146,8 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
         policy = root / f"policy-{iteration + 1}"
         if profile["await_host_memory"]:
             await_memory(f"update-{iteration}", int(TRAINING_MEMORY_FRACTION * meminfo_bytes("MemTotal", MEMINFO)), events)
-        command(["podman", "run", "--rm", "--name", f"powercoder-{root.name}-update-{iteration}", "--device", "nvidia.com/gpu=all",
+        command(["podman", "run", "--rm", "--name", f"powercoder-{root.name}-update-{iteration}",
+                 *profile["training_container_args"], "--device", "nvidia.com/gpu=all",
                  "--network", "none", "--security-opt", "label=disable", "-v", f"{Path.cwd()}:/workspace", "-w", "/workspace",
                  "-v", f"{HF_HUB}:/hub:ro", "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1", "-e", "PYTHONUNBUFFERED=1",
                  "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True", profile["training_image"],
