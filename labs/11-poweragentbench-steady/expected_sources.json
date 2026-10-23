@@ -1,0 +1,25 @@
+{
+  "upstream": "https://github.com/Power-Agent/PowerAgentBench",
+  "commit": "b39c48b0b96c096632ae8e28d359f0231ea483ec",
+  "licence": "none at the repository root (PowerAgentBench#11); used as MIT by user direction 2026-10-23, an assumption",
+  "sha256": {
+    "pyproject.toml": "3c4d1a53190dc616f1f70265fbd256798772bab64a8e64ae9f5e605b10f36581",
+    "README.md": "a4398552fa910f0a4e27828fb8450ff9d705be4457e372afcc66a63abe998791",
+    "cases/case39/pypsa/case39.nc": "8e05b7e157ca84f354282b8e3c6e39b2f923efcec3f3f64cb642051f156f106e",
+    "scripts/evaluate_solution.py": "e1b657f19ac8261a5ddc64bfe49226076cc21fdb5b5d22077014d78a74d9d910",
+    "scripts/run_steady_n2_baselines.py": "15244d3550789f646436bae4a481078452319cc5fdb1af6ee5b58614c426880c",
+    "benchmarks/steady/level_1/README.md": "00ca526d09785318df681f0bcc9f9b9bef6fd7a81fd9e66d71ac6b564ba7e07e",
+    "benchmarks/steady/level_1/actionspace.json": "05761032f3562fdffc387ed728cf0229071feed12b46d2c42a9c9e0e9c92484a",
+    "benchmarks/steady/level_1/actioncost.json": "a93c29bfec8db09372f6b9e8c8b72bf9c5cef3a1d091baa12044a413ae9d6951",
+    "benchmarks/steady/level_1/baseline_summary.json": "3d452fb1a23b8b286c554cc9080aaa18dc6f3593a5aa395f28bc59079606113f",
+    "benchmarks/steady/level_1/solution_template.json": "cb3e181a4247ff26661dd4f88cec4a3bce6ec62fe49bbbacfbf315022a216a67",
+    "benchmarks/steady/level_2/README.md": "d013f16cf23d812380ec1a1f15573266e755a5d21e2ffe501a9b843a1da91bb4",
+    "benchmarks/steady/level_2/prompts/steady_n2_llm_prompt.json": "c3bbef1998e4fe526454d1e853252ba1e2fb0611c06d84415f492a1bd4ee5d51",
+    "poweragentbench/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "poweragentbench/benchmark_utils.py": "ff0704477575f02f49c250770ad71f924e1bfe1647071846385a0d4db677ed9e",
+    "poweragentbench/llm_agent_adapter.py": "b173d88ffb38178d1445984ad68ac76284e1981d84ca5e541332e0f36218b969",
+    "poweragentbench/ollama_client.py": "967d79406167d54499f7b02d739644a6a72b3a427581eaf99ca6431e3cba394b",
+    "poweragentbench/openai_client.py": "a48d12c2938a2fca927d274666e20bf1b90c1e2c8870e95ce958f77c4464e6e4",
+    "poweragentbench/steady_state_agentic.py": "63f639fa940c3c4271e0cff5a08cd56314941289f2ceceaa77598096a1ef42e9"
+  }
+}
