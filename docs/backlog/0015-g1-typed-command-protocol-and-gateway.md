@@ -100,6 +100,13 @@ observation element` is a prefix of today's message, which Fix 2 extended with t
 the valid ids. No solver number changed. Recipe: `just powercoder::replay <root>`; tests in
 `test_replay.py`.
 
+## Python serves the IR's schema (2026-10-24)
+
+`studies.tool_schema()` now loads `rust/command-ir/tests/served_run_study_trial.json`, which
+the IR's test pins to `study_trial_schema()` output, instead of restating the schema as a
+Python dict. Its enums and bounds are checked against `SCALE_MIN`/`SCALE_MAX`/`MAX_ITERATIONS`
+and the loader's cases (`test_command_ir.py`). The trajectory test that compares stored
+training tools with the served list still passes byte for byte.
+
 **Left for G1:**
-- Python serving the IR-generated schema (not only matching it);
 - the ≥99% valid-command protocol suite.

@@ -12,6 +12,7 @@ import json
 import math
 import time
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import pandapower as pp
@@ -37,40 +38,21 @@ ELEMENT_KINDS: dict[str, str] = {"bus": "buses", "line": "lines", "trafo": "tran
 THERMAL_LIMIT_PERCENT: float = 100.0
 
 
+# The typed command IR emits this schema (rust/command-ir: `study_trial_schema()`; its test
+# asserts the emitted bytes equal this file). Python serves it rather than restating it, so the
+# schema has one source (PRD-0010 G1, backlog 0015).
+IR_STUDY_SCHEMA: Path = Path(__file__).resolve().parents[2] / "rust/command-ir/tests/served_run_study_trial.json"
+
+
 def tool_schema() -> dict[str, Any]:
-    """Describe measurements and modifications without exposing a solution oracle."""
-    return {"type": "function", "function": {
-        "name": "run_study_trial",
-        "description": (
-            "Run one fresh Newton-Raphson AC trial. load_scale multiplies ALL loads' P/Q "
-            "and observes bus_voltage; line_rating scales one line max_i_ka and observes "
-            "line_loading; gen_dispatch scales one generator P and observes trafo_loading. "
-            "Use operation=none for base/N-1 reports. Returns actual measurements, not a fitted answer. "
-            "element_id selects the modified line/generator (unused for all-load scaling). "
-            "observation_id selects the observed bus/line/transformer. "
-            "Omit contingency_line (or pass null) for the intact network; an integer takes that "
-            "line out of service, and 0 is a real line. "
-            "status=constraint_violation with metric_valid=true is still a usable measurement: "
-            "compare voltage_violations with base_case_voltage_violations, which the unmodified "
-            "case already has."
-        ),
-        "parameters": {
-            "type": "object", "additionalProperties": False,
-            "properties": {
-                "network_id": {"type": "string", "enum": list(pm.CASE_FILES) + list(pm.FIXTURE_BUILDERS)},
-                "operation": {"type": "string", "enum": ["none", "load_scale", "line_rating", "gen_dispatch"]},
-                "scale": {"type": "number", "minimum": SCALE_MIN, "maximum": SCALE_MAX},
-                "element_id": {"type": "integer"},
-                "observation": {"type": "string", "enum": ["bus_voltage", "line_loading", "trafo_loading"]},
-                "observation_id": {"type": "integer"},
-                "contingency_line": {"type": ["integer", "null"]},
-                "max_iter": {"type": "integer", "minimum": 1, "maximum": MAX_ITERATIONS},
-            },
-            # contingency_line is optional: when it was required, models filled it with 0
-            # (line 0 out) or "None" to mean "no contingency" (AGENTS.md FM-7, FM-18).
-            "required": ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "max_iter"],
-        },
-    }}
+    """Describe measurements and modifications without exposing a solution oracle.
+
+    Served from the IR's emitted schema (``IR_STUDY_SCHEMA``); ``test_command_ir`` checks its
+    enums and bounds still equal this module's ``SCALE_MIN``/``SCALE_MAX``/``MAX_ITERATIONS``
+    and the loader's cases. ``contingency_line`` is optional: when it was required, models
+    filled it with 0 (line 0 out) or "None" to mean "no contingency" (AGENTS.md FM-7, FM-18).
+    """
+    return json.loads(IR_STUDY_SCHEMA.read_text())
 
 
 @lru_cache(maxsize=None)
