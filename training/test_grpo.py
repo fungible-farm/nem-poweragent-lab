@@ -101,19 +101,20 @@ def test_a_positive_advantage_raises_the_completion_s_probability() -> None:
     model = transformers.GPT2LMHeadModel(transformers.GPT2Config(n_layer=1, n_head=2, n_embd=16, vocab_size=32))
     ids = torch.tensor([[1, 2, 3, 4, 5]])
 
+    def loss(advantage: float):
+        return grpo.policy_loss(model(input_ids=ids).logits[:, 2:], ids[:, 3:], advantage)
+
     def logp() -> float:
         with torch.no_grad():
-            return -float(grpo.policy_loss(model(input_ids=ids).logits, ids, 3, 1.0))
+            return -float(loss(1.0))
 
     before = logp()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.5)
-    grpo.policy_loss(model(input_ids=ids).logits, ids, 3, 1.0).backward()
+    loss(1.0).backward()
     optimizer.step()
     assert logp() > before
-    optimizer.zero_grad()
-    grpo.policy_loss(model(input_ids=ids).logits, ids, 3, -1.0).backward()
-    optimizer.step()
-    optimizer.zero_grad()
-    grpo.policy_loss(model(input_ids=ids).logits, ids, 3, -1.0).backward()
-    optimizer.step()
+    for _ in range(2):
+        optimizer.zero_grad()
+        loss(-1.0).backward()
+        optimizer.step()
     assert logp() < before, "a negative advantage lowers it"

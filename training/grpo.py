@@ -179,12 +179,18 @@ def sequences(rollout_dir: Path, seq_len: int) -> tuple[list[Sequence], dict[str
     return out, counts
 
 
-def policy_loss(logits: Any, input_ids: Any, completion_start: int, advantage: float) -> Any:
-    """``-advantage x mean log-probability of the completion tokens`` for one sequence (batch of 1)."""
+def policy_loss(tail_logits: Any, completion: Any, advantage: float) -> Any:
+    """``-advantage x mean log-probability of the completion tokens`` for one sequence (batch of 1).
+
+    ``tail_logits`` are the logits at the last ``len(completion) + 1`` positions (the forward pass
+    is asked for those only, ``logits_to_keep``). Position i predicts completion token i, and the
+    final position predicts past the end, so it is dropped. Full-sequence logits for an 8k-token
+    turn over a ~248k vocabulary would not fit beside the model on a 24 GB card.
+    """
     import torch
 
-    logp = torch.log_softmax(logits[0, completion_start - 1:-1].float(), dim=-1)
-    taken = logp.gather(1, input_ids[0, completion_start:].unsqueeze(1)).squeeze(1)
+    logp = torch.log_softmax(tail_logits[0, :-1].float(), dim=-1)
+    taken = logp.gather(1, completion[0].unsqueeze(1)).squeeze(1)
     return -advantage * taken.mean()
 
 
@@ -233,7 +239,9 @@ def update(args: argparse.Namespace) -> None:
         total = 0.0
         for item in batch:
             ids = torch.tensor([item["input_ids"]], device=device)
-            loss = policy_loss(model(input_ids=ids).logits, ids, item["completion_start"], item["advantage"]) / len(batch)
+            completion = ids[:, item["completion_start"]:]
+            tail = model(input_ids=ids, logits_to_keep=completion.shape[1] + 1).logits
+            loss = policy_loss(tail, completion, item["advantage"]) / len(batch)
             loss.backward()
             total += float(loss)
         norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), settings["max_grad_norm"]))

@@ -31,6 +31,11 @@ from training.granite.train import digest, verify_base
 
 # Qualified on GB10 in the actual earlier tool-use probes; image ID is immutable.
 INFERENCE_IMAGE: str = "d53cb735dd1822378c352da65b4ef1580c9764df7aed4bc8805c6c26f6b827de"
+# The interpreter inside INFERENCE_IMAGE, and whether a server must wait for host memory first. On
+# GB10's unified memory vLLM's preallocation comes out of MemAvailable; on a discrete GPU it does
+# not, so a host profile for one (training/run_grpo_pilot.PROFILES) turns the wait off.
+INFERENCE_PYTHON: str = "/opt/venv/bin/python"
+AWAIT_HOST_MEMORY: bool = True
 TRAINING_IMAGE: str = "74feb3e2e84cfde5d1d2d21c34213d60114d7eb7a80bb1f9352ff2dda15c00ff"
 # Prompt + max_tokens must fit (AGENTS.md FM-5): the largest r2/r3 prompt was
 # 7,583 tokens, and tool_probe.MAX_TOKENS is 8,192, so 16,384 had no headroom.
@@ -164,11 +169,12 @@ def serve(source: Path, name: str, model: str, reasoning: str, root: Path, event
     JSON), e.g. a study arm's ``--tool-strict-level parameter``.
     """
     # vLLM preallocates this fraction of total memory, so that is the floor.
-    await_memory(name, int(memory_fraction * meminfo_bytes("MemTotal")), events)
+    if AWAIT_HOST_MEMORY:
+        await_memory(name, int(memory_fraction * meminfo_bytes("MemTotal")), events)
     args = ["podman", "run", "-d", "--name", name, "--device", "nvidia.com/gpu=all",
             "--security-opt", "label=disable", "--shm-size", "1g", "-p", f"127.0.0.1:{port}:8000",
             "-v", f"{source.resolve()}:/student:ro", "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1",
-            "--entrypoint", "/opt/venv/bin/python", INFERENCE_IMAGE,
+            "--entrypoint", INFERENCE_PYTHON, INFERENCE_IMAGE,
             "-m", "vllm.entrypoints.openai.api_server", "--model", f"/student/{model_path}".rstrip("/"),
             "--served-model-name", model,
             "--host", "0.0.0.0", "--port", "8000", "--dtype", "bfloat16", "--max-model-len", str(CONTEXT_TOKENS),

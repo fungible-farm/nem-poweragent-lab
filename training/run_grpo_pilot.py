@@ -27,7 +27,11 @@ import time
 from pathlib import Path
 from typing import TextIO
 
+import subprocess
+from typing import TypedDict
+
 from powercoder.inference.tool_probe import record
+from training import run_comparison
 from training.run_agent_study import SMOKE, record_ledgers, session, verify_student
 from training.run_comparison import (GPU_MEMORY_FRACTION, HF_HUB, MEMINFO, await_memory, command, meminfo_bytes,
                                      serve, stop_server, write_comparison, write_numerical_comparison)
@@ -55,6 +59,42 @@ PORT: int = 8101
 POLICY_MODEL: str = "powercoder-qwen-policy"
 
 
+class Profile(TypedDict):
+    """Where the pilot runs: images, GPU share, memory waits, and services it suspends."""
+
+    inference_image: str
+    inference_python: str
+    gpu_memory_fraction: float
+    await_host_memory: bool
+    training_image: str
+    suspend_units: list[str]
+
+
+PROFILES: dict[str, Profile] = {
+    # GB10 (shinyDGX): unified memory, the r6/r7 images.
+    "gb10": Profile(inference_image=run_comparison.INFERENCE_IMAGE, inference_python=run_comparison.INFERENCE_PYTHON,
+                    gpu_memory_fraction=GPU_MEMORY_FRACTION, await_host_memory=True, training_image=TRAINING_IMAGE,
+                    suspend_units=[]),
+    # sm3lly's RTX 3090 (24 GB, x86-64; user approval 2026-10-24, "3090 on sm3lly approved for
+    # GRPO"). Upstream vLLM 0.31.0 (GB10's version), and the x86 training image built from
+    # training/agent/Containerfile.x86 at the GB10 image's package versions. A discrete GPU's
+    # memory is not host memory, so no host wait. vLLM takes 0.85 of the card; the 4B weights need
+    # ~8.5 GB, which leaves the rest for KV cache. The llama.cpp service holding the card is
+    # suspended for the pilot only, and restarted when it ends or fails (user decision 2026-10-24).
+    "sm3lly": Profile(inference_image="docker.io/vllm/vllm-openai:v0.31.0", inference_python="/usr/bin/python3",
+                      gpu_memory_fraction=0.85, await_host_memory=False,
+                      training_image="localhost/powercoder-train-x86:20261024",
+                      suspend_units=["b00t-hive-inference-heretic-neo-coder.service"]),
+}
+
+
+def apply_profile(profile: Profile) -> None:
+    """Point run_comparison.serve (used directly and by run_agent_study.session) at this host's images."""
+    run_comparison.INFERENCE_IMAGE = profile["inference_image"]
+    run_comparison.INFERENCE_PYTHON = profile["inference_python"]
+    run_comparison.AWAIT_HOST_MEMORY = profile["await_host_memory"]
+
+
 def calls_against_bisection(directory: Path, tasks: Path) -> dict[str, object]:
     """Tool calls of each passed load-scale fit against bisection's on the same task."""
     from training.rl_reward import bisection_calls
@@ -75,14 +115,15 @@ def calls_against_bisection(directory: Path, tasks: Path) -> dict[str, object]:
 
 def run(args: argparse.Namespace, events: TextIO) -> None:
     """Iterate rollout and update, then evaluate both students; each stage only after the last."""
-    root = args.root
+    root, profile = args.root, PROFILES[args.profile]
+    fraction = profile["gpu_memory_fraction"]
     merged = verify_student(args.student, events)
     adapter = args.student / ADAPTER_NAME
     for iteration in range(args.iterations):
         name = f"powercoder-{root.name}-policy-{iteration}"
         rollouts = root / f"rollouts-{iteration}"
         try:
-            serve(merged, name, POLICY_MODEL, "qwen3", root, events, memory_fraction=GPU_MEMORY_FRACTION, port=PORT)
+            serve(merged, name, POLICY_MODEL, "qwen3", root, events, memory_fraction=fraction, port=PORT)
             command([sys.executable, "-m", "training.grpo", "rollout", "--base-url", f"http://127.0.0.1:{PORT}",
                      "--model", POLICY_MODEL, "--tasks", str(POOL), "--out", str(rollouts), "--iteration", str(iteration),
                      "--tasks-per-iteration", str(TASKS_PER_ITERATION), "--k", str(SAMPLES_PER_TASK),
@@ -91,11 +132,12 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
             stop_server(name, root, events)
         record(events, "rollouts_complete", json.loads((rollouts / "summary.json").read_text()))
         policy = root / f"policy-{iteration + 1}"
-        await_memory(f"update-{iteration}", int(TRAINING_MEMORY_FRACTION * meminfo_bytes("MemTotal", MEMINFO)), events)
+        if profile["await_host_memory"]:
+            await_memory(f"update-{iteration}", int(TRAINING_MEMORY_FRACTION * meminfo_bytes("MemTotal", MEMINFO)), events)
         command(["podman", "run", "--rm", "--name", f"powercoder-{root.name}-update-{iteration}", "--device", "nvidia.com/gpu=all",
                  "--network", "none", "--security-opt", "label=disable", "-v", f"{Path.cwd()}:/workspace", "-w", "/workspace",
                  "-v", f"{HF_HUB}:/hub:ro", "-e", "HF_HUB_OFFLINE=1", "-e", "TRANSFORMERS_OFFLINE=1", "-e", "PYTHONUNBUFFERED=1",
-                 "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True", TRAINING_IMAGE,
+                 "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True", profile["training_image"],
                  "python", "-m", "training.grpo", "update", "--config", str(CONFIG), "--rollouts", str(rollouts),
                  "--init-adapter", str(adapter), "--out", str(policy)], root / f"update-{iteration}.log", events)
         merged, adapter = verify_student(policy, events), policy / "adapter"
@@ -103,7 +145,7 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
 
     students = {"qwen-student": args.student / "merged-bf16", "qwen-rl": merged}
     for label, source in students.items():
-        session(label, "pilot", source, "", GPU_MEMORY_FRACTION, root, events,
+        session(label, "pilot", source, "", fraction, root, events,
                 [("heldout", HELD_OUT, root / f"{label}-heldout"), ("smoke", SMOKE, root / f"{label}-smoke")], latency=False)
     outcomes = {}
     for suite in ("heldout", "smoke"):
@@ -124,14 +166,22 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True, help="New run directory; must not exist")
     parser.add_argument("--student", type=Path, required=True, help="The r7 Qwen student's training directory")
     parser.add_argument("--iterations", type=int, default=ITERATIONS)
+    parser.add_argument("--profile", choices=sorted(PROFILES), default="gb10")
     args = parser.parse_args()
+    apply_profile(PROFILES[args.profile])
     args.root.mkdir()
     signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
     with (args.root / "pipeline.jsonl").open("x") as events:
         record(events, "driver_start", {"pid": os.getpid(), "unix_time": time.time(), "student": str(args.student),
                                         "iterations": args.iterations, "tasks_per_iteration": TASKS_PER_ITERATION,
-                                        "samples_per_task": SAMPLES_PER_TASK, "temperature": TEMPERATURE})
+                                        "samples_per_task": SAMPLES_PER_TASK, "temperature": TEMPERATURE,
+                                        "profile": args.profile, **PROFILES[args.profile]})
+        suspended = []
         try:
+            for unit in PROFILES[args.profile]["suspend_units"]:
+                subprocess.run(["systemctl", "--user", "stop", unit], check=True)
+                suspended.append(unit)
+                record(events, "unit_suspended", {"unit": unit})
             run(args, events)
         except Exception as error:
             record(events, "driver_error", {"type": type(error).__name__, "message": str(error)})
@@ -139,6 +189,11 @@ def main() -> None:
         except SystemExit as stop:
             record(events, "driver_stopped", {"exit_code": stop.code, "unix_time": time.time()})
             raise
+        finally:
+            # Restart whatever was suspended, whether the pilot finished, failed or was stopped.
+            for unit in suspended:
+                restarted = subprocess.run(["systemctl", "--user", "start", unit], check=False).returncode
+                record(events, "unit_restarted", {"unit": unit, "returncode": restarted})
 
 
 if __name__ == "__main__":
