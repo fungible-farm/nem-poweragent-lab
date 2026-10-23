@@ -1,6 +1,6 @@
 # 0023 — The SA case (snemSA) has no real branch ratings, one cost, and one slack
 
-- **Status:** **proposal 1 done** 2026-10-23 (below); proposals 2–3 open. Found 2026-10-23 while building the G2 tools (`powercoder/engineering/`, [0016](0016-g2-verified-engineering-mathematics.md)).
+- **Status:** **proposals 1 and 3 done** 2026-10-23 (below); proposal 2 (derived snemSA ratings) not done: IEEE 39 now provides thermal signal from real data. Found 2026-10-23 while building the G2 tools (`powercoder/engineering/`, [0016](0016-g2-verified-engineering-mathematics.md)).
 - **Affects:**
   - G2's OPF and thermal checks, and G3's task generator ([0017](0017-g3-verifier-guided-investigative-learning.md));
   - any "outperform engineers" claim that relies on this network.
@@ -56,3 +56,20 @@ test now uses piecewise costs.
 
 No available case has varied costs **and** binding ratings. IEEE 39 gives congestion and thermal
 signal; IEEE 118 gives cost-merit signal.
+
+## Proposal 3 done (2026-10-23): both slack conventions for islanding outages
+`contingency.reassign_island_slacks` / `slack_reassignment_study` re-solve each outage that
+strands generation. Every otherwise-unslacked island that has generators gets a slack: its
+largest in-service generator by `max_p_mw`, **a named convention, not data**. Both results are
+reported side by side.
+
+| snemSA, the 70 stranding outages | Single slack | Slack per island |
+|---|---|---|
+| Outages with de-energized buses | 70 | 0 (all solved; Kirchhoff residual ≤ 8.5e-9 MVA) |
+| Outages where an island's slack must leave its generator's [min_p, max_p] | — | 20 |
+
+So "energized" holds for 50 outages using the island's own generation. In the other 20 the island
+balances only under an idealised slack: trafo 0's 502-bus island has 2,008.8 MW scheduled against
+1,766.6 MW of load, so its slack would have to absorb 160.5 MW. Those islands need redispatch, and
+are flagged rather than counted as served. snemSA has 7 negative loads (to −76 MW), so de-energized
+load is compared per outage, never summed.

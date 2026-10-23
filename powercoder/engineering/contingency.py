@@ -521,3 +521,118 @@ def screen_n1(net: pp.pandapowerNet, *, dc: bool = True, dc_elements: list[Branc
         screening_claim="; ".join(claim_parts), contingencies_with_new_violations=with_new,
         ac_nonconvergent=nonconv, islanding_contingencies=islanding, proof=proof,
     )
+
+
+# ---------------------------------------------------------------------------
+# Slack reassignment for islanding outages (backlog 0023, proposal 3).
+#
+# pandapower energizes only islands that hold a slack. On snemSA (one slack generator)
+# 70 outages strand generation, so their de-energized load is an upper bound (0023).
+# This re-solves such an outage with one slack per otherwise-unslacked island that has
+# generators, and reports the result beside the single-slack one. The slack chosen is
+# the island's in-service generator with the largest max_p_mw: a named convention, not
+# data. An island whose slack must exceed that generator's max_p_mw (or fall below its
+# min_p_mw) cannot actually be balanced by it, and is flagged rather than counted served.
+
+
+class IslandOutcome(TypedDict):
+    """One island given a slack by reassignment."""
+
+    slack_gen: int
+    buses: int
+    load_mw: float
+    scheduled_generation_mw: float
+    slack_p_mw: float | None
+    within_slack_capacity: bool | None
+
+
+class ReassignedOutcome(TypedDict):
+    """An islanding outage re-solved with one slack per island that has generators."""
+
+    element_type: str
+    element_id: int
+    single_slack_de_energized_buses: int
+    single_slack_de_energized_load_mw: float
+    status: str  # "solved", "nonconvergent", "error", or "no_island_with_generation"
+    de_energized_buses: int
+    de_energized_load_mw: float
+    islands: list[IslandOutcome]
+    min_vm_pu: float | None
+    max_vm_pu: float | None
+    kcl_residual_mva: float | None
+    error: str | None
+
+
+def _unslacked_islands(net: pp.pandapowerNet) -> list[set[int]]:
+    """In-service bus sets with no slack (ext_grid or slack gen) but at least one in-service gen."""
+    import pandapower.topology as top
+
+    graph = top.create_nxgraph(net, respect_switches=True, include_out_of_service=False)
+    slack_buses = set(net.ext_grid.bus[net.ext_grid.in_service]) | set(net.gen.bus[net.gen.in_service & net.gen.slack])
+    gen_buses = set(net.gen.bus[net.gen.in_service])
+    import networkx as nx
+
+    return [set(c) for c in nx.connected_components(graph) if not (set(c) & slack_buses) and set(c) & gen_buses]
+
+
+def reassign_island_slacks(net: pp.pandapowerNet, branch: Branch) -> ReassignedOutcome:
+    """Re-solve one outage with a slack in every unslacked island that has generators.
+
+    Args:
+        net: The intact network (not modified).
+        branch: The outage, ``(table, index)``.
+
+    Returns:
+        The single-slack de-energized count and load, and the reassigned solution.
+    """
+    work = copy.deepcopy(net)
+    single = _solve_ac(copy.deepcopy(net), branch, {})
+    _set_outage(work, branch, True)
+    islands = _unslacked_islands(work)
+    record = ReassignedOutcome(element_type=branch[0], element_id=branch[1],
+                               single_slack_de_energized_buses=single["de_energized_buses"],
+                               single_slack_de_energized_load_mw=single["de_energized_load_mw"],
+                               status="no_island_with_generation", de_energized_buses=single["de_energized_buses"],
+                               de_energized_load_mw=single["de_energized_load_mw"], islands=[],
+                               min_vm_pu=single["min_vm_pu"], max_vm_pu=single["max_vm_pu"],
+                               kcl_residual_mva=single["kcl_residual_mva"], error=None)
+    if not islands:
+        return record
+    chosen: list[tuple[int, set[int]]] = []
+    for buses in islands:
+        candidates = work.gen[work.gen.in_service & work.gen.bus.isin(buses)]
+        slack = int(candidates.max_p_mw.idxmax())
+        work.gen.at[slack, "slack"] = True
+        chosen.append((slack, buses))
+    try:
+        pm._runpp_counted(work, numba=True, max_iteration=MAX_ITERATIONS)
+    except pp.LoadflowNotConverged as error:
+        record.update(status="nonconvergent", error=f"LoadflowNotConverged: {error}")
+        return record
+    except Exception as error:  # noqa: BLE001
+        record.update(status="error", error=f"{type(error).__name__}: {error}")
+        return record
+    energized = _energized_mask(work, "vm_pu")
+    de_energized = [int(b) for b in work.bus.index[work.bus.in_service.to_numpy() & ~energized]]
+    vm = work.res_bus.vm_pu.astype(float)
+    finite = vm[np.isfinite(vm)]
+    outcomes = []
+    for slack, buses in chosen:
+        p = work.res_gen.p_mw.get(slack)
+        p = float(p) if p is not None and math.isfinite(float(p)) else None
+        row = work.gen.loc[slack]
+        within = None if p is None else bool(float(row.min_p_mw) <= p <= float(row.max_p_mw)) \
+            if "min_p_mw" in row and "max_p_mw" in row else None
+        outcomes.append(IslandOutcome(slack_gen=slack, buses=len(buses), load_mw=_load_at(work, sorted(buses)),
+                                      scheduled_generation_mw=_generation_at(work, sorted(buses)),
+                                      slack_p_mw=p, within_slack_capacity=within))
+    record.update(status="solved", de_energized_buses=len(de_energized), de_energized_load_mw=_load_at(work, de_energized),
+                  islands=outcomes, min_vm_pu=float(finite.min()) if len(finite) else None,
+                  max_vm_pu=float(finite.max()) if len(finite) else None, kcl_residual_mva=kcl_residual_mva(work))
+    return record
+
+
+def slack_reassignment_study(net: pp.pandapowerNet, screening: ScreeningResult) -> list[ReassignedOutcome]:
+    """Re-solve every screened outage that stranded generation, under both slack conventions."""
+    return [reassign_island_slacks(net, (c["element_type"], c["element_id"])) for c in screening["contingencies"]
+            if c["ac"] is not None and c["ac"]["de_energized_generation_mw"] > 0.0]

@@ -35,7 +35,7 @@ research notes.
 | [0020](0020-g6-autonomous-engineering-investigations.md) | PRD-0010 G6: autonomous engineering investigations | open |
 | [0021](0021-g7-probabilistic-forecasting.md) | PRD-0010 G7: probabilistic forecasting and leakage-free hindcasting | first step done (leakage-free harness, baselines on cached SA demand); real data blocked by G5 |
 | [0022](0022-g8-independent-superiority-assessment.md) | PRD-0010 G8: independent superiority assessment (benchmarks, blind expert comparison) | open |
-| [0023](0023-snemsa-case-lacks-ratings-costs-and-distributed-slack.md) | snemSA has no real branch ratings, one generator cost, and a single slack: OPF and thermal tasks carry no signal | proposal 1 done (IEEE 39 has OPF/thermal signal; QP cross-check added); 2–3 open |
+| [0023](0023-snemsa-case-lacks-ratings-costs-and-distributed-slack.md) | snemSA has no real branch ratings, one generator cost, and a single slack: OPF and thermal tasks carry no signal | proposals 1, 3 done (IEEE 39 OPF/thermal signal; QP check; both slack conventions); 2 not needed |
 | [0024](0024-element-discovery-and-graph-search.md) | Element discovery: valid ids in errors (done), then a fixed-query CIM graph tool; vector search not on synthetic names | step 1 done; open |
 | [0025](0025-podman-desktop-packaging-of-on-demand-services.md) | Podman Desktop packaging of optional, on-demand, memory-heavy services | awaiting requirements |
 | [0026](0026-walkable-path-namespace-ls-get.md) | Walkable path namespace: one grammar, `ls`/`get`, answers that cite paths (80/20 of 0027) | code + trajectories done; retrain/eval need GPU |

@@ -103,3 +103,18 @@ def test_snem_sa_2000_islanding_and_placeholder_ratings_are_named(snem_screen: S
     warnings = " ".join(result["proof"]["validation_warnings"])
     assert "placeholders" in warnings and "already has 39 violations" in warnings
     assert result["base"]["placeholder_ratings"] == result["base"]["rated_branches"]
+
+
+@requires_snem
+def test_reassigning_island_slacks_energizes_what_the_single_slack_blacks_out(snem_net: pp.pandapowerNet) -> None:
+    """0023 proposal 3: trafo 0's outage blacks out 502 buses under one slack; with a slack per
+    island they are energized, Kirchhoff-validated, and the island's slack is flagged when it
+    must leave its generator's [min_p, max_p] (here it must absorb surplus generation)."""
+    from powercoder.engineering.contingency import KCL_RESIDUAL_TOLERANCE_MVA, reassign_island_slacks
+
+    result = reassign_island_slacks(snem_net, ("trafo", 0))
+    assert result["single_slack_de_energized_buses"] == 502
+    assert result["status"] == "solved" and result["de_energized_buses"] == 0
+    assert result["kcl_residual_mva"] <= KCL_RESIDUAL_TOLERANCE_MVA
+    [island] = result["islands"]
+    assert island["slack_p_mw"] < 0 and island["within_slack_capacity"] is False
