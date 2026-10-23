@@ -83,3 +83,21 @@ laws, and keep every limit **the case declares** (bus `min/max_vm_pu`, branch
 | ieee118-restorebench | 129,704.74 | 2.8e-10 pu | 7 V max, 16 P min, 8 Q | feasible |
 
 An overloaded case9 (5× load) is not reported solved.
+
+## Bounded N-2 done (2026-10-23): `contingency.screen_n2_bounded`
+Exhaustive N-2 is about 243,000 pairs on snemSA. This screens **every pair among the M (default
+10) most severe single outages** of an exhaustive AC N-1 screen, each by an exact AC re-solve. It
+is labelled `heuristic` in its coverage, because pairs of individually milder outages are not
+examined.
+
+| Case | Pairs | With new violations | Non-convergent | Islanding | Worst loading |
+|---|---|---|---|---|---|
+| ieee39-pab-stressed | 45 | 12 | 24 | 21 | 178.4% (lines 21 + 29) |
+| snem-sa-2000 | 45 | 33 (voltage only) | 0 | 45 | 4.0% |
+
+**G2 status after 2026-10-23:**
+- **Done:** DC OPF with the LP/QP cross-check; PTDF/LODF; exhaustive N-1 with coverage, both
+  slack conventions, and bounded N-2; WLS state estimation; AC power flow with proof,
+  dV/dQ and Q–V modes; AC OPF with a feasibility re-check.
+- **Left:** dynamics as a service (DPsim, Lab 5); short circuit (no transmission case with source
+  data, 0028); Jacobian-based contingency ranking beyond LODF.

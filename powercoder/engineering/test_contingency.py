@@ -118,3 +118,17 @@ def test_reassigning_island_slacks_energizes_what_the_single_slack_blacks_out(sn
     assert result["kcl_residual_mva"] <= KCL_RESIDUAL_TOLERANCE_MVA
     [island] = result["islands"]
     assert island["slack_p_mw"] < 0 and island["within_slack_capacity"] is False
+
+
+def test_bounded_n2_pairs_the_top_singles_and_labels_its_coverage() -> None:
+    """Every pair among the top singles is AC-solved once; the coverage says it is heuristic."""
+    import pandapower.networks as pn
+
+    from powercoder.engineering.contingency import screen_n2_bounded
+
+    net = pn.case9()
+    n1 = screen_n1(net, ac_selection="all")
+    n2 = screen_n2_bounded(net, n1, top_singles=4)
+    assert n2["pairs_examined"] == 6 and len({(p["first"], p["second"]) for p in n2["pairs"]}) == 6
+    assert n2["coverage"].startswith("heuristic")
+    assert all(p["first"] != p["second"] for p in n2["pairs"])

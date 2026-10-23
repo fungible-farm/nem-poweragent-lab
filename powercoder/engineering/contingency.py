@@ -636,3 +636,63 @@ def slack_reassignment_study(net: pp.pandapowerNet, screening: ScreeningResult) 
     """Re-solve every screened outage that stranded generation, under both slack conventions."""
     return [reassign_island_slacks(net, (c["element_type"], c["element_id"])) for c in screening["contingencies"]
             if c["ac"] is not None and c["ac"]["de_energized_generation_mw"] > 0.0]
+
+
+# ---------------------------------------------------------------------------
+# Bounded N-2 screening (G2 deliverable). Exhaustive N-2 grows as n^2/2 (snemSA: about
+# 243,000 pairs of its 698 branches), so this screens every pair among the M most severe
+# single outages of an exhaustive AC N-1 screen, each by an exact AC re-solve. The coverage
+# is heuristic by construction and is labelled so: a pair of two individually mild outages
+# is not examined.
+
+# Single outages whose pairs are screened; 10 gives 45 AC re-solves.
+N2_TOP_SINGLES: int = 10
+
+
+class PairOutcome(TypedDict):
+    """One N-2 pair: both branches out, AC re-solved."""
+
+    first: Branch
+    second: Branch
+    ac: AcOutcome
+
+
+class N2Screening(TypedDict):
+    """Bounded N-2: which pairs were examined, and what they found."""
+
+    coverage: str
+    singles_used: list[Branch]
+    pairs_examined: int
+    pairs_with_new_violations: int
+    pairs_nonconvergent: int
+    pairs: list[PairOutcome]
+
+
+def screen_n2_bounded(net: pp.pandapowerNet, n1: ScreeningResult, top_singles: int = N2_TOP_SINGLES) -> N2Screening:
+    """AC re-solve every pair among the ``top_singles`` most severe AC-examined single outages.
+
+    Args:
+        net: The intact network (not modified).
+        n1: An N-1 screen of ``net`` with AC outcomes (``screen_n1(..., ac_selection="all")``).
+        top_singles: How many of the most severe single outages to pair.
+    """
+    from itertools import combinations
+
+    work = copy.deepcopy(net)
+    pm._runpp_counted(work, numba=True, max_iteration=MAX_ITERATIONS)
+    base_violations = _ac_violations(work)
+    singles = [(c["element_type"], c["element_id"]) for c in n1["contingencies"]
+               if c["ac"] is not None and c["ac"]["status"] == "solved"][:top_singles]
+    pairs: list[PairOutcome] = []
+    for first, second in combinations(singles, 2):
+        _set_outage(work, first, True)
+        try:
+            pairs.append(PairOutcome(first=first, second=second, ac=_solve_ac(work, second, base_violations)))
+        finally:
+            _set_outage(work, first, False)
+    return N2Screening(
+        coverage=(f"heuristic: every pair among the {len(singles)} most severe single outages of an exhaustive AC N-1 "
+                  "screen; pairs of individually milder outages are not examined"),
+        singles_used=singles, pairs_examined=len(pairs),
+        pairs_with_new_violations=sum(1 for p in pairs if p["ac"]["new_violations"]),
+        pairs_nonconvergent=sum(1 for p in pairs if p["ac"]["status"] != "solved"), pairs=pairs)
