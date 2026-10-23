@@ -58,7 +58,7 @@ Follow-ups, in merit order:
 
    CPU only.
 2. **If `parameter` cuts the bases' schema errors, rerun it on the 100-task benchmark** for both
-   bases (r6b's base runs took 2.3 h for Qwen and about 7 h for Granite on the GPU). That is the
+   bases (measured r6b wall time on the GPU: Qwen base 2.33 h, Granite base 8.51 h). That is the
    test with enough power to compare with r6b's `auto` result.
 3. **Drop the forcing factor** from further runs unless the token analysis in follow-up 1 shows
    that forcing changes reasoning length.
