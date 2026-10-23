@@ -51,7 +51,8 @@
    prompted arms finish, because every attempt starts its MCP server from the working tree).
 2. `uv add rdflib pyshacl` (also after the GPU queue). Measure graph load from cached Turtle against a
    fresh build in an MCP server process.
-3. `find_elements` with 3–5 named queries, deterministic tests against the graph and against
+3. **Superseded by [0026](0026-walkable-path-namespace-ls-get.md)** (walkable `ls`/`get` namespace, 2026-10-23); the
+   graph stays the source of truth behind it. Original plan: `find_elements` with 3–5 named queries, deterministic tests against the graph and against
    pandapower's tables, and trajectories that use it on a bad id. Evaluate as its own arm.
 4. Find out what `bus_data` `x y` are (CSIRO dataset documentation) before any spatial query uses
    them.
