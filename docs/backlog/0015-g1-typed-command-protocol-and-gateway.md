@@ -144,3 +144,19 @@ lacks: data, not protocol. Recipe: `just powercoder::protocol-suite <root>`.
 **Left:** the gateway is opt-in (`mcp_server --policy`) and no evaluation has run behind it yet.
 That needs a new run root, and it goes with the 0026 namespace retrain. Run the protocol suite
 on the strict and prompted roots once they finish.
+
+## IR 0.2.0 (2026-10-24): no argument an operation does not use is required
+
+User direction 2026-10-24: "we made the mess"; the agent must never guess, and training must
+teach abstract skills, not model-specific magic numbers. In 0.1.0 every `run_study_trial`
+call required `scale`, `element_id`, `observation` and `observation_id`. A network-wide
+report (the prompt names no bus) therefore had to invent one: FM-26's 999, and every trained
+report observed snem-sa-2000's bus 985 (AGENTS.md FM-28). Now only `network_id`,
+`operation` and `max_iter` are required. A modification needs `scale` and its observation;
+`line_rating`/`gen_dispatch` also need `element_id`. Unused arguments that are sent are
+accepted and ignored, and old-shape calls answer byte-identically: replaying r6b gives the same
+2,149 / 58 / 104. The Rust IR is the schema's source (`Solve.observe: Option`,
+`Simulate.element_id: Option`, `lift` accepts both shapes).
+
+Error ledger (PC-REQ-4): `powercoder/inference/error_ledger.py`; recipe
+`just powercoder::error-ledger <root>`.

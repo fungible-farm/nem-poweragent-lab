@@ -18,12 +18,15 @@
 # never overwritten; the evaluation driver verifies each hash_manifest.json.
 #
 # Usage:
-#   ./scripts/launch_agent_sft.sh
+#   ./scripts/launch_agent_sft.sh          # training/agent/config.<model>.yaml (v2)
+#   ./scripts/launch_agent_sft.sh r7       # training/agent/config.<model>.r7.yaml, unit powercoder-agent-sft-r7
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UNIT="powercoder-agent-sft"
+SUFFIX="${1:-}"
+UNIT="powercoder-agent-sft${SUFFIX:+-$SUFFIX}"
+CONFIG_SUFFIX="${SUFFIX:+.$SUFFIX}"
 # training/agent/Containerfile: the pinned training image
 # (training/run_comparison.TRAINING_IMAGE) plus flash-linear-attention 0.5.2.
 IMAGE="c890642db1726a2f21c39444bda33d7399f8bb8c485fddf7e7ed541378084d9c"
@@ -32,8 +35,8 @@ STOP_CONTAINERS="/bin/sh -c 'podman ps -q --filter name=^${UNIT}- | xargs -r pod
 
 run_one() {
   # $1: config stem under training/agent/
-  printf 'podman run --rm --name %s-%s --device nvidia.com/gpu=all --network none --security-opt label=disable -v %q:/workspace -w /workspace -v %q:/hub:ro -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONUNBUFFERED=1 -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True %s python -m training.agent_sft --config training/agent/config.%s.yaml' \
-    "$UNIT" "$1" "$REPO_ROOT" "$HUB" "$IMAGE" "$1"
+  printf 'podman run --rm --name %s-%s --device nvidia.com/gpu=all --network none --security-opt label=disable -v %q:/workspace -w /workspace -v %q:/hub:ro -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONUNBUFFERED=1 -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True %s python -m training.agent_sft --config training/agent/config.%s%s.yaml' \
+    "$UNIT" "$1" "$REPO_ROOT" "$HUB" "$IMAGE" "$1" "$CONFIG_SUFFIX"
 }
 
 systemd-run --user --unit="$UNIT" --remain-after-exit \

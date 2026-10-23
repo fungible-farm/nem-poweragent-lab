@@ -205,9 +205,11 @@ def session(label: str, tag: str, source: Path, model_path: str, fraction: float
 
 def run(args: argparse.Namespace, events: TextIO) -> None:
     """Gate, evaluate, measure and compare, each stage only after the last completed."""
-    for suite in (SMOKE, BENCHMARK):
+    extra: dict[str, Path] = dict(getattr(args, "suites", None) or {})
+    for suite in (SMOKE, BENCHMARK, *extra.values()):
         record(events, "suite_verified", {"tasks": str(suite), "n_tasks": frozen_task_count(suite)})
-    students = {label: verify_student(directory, events) for label, directory in STUDENTS.items()}
+    directories = STUDENTS | dict(getattr(args, "students", None) or {})
+    students = {label: verify_student(directory, events) for label, directory in directories.items()}
     fractions = {"qwen": GPU_MEMORY_FRACTION, "granite": GRANITE_GPU_MEMORY_FRACTION}
     root = args.root
 
@@ -228,8 +230,10 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
         if label in passed and not passed[label]:
             record(events, "evaluation_skipped", {"model": label, "reason": "smoke gate failed"})
             continue
+        # Extra suites (r7: judgement, unsolvable) run on the same server, so a model loads once.
         session(label, "benchmark", source, model_path, fractions[label.split("-")[0]], root, events,
-                [("benchmark", BENCHMARK, root / label)], latency=True)
+                [("benchmark", BENCHMARK, root / label)]
+                + [(name, tasks, root / f"{label}-{name}") for name, tasks in extra.items()], latency=True)
         evaluated.append(label)
 
     pairs = [("qwen-base", "qwen-student"), ("granite-base", "granite-student"), ("qwen-base", "granite-base"),
@@ -244,13 +248,30 @@ def run(args: argparse.Namespace, events: TextIO) -> None:
         numerical = write_numerical_comparison(root / first, root / second, root / f"{stem}-numerical.json", events)
         outcomes[stem] = {"strict_delta_pp": strict["delta_percentage_points"],
                           "solver_verified_delta_pp": numerical["delta_percentage_points"]}
+        for name in extra:
+            suite_stem = f"{first}-{name}-vs-{second}-{name}"
+            compared = write_comparison(root / f"{first}-{name}", root / f"{second}-{name}", root / f"{suite_stem}.json", events)
+            outcomes[suite_stem] = {"strict_delta_pp": compared["delta_percentage_points"]}
     record(events, "comparisons_complete", {"smoke": passed, "evaluated": evaluated, "comparisons": outcomes})
+    record_ledgers(root, events)
 
     sources = dict((label, (source, model_path)) for label, source, model_path in models)
     for label in evaluated:
         session(label, "restorebench", *sources[label], fractions[label.split("-")[0]], root, events,
                 [], latency=False, restorebench=True)
     record(events, "pipeline_complete", {"smoke": passed, "evaluated": evaluated, "comparisons": outcomes})
+
+
+def record_ledgers(root: Path, events: TextIO) -> None:
+    """PC-REQ-4: every evaluated directory's error ledger and IR protocol validity, journaled."""
+    from powercoder.inference.error_ledger import summarize
+    from powercoder.inference.protocol_suite import measure
+
+    for directory in sorted(p for p in root.iterdir() if p.is_dir() and any(p.glob("ex_*.jsonl"))):
+        journals = sorted(directory.glob("ex_*.jsonl"))
+        summary = summarize(journals)
+        (root / f"{directory.name}-error-ledger.json").write_text(json.dumps(summary, indent=2) + "\n")
+        record(events, "error_ledger", {"model": directory.name, **summary, "protocol": measure(journals)})
 
 
 def strict_arm(args: argparse.Namespace, events: TextIO) -> None:
@@ -367,7 +388,19 @@ def main() -> None:
                         help="Run only Lab 10's RestoreBench pilot for --r6-root's evaluated models")
     parser.add_argument("--r6-root", type=Path, help="Completed r6 root (its student smoke runs)")
     parser.add_argument("--strict-root", type=Path, help="Completed strict-arm root (its plain base cells)")
+    parser.add_argument("--student", action="append", default=[], metavar="LABEL=DIR",
+                        help="Evaluate this trained student for LABEL (qwen-student / granite-student)")
+    parser.add_argument("--suite", action="append", default=[], metavar="NAME=EXAMPLES",
+                        help="A further frozen suite run in each model's benchmark session")
     args = parser.parse_args()
+    pairs = {"--student": args.student, "--suite": args.suite}
+    for flag, values in pairs.items():
+        if any("=" not in value for value in values):
+            parser.error(f"{flag} takes NAME=PATH")
+    args.students = {k: Path(v) for k, v in (value.split("=", 1) for value in args.student)}
+    args.suites = {k: Path(v) for k, v in (value.split("=", 1) for value in args.suite)}
+    if not set(args.students) <= set(STUDENTS):
+        parser.error(f"--student labels are {sorted(STUDENTS)}")
     if args.prompted_arm and not (args.r6_root and args.strict_root):
         parser.error("--prompted-arm needs --r6-root and --strict-root")
     if args.restorebench_arm and not args.r6_root:

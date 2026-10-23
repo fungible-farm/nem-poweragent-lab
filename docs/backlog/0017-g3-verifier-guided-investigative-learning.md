@@ -59,3 +59,11 @@ discovers sensitivity-guided steps.
 
   An RL student "discovers sensitivity-guided steps" (0013) only if it reaches tolerance in
   fewer calls than these, at the same pass rate.
+
+## Caveat (2026-10-24): the procedural pool uses the held-out network
+
+`powercoder/datasets/procedural.py` draws load-scale fits from snem-1803, which the r7 study
+holds out (the judgement suite's held-out-network reports, the unsolvable suite's snem-1803
+reports) to test whether skills transfer. A GRPO pilot trained on that pool would make those
+measurements in-distribution. Before the pilot, either hold out a different network for the
+evaluation or draw the pool from snem-sa-2000 plus the IEEE/PEGASE cases.

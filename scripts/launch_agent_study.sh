@@ -39,10 +39,12 @@ if [[ -e "$REPO_ROOT/$ROOT" ]]; then
 fi
 # --remain-after-exit keeps a finished training unit "active (exited)", so test
 # its sub-state and result rather than is-active.
-if [[ "$(systemctl --user show -p SubState --value powercoder-agent-sft)" == "running" ]]; then
-  echo "refusing: powercoder-agent-sft is still training" >&2
-  exit 1
-fi
+for sft in $(systemctl --user list-units --all --plain --no-legend 'powercoder-agent-sft*' | awk '{print $1}'); do
+  if [[ "$(systemctl --user show -p SubState --value "$sft")" == "running" ]]; then
+    echo "refusing: $sft is still training" >&2
+    exit 1
+  fi
+done
 
 systemd-run --user --unit="$UNIT" --remain-after-exit \
   --description="PowerCoder r6 agent study ($RUN)" \

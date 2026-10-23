@@ -110,3 +110,15 @@ replay root:
 # G1 protocol suite: share of each model's run_study_trial calls the Rust IR accepts (exit criterion ≥99%), repairs, tool errors (0015).
 protocol-suite root:
     uv run python -m powercoder.inference.protocol_suite {{root}}
+
+# PC-REQ-4: each model's errors by class, recovered cost and unrecoverable lost time (seconds and tokens).
+error-ledger root:
+    uv run python -m powercoder.inference.error_ledger {{root}}
+
+# Freeze the unsolvable suite (refusal without guessing) from another frozen suite's fits and N-1 reports.
+unsolvable-suite source dest:
+    uv run python -m powercoder.datasets.unsolvable --from {{source}} --out-dir {{dest}}
+
+# r7: after the r6b queue, fast-forward main, retrain both students on IR 0.2.0 trajectories, run r7 (supervised unit).
+r7-chain:
+    systemd-run --user --unit=powercoder-r7-chain --working-directory=/home/brianh/promptexecution/fungible/nem-poweragent-lab /bin/bash {{justfile_directory()}}/../scripts/r7_chain.sh
