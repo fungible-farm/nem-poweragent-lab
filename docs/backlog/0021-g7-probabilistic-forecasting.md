@@ -1,6 +1,6 @@
 # 0021 — G7: probabilistic forecasting
 
-- **Status:** open. Real-data evaluation is blocked by G5's access decision. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G7,
+- **Status:** open; **cheapest first step done** 2026-10-23 (below). Real-data evaluation is blocked by G5's access decision. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G7,
   priority B4. Depends on G2 and G5.
 - **Requirements:** PC-REQ-040–044.
 
@@ -28,3 +28,28 @@
 ## Cheapest first step
 The hindcast harness and leakage tests on a public demand series, until NEM access is decided. The
 harness, not the data, is the asset.
+
+## First step done (2026-10-23): `powercoder/forecasting/hindcast.py`
+- **No leakage by construction.** A forecast is made from an `AsOf` view, and any read after the
+  issue time raises `LeakageError`. A test overwrites every value after the issue time with 1e9,
+  and no model's forecast changes.
+- **Identity:** each forecast carries its model, version, issue time, valid times and quantiles.
+- **Baselines:** persistence, seasonal naive, and a seasonal naive whose quantiles are empirical
+  quantiles of its past errors, taken from errors observable at the issue time.
+- **Metrics:** MAE, WAPE, pinball loss, 80% coverage, and skill against persistence.
+- **Data:** the cached AEMO `DISPATCHREGIONSUM.TOTALDEMAND` for June 2026 (Lab 4's cache, 8,640
+  intervals per region), read locally with nothing fetched. Named stand-ins: availability at
+  interval end, and no weather.
+- **Run it:** `just powercoder::hindcast SA1`.
+
+**SA1, 505 issue times (9–30 June, hourly):**
+
+| Horizon | Persistence MAE | Seasonal naive MAE (skill) | Probabilistic, 80% coverage |
+|---|---|---|---|
+| 5 min | 17.8 MW | 150.4 (−7.47) | 0.80 |
+| 1 h | 120.4 | 151.1 (−0.26) | 0.78 |
+| 4 h | 348.3 | 150.6 (+0.57) | 0.78 |
+| 1 day | 144.6 | 144.6 (0.00; the same forecast) | 0.81 |
+
+These baselines exist to be beaten. Next: the G7 engines behind the same `Model` interface, then
+weather inputs once G5 is decided.

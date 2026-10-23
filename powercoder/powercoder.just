@@ -73,3 +73,7 @@ cgmes-peer-check peer="sm3lly.lan" dest="":
 # Run another checkout's code here, e.g. `just powercoder::with-code ../wt -m powercoder.inference.domain_scorecard ...`.
 with-code code_dir +cmd:
     PYTHONPATH={{code_dir}} {{code_dir}}/.venv/bin/python -P {{cmd}}
+
+# Leakage-free demand hindcast on the cached AEMO month (backlog 0021), e.g. region=VIC1.
+hindcast region="SA1":
+    uv run python -m powercoder.forecasting.hindcast --region {{region}}
