@@ -41,3 +41,34 @@ fn invalid_commands_are_refused_before_execution() {
         assert!(parse(bad).is_err(), "{bad} should be refused");
     }
 }
+
+#[test]
+fn lift_inverts_lower_and_applies_the_tools_static_rules() {
+    use command_ir::{lift, parse};
+    use serde_json::json;
+
+    for dsl in ["SOLVE snem-sa-2000 OUTAGE 94 OBSERVE bus_voltage 985", "SIMULATE snem-sa-2000 load_scale 1.0375 OBSERVE 985"] {
+        let command = parse(dsl).unwrap();
+        assert_eq!(lift(&command.lower().unwrap()).unwrap(), command, "{dsl}");
+    }
+    let base = json!({"network_id": "snem-sa-2000", "operation": "none", "scale": 1, "element_id": 0,
+                      "observation": "bus_voltage", "observation_id": 985, "max_iter": 50});
+    assert!(lift(&base).is_ok());
+    let with = |k: &str, v: serde_json::Value| { let mut a = base.clone(); a[k] = v; a };
+    for (bad, why) in [
+        (with("scale", json!(0.95)), "none with scale != 1"),
+        (with("contingency_line", json!("None")), "FM-7 string None"),
+        (with("observation_id", json!(-1)), "negative id"),
+        (with("observation_id", json!(985.0)), "float id"),
+        (with("max_iter", json!(0)), "max_iter out of range"),
+        (with("network_id", json!("ieee14")), "unknown network"),
+        (with("extra", json!(1)), "unknown property"),
+        (with("operation", json!("load_scale")), "load_scale observes bus_voltage — ok"),
+    ] {
+        let ok = why.ends_with("ok");
+        assert_eq!(lift(&bad).is_ok(), ok, "{why}");
+    }
+    let mismatch = json!({"network_id": "snem-sa-2000", "operation": "line_rating", "scale": 1.0, "element_id": 3,
+                          "observation": "bus_voltage", "observation_id": 3, "max_iter": 50});
+    assert!(lift(&mismatch).is_err(), "line_rating must observe line_loading");
+}

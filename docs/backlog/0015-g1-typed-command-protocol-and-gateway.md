@@ -1,6 +1,6 @@
 # 0015 — G1: typed command protocol and policy gateway
 
-- **Status:** open; **cheapest first step done** 2026-10-24 (below). [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G1, priority A2. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md)).
+- **Status:** deliverables done and exit criteria checked on r6b, 2026-10-24 (below); a gated evaluation run is left. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G1, priority A2. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md)).
 - **Requirements:** PC-REQ-001–005, PC-CON-003/005.
 
 ## Deliverables
@@ -108,5 +108,39 @@ Python dict. Its enums and bounds are checked against `SCALE_MIN`/`SCALE_MAX`/`M
 and the loader's cases (`test_command_ir.py`). The trajectory test that compares stored
 training tools with the served list still passes byte for byte.
 
-**Left for G1:**
-- the ≥99% valid-command protocol suite.
+## Protocol suite done (2026-10-24): `powercoder/inference/protocol_suite.py`
+
+Every `run_study_trial` call in a run root is lifted into the IR by the Rust `lift` binary
+(`command_ir::lift`, the inverse of `lower`). So validity is the IR's own judgement. A call is
+valid when it uses only the schema's properties, has integer ids, keeps scale in range, sends
+`operation=none` only with scale 1, and pairs each modification with its one observation.
+Whether an id exists in the network is left to the tool. Results for r6b, 2026-10-24:
+
+| Model | run_study_trial calls | IR-valid | Rate | Repaired | Tool errors on valid calls | Other tools |
+|---|---|---|---|---|---|---|
+| Qwen base | 467 | 446 | 95.5% | 16 of 21 | 34 | 46 |
+| Qwen student | 483 | 483 | 100% | — | 32 | 4 |
+| Granite base | 678 | 652 | 96.2% | 18 of 26 | 38 | 38 |
+| Granite student | 595 | 595 | 100% | — | 0 | 0 |
+
+Both r6 students meet the ≥99% criterion; neither prompted base does. Of the base models'
+invalid calls, 42 of 47 are `contingency_line` sent as something other than an integer or null
+(FM-7, mostly the string `"None"`).
+
+Cross-checked against the tool's own outcome: the IR never refused a call the tool accepted, and
+every tool error on an IR-valid call is `Unknown observation element`. That is an id the network
+lacks: data, not protocol. Recipe: `just powercoder::protocol-suite <root>`.
+
+## G1 exit criteria, 2026-10-24
+
+| Criterion | State | Checked by |
+|---|---|---|
+| ≥99% valid commands | met by both r6 students (100%); prompted bases 95.5% / 96.2% | `protocol_suite.py` over r6b |
+| 100% of unauthorised commands rejected | met for the analyst role (write tools, other networks, over-budget) | `test_gateway.py` |
+| Every accepted number has a valid evidence reference | provenance v3 traces each answer field to a tool response or prompt | `test_provenance.py` |
+| Replays reproduce within tolerance | exact on every solver number in r6b; only Fix 2's message changed | `replay.py` over r6b |
+| Retrieved content cannot bypass authorisation | the gateway reads only the policy and the call | `test_gateway.py` |
+
+**Left:** the gateway is opt-in (`mcp_server --policy`) and no evaluation has run behind it yet.
+That needs a new run root, and it goes with the 0026 namespace retrain. Run the protocol suite
+on the strict and prompted roots once they finish.

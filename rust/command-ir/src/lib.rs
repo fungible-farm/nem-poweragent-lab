@@ -1,12 +1,15 @@
-//! PowerCoder's typed command IR, first step of PRD-0010 G1 (backlog 0015).
+//! PowerCoder's typed command IR for PRD-0010 G1 (backlog 0015): the ten PC-REQ-001 commands.
 //!
-//! Two commands, `SOLVE` and `SIMULATE`, both lowered to today's `run_study_trial` tool
-//! (`powercoder/inference/studies.py`):
+//! `SOLVE` and `SIMULATE` lower to today's `run_study_trial` tool (`powercoder/inference/studies.py`):
 //!
 //! - [`Solve`]: an AC power flow of the intact network or one N-1 outage, observing one element
 //!   (`operation = "none"`, `scale = 1`, `element_id = 0`, as the trained procedure sends it);
 //! - [`Simulate`]: one perturbation trial: scale all loads, one line's rating or one
 //!   generator's dispatch, and observe the quantity that modification moves.
+//!
+//! [`lift`] is the inverse: a model's `run_study_trial` arguments are lifted into the IR, which is
+//! how the protocol suite judges validity (`src/bin/lift.rs`). Every command, the other eight
+//! included, compiles to an executor request ([`Command::request`], run by `powercoder/commands.py`).
 //!
 //! [`study_trial_schema`] emits the tool's JSON Schema, and [`to_python_json`] writes it with
 //! Python `json.dumps` separators. Their output must be byte-identical to the schema the
@@ -339,6 +342,61 @@ pub fn to_python_json(value: &Value) -> String {
     let mut ser = serde_json::Serializer::with_formatter(&mut out, PythonFormatter);
     serde::Serialize::serialize(value, &mut ser).expect("serializing a Value cannot fail");
     String::from_utf8(out).expect("serde_json writes UTF-8")
+}
+
+/// Lift a model's `run_study_trial` arguments into the IR: the inverse of [`Command::lower`].
+///
+/// It applies the tool's static rules: exactly the schema's properties, integer ids, scale in
+/// range, `operation = "none"` only with `scale = 1`, and the one observation each modification
+/// allows (`studies.run_study_trial`). Whether an id exists in the network is the tool's check,
+/// not the protocol's. `element_id` is ignored by SOLVE, as the tool ignores it.
+pub fn lift(args: &Value) -> Result<Command, IrError> {
+    let invalid = |m: &str| IrError::Invalid(m.to_string());
+    let obj = args.as_object().ok_or_else(|| invalid("arguments are not an object"))?;
+    const PROPERTIES: [&str; 8] =
+        ["network_id", "operation", "scale", "element_id", "observation", "observation_id", "contingency_line", "max_iter"];
+    if let Some(extra) = obj.keys().find(|k| !PROPERTIES.contains(&k.as_str())) {
+        return Err(IrError::Invalid(format!("unknown property {extra}")));
+    }
+    let text = |k: &str| obj.get(k).and_then(Value::as_str).ok_or_else(|| IrError::Invalid(format!("{k} must be a string")));
+    // as_u64 rejects floats, negatives and booleans, as the tool's integer check does.
+    let id = |k: &str| obj.get(k).and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok())
+        .ok_or_else(|| IrError::Invalid(format!("{k} must be a non-negative integer")));
+    let network = text("network_id")?.to_string();
+    let operation = text("operation")?;
+    let observation = match text("observation")? {
+        "bus_voltage" => Observation::BusVoltage,
+        "line_loading" => Observation::LineLoading,
+        "trafo_loading" => Observation::TrafoLoading,
+        other => return Err(IrError::Invalid(format!("unknown observation {other}"))),
+    };
+    let scale = obj.get("scale").filter(|v| v.is_number()).and_then(Value::as_f64).ok_or_else(|| invalid("scale must be a number"))?;
+    let element_id = id("element_id")?;
+    let observation_id = id("observation_id")?;
+    let max_iter = id("max_iter")?;
+    let contingency_line = match obj.get("contingency_line") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(id("contingency_line")?),
+    };
+    let command = if operation == "none" {
+        if scale != 1.0 {
+            return Err(invalid("operation=none requires scale=1"));
+        }
+        Command::Solve(Solve { network, contingency_line, observation, observation_id, max_iter })
+    } else {
+        let modification = match operation {
+            "load_scale" => Modification::LoadScale,
+            "line_rating" => Modification::LineRating,
+            "gen_dispatch" => Modification::GenDispatch,
+            other => return Err(IrError::Invalid(format!("unknown operation {other}"))),
+        };
+        if observation != modification.observation() {
+            return Err(IrError::Invalid(format!("{operation} observes {}", modification.observation().as_str())));
+        }
+        Command::Simulate(Simulate { network, modification, scale, element_id, observation_id, contingency_line, max_iter })
+    };
+    command.validate()?;
+    Ok(command)
 }
 
 /// Parse the textual DSL into a command.

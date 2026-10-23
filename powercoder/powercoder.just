@@ -96,8 +96,8 @@ procedural-pool dest per_network="50":
 
 # G1: the Rust command IR's tests, incl. byte-identity of its emitted schema with the served one (0015).
 command-ir-test:
-    cd rust && cargo test -p command-ir
-    uv run python -m pytest -q powercoder/inference/test_command_ir.py powercoder/test_commands.py
+    cd rust && cargo test -p command-ir && cargo build -q --release -p command-ir --bin lift
+    uv run python -m pytest -q powercoder/inference/test_command_ir.py powercoder/test_commands.py powercoder/inference/test_protocol_suite.py powercoder/inference/test_replay.py
 
 # Execute IR requests (JSON lines on stdin), e.g. the Rust fixture: just powercoder::execute < rust/command-ir/tests/requests.jsonl
 execute:
@@ -106,3 +106,7 @@ execute:
 # G1 replay: re-run every recorded tool call in a run root's journals and diff against what the model saw (0015).
 replay root:
     uv run python -m powercoder.inference.replay {{root}}/*/ex_*.jsonl | tail -1
+
+# G1 protocol suite: share of each model's run_study_trial calls the Rust IR accepts (exit criterion ≥99%), repairs, tool errors (0015).
+protocol-suite root:
+    uv run python -m powercoder.inference.protocol_suite {{root}}
