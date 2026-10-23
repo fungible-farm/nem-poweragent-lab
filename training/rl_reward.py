@@ -64,8 +64,9 @@ def bisection_calls(task: dict[str, Any]) -> int:
     def measure(scale: float) -> float:
         nonlocal calls
         calls += 1
-        data = run_study_trial(network_id=inputs["case"], operation="load_scale", scale=scale, element_id=0,
-                               observation="bus_voltage", observation_id=bus, max_iter=TRIAL_MAX_ITER).data
+        data = run_study_trial(network_id=inputs["case"], operation="load_scale", scale=scale,
+                               observation="bus_voltage", observation_id=bus, max_iter=TRIAL_MAX_ITER,
+                               contingency_line=inputs.get("contingency_line")).data
         return float(data["metric"]) - inputs["target"]
 
     lo, hi = inputs["scale_lo"], inputs["scale_hi"]

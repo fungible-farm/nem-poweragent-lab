@@ -1,6 +1,6 @@
 # 0017 — G3: verifier-guided investigative learning
 
-- **Status:** open; **CPU groundwork done** 2026-10-24, incl. held-out networks and pool v2 (below). The GRPO run needs the GPU and starts from the r7 students. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G3, priority A4. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md))
+- **Status:** open; **CPU groundwork done** 2026-10-24, incl. held-out networks and pools v2/v3 (below). The GRPO run needs the GPU and starts from the r7 students. [PRD-0010](../prd/0010-powercoder-physics-grounded-engineering-agent.md) G3, priority A4. Depends on G0 ([0008](0008-powercoder-benchmark-cannot-measure-agent-value.md))
   and G2 ([0016](0016-g2-verified-engineering-mathematics.md)).
 - **Requirements:** PC-REQ-050–055, PC-CON-004.
 
@@ -91,10 +91,34 @@ The baseline to beat, bisection replayed through the study tool over pool v2:
 | ieee118 | 6 | 4–7 |
 | pegase89 | 6 | 4–7 |
 
+## Pool v3 (2026-10-24): contingencies, unbracketed fits and free-text objectives
+
+`training/unsloth/out/procedural-pool-20261024-v3`, 150 fits (50 per pool network):
+
+| Variant | Fits | How |
+|---|---|---|
+| N-1 contingency | 48 | every 3rd draw, one line out, from up to 20 outages per network that solve and isolate no bus (`safe_outages`, seeded) |
+| Unbracketed | 36 | no interval in the prompt; the bracket comes from the tool's limits |
+| Free-text objective | 39 | two engineer-phrased templates, each stating the network, outage, what is scaled and over what range, the bus, the target and the tolerance |
+
+N-1 fits needed a grader change. `filter._check_fit` re-solved the intact network, so it now
+applies the task's outage (`generate.with_outage`) first, and the generator's reference
+bisection uses the same composition. `test_procedural.py` checks the grader's metric equals the
+tool's with the outage applied and differs from the intact one. The scripted procedure passes
+150/150 over v3 (`script-baseline-procedural-pool-20261024-v3`), in every variant. The pool
+audits clean against all six evaluation suites.
+
+Bisection baseline over v3 (median calls, range):
+
+| Network | Intact | N-1 |
+|---|---|---|
+| snem-sa-2000 | 5 (4–7), n=34 | 6 (4–8), n=16 |
+| ieee118 | 6 (4–7), n=34 | 6 (5–7), n=16 |
+| pegase89 | 6 (4–7), n=34 | 6 (4–7), n=16 |
+
 **Left, and why:**
-- **GRPO run and distillation:** need the GPU. They start from the r7 students, after the r7 chain.
-- **Contingency fits:** `score_answer`'s independent fit check re-solves the intact network, so
-  an N-1 fit needs a grader that applies the outage first. Without one, those fits would be scored
-  against the wrong network.
-- **Operating points and free-text objectives:** not built. The judgement suite's intent prompts
-  are the model for free-text objectives.
+- **GRPO run and distillation:** need the GPU. They start from the r7 students, after
+  `powercoder-r7-chain`.
+- **Operating points other than the base load:** the study tool has no load-level argument. A
+  different operating point would be a new tool argument, so a schema change and a retrain. Until
+  then, the networks and N-1 outages are the variation.

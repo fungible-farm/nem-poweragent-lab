@@ -226,7 +226,8 @@ def _check_fit(example: dict[str, Any], answer: Any) -> tuple[bool, dict[str, An
         modifier = gen._make_modifier_gen_dispatch(primary)
         reader = gen._reader_trafo_loading(secondary)
 
-    net = modifier(base_net, s)
+    # An N-1 fit is checked on the network it was posed on (backlog 0017).
+    net = gen.with_outage(modifier, inputs.get("contingency_line"))(base_net, s)
     try:
         iters, vm_min, vm_max, viol = gen._solve(net)
     except pp.LoadflowNotConverged:

@@ -194,7 +194,10 @@ def fit_arguments(row: dict[str, Any], scale: float, element: int | None = None)
     if operation != "load_scale":
         arguments["element_id"] = ids[0] if element is None else element
     observed = ids[-1] if element is None or operation == "gen_dispatch" else element
-    return arguments | {"observation": observation, "observation_id": observed, "max_iter": TRIAL_MAX_ITER}
+    arguments |= {"observation": observation, "observation_id": observed}
+    if inputs.get("contingency_line") is not None:
+        arguments["contingency_line"] = inputs["contingency_line"]
+    return arguments | {"max_iter": TRIAL_MAX_ITER}
 
 
 def report_arguments(row: dict[str, Any]) -> dict[str, Any]:

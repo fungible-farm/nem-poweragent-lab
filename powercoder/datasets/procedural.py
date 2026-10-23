@@ -41,6 +41,21 @@ HELD_OUT_NETWORKS: tuple[str, ...] = ("snem-1803", "ieee39")
 assert not set(POOL_NETWORKS) & set(HELD_OUT_NETWORKS), "a held-out network must never be trained on"
 NETWORKS: tuple[str, ...] = POOL_NETWORKS
 OPEN_INTERVAL_EVERY: int = 4
+# Every CONTINGENCY_EVERY-th fit is posed with one line out (N-1), drawn by seed from lines whose
+# outage solves and isolates no bus; at most SAFE_LINES_PER_NETWORK are kept per network.
+CONTINGENCY_EVERY: int = 3
+SAFE_LINES_PER_NETWORK: int = 20
+# Free-text objectives: the fit as an engineer would ask it. Each states the network, outage,
+# what is scaled and over what range, the observed bus, the target and the tolerance, so the
+# prompt is coherent and solvable; the grader is the same. Every FREE_TEXT_EVERY-th fit, offset
+# from the open-interval ones.
+FREE_TEXT_EVERY: int = 4
+FREE_TEXT_TEMPLATES: tuple[str, ...] = (
+    "On case '{case}'{outage}, by what factor between {lo} and {hi} must every load's active and reactive demand "
+    "be multiplied for the voltage at bus {bus} to reach {target} pu, within {tol} pu? Reply with only that factor.",
+    "An engineer wants the voltage at bus {bus} of case '{case}'{outage} at {target} pu (tolerance {tol} pu), by "
+    "scaling all demand uniformly by one factor in [{lo}, {hi}]. Find the factor and reply with it alone.",
+)
 # Frozen suites a pool must not overlap (paths under the main tree; absent ones are skipped).
 EVALUATION_SUITES: tuple[str, ...] = (
     "benchmarks/power-agent-bench-lite/results/domain-stratified-100-20261022/examples.jsonl",
@@ -82,21 +97,60 @@ def discover_load_scale_buses(case: str) -> list[dict[str, Any]]:
     return kept[:ELEMENTS_PER_NETWORK]
 
 
+def safe_outages(case: str) -> list[int]:
+    """Lines whose outage converges and de-energizes no bus, in a seeded order, at most SAFE_LINES_PER_NETWORK."""
+    import math
+    import random
+
+    base, _ = pm._load_network_object(case)
+    order = list(base.line.index)
+    random.Random(f"{PROCEDURAL_SEED}:{case}:outages").shuffle(order)
+    kept = []
+    for line in order:
+        net, _ = pm._load_network_object(case)
+        net.line.loc[line, "in_service"] = False
+        try:
+            pm._runpp_counted(net, numba=True)
+        except (pp.LoadflowNotConverged, FloatingPointError):
+            continue
+        if all(math.isfinite(float(v)) for v in net.res_bus.vm_pu):
+            kept.append(int(line))
+        if len(kept) == SAFE_LINES_PER_NETWORK:
+            break
+    return kept
+
+
+def free_text(row: dict[str, Any], template: str) -> str:
+    """A free-text prompt for a load-scale fit, rendered from its inputs."""
+    inputs = row["task"]["inputs"]
+    outage = inputs.get("contingency_line")
+    return template.format(case=inputs["case"], outage=f" with line {outage} out of service" if outage is not None else "",
+                           lo=inputs["scale_lo"], hi=inputs["scale_hi"], bus=int(inputs["element"].split()[-1]),
+                           target=f"{inputs['target']:.6f}", tol=inputs["tolerance"])
+
+
 def build(per_network: int = PER_NETWORK) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Verified load-scale fits from every network, and the discovered element count per network."""
     rows, discovered = [], {}
     cache = generate.EndpointCache()
     for case in NETWORKS:
         elements = discover_load_scale_buses(case)
+        outages = safe_outages(case)
         discovered[case] = len(elements)
         made = 0
-        for i in range(per_network * 2):
-            row = generate._gen_fit_example("pf-load-scale-fit", case, elements, i, PROCEDURAL_SEED, cache)
+        for i in range(per_network * 3):
+            line = outages[i % len(outages)] if outages and i % CONTINGENCY_EVERY == CONTINGENCY_EVERY - 1 else None
+            row = generate._gen_fit_example("pf-load-scale-fit", case, elements, i, PROCEDURAL_SEED, cache,
+                                            contingency_line=line)
             if row["lifecycle"]["status"] == "verified":
                 row["lifecycle"]["split"] = "train"
                 if made % OPEN_INTERVAL_EVERY == OPEN_INTERVAL_EVERY - 1:
                     row["task"]["prompt"] = generate.fit_prompt(row["subfamily"], row["task"]["inputs"], interval=False)
                     row["task"]["inputs"]["prompt_variant"] = "open-interval"
+                elif made % FREE_TEXT_EVERY == 1:
+                    k = (made // FREE_TEXT_EVERY) % len(FREE_TEXT_TEMPLATES)
+                    row["task"]["prompt"] = free_text(row, FREE_TEXT_TEMPLATES[k])
+                    row["task"]["inputs"]["prompt_variant"] = f"free-text-{k}"
                 rows.append(row)
                 made += 1
             if made == per_network:
@@ -134,9 +188,11 @@ def main() -> int:
             stream.write(json.dumps(row, allow_nan=False) + "\n")
     by_network = {case: sum(r["topology"] == case for r in rows) for case in NETWORKS}
     (args.out_dir / "manifest.json").write_text(json.dumps({
-        "pool": "procedural-load-scale-v2", "seed": PROCEDURAL_SEED, "n_tasks": len(rows), "by_network": by_network,
+        "pool": "procedural-load-scale-v3", "seed": PROCEDURAL_SEED, "n_tasks": len(rows), "by_network": by_network,
         "held_out_networks": list(HELD_OUT_NETWORKS), "audited_against": audits,
         "open_interval": sum(r["task"]["inputs"].get("prompt_variant") == "open-interval" for r in rows),
+        "free_text": sum(str(r["task"]["inputs"].get("prompt_variant", "")).startswith("free-text") for r in rows),
+        "contingency": sum(r["task"]["inputs"].get("contingency_line") is not None for r in rows),
         "discovered_elements": discovered, "examples_sha256": hashlib.sha256(examples.read_bytes()).hexdigest()},
         indent=2) + "\n")
     print(json.dumps({"tasks": len(rows), "by_network": by_network, "discovered_elements": discovered}))

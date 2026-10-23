@@ -225,6 +225,19 @@ def _reader_trafo_loading(trafo_id: int) -> Reader:
     return lambda net: float(net.res_trafo.loc[trafo_id, "loading_percent"])
 
 
+def with_outage(modifier: Modifier, line: int | None) -> Modifier:
+    """``modifier`` applied to the network with ``line`` out of service (identity for None)."""
+    if line is None:
+        return modifier
+
+    def mod(base: pp.pandapowerNet, s: float) -> pp.pandapowerNet:
+        n = copy.deepcopy(base)
+        n.line.loc[line, "in_service"] = False
+        return modifier(n, s)
+
+    return mod
+
+
 def _make_evaluate(case: str, modifier: Modifier, reader: Reader) -> Callable[[float], float]:
     """Build evaluate(s) -> metric: a fresh scaled net, a real pp.runpp, then
     the reader. This is the real-solver `evaluate` that bisection_fit drives."""
@@ -346,13 +359,15 @@ def fit_prompt(subfamily: str, inputs: dict[str, Any], wording: str = CURRENT_WO
                 f"'{case}' such that the {METRIC_NAMES[subfamily]} equals {goal}")
     if wording != "v2":
         raise ValueError(f"Unknown prompt wording {wording!r}")
+    outage = inputs.get("contingency_line")
+    where = f"'{case}'" + (f" with line {outage} out of service (N-1 contingency)" if outage is not None else "")
     ids = [int(x) for x in re.findall(r"\d+", inputs["element"])]
     scaled, observed = {
         "pf-load-scale-fit": ("every load's active and reactive demand", f"voltage at bus {ids[-1]}"),
         "pf-line-rating-fit": (f"the thermal rating of line {ids[0]}", f"loading of line {ids[0]}"),
         "pf-gen-dispatch-fit": (f"the active-power dispatch of generator {ids[0]}", f"loading of transformer {ids[-1]}"),
     }[subfamily]
-    return (f"Using the power flow solver, find the scale factor s{bracket} applied to {scaled} on case '{case}' "
+    return (f"Using the power flow solver, find the scale factor s{bracket} applied to {scaled} on case {where} "
             f"such that the {observed} equals {goal}")
 
 
@@ -363,6 +378,7 @@ def _gen_fit_example(
     i: int,
     base_seed: int,
     cache: EndpointCache,
+    contingency_line: int | None = None,
 ) -> dict[str, Any]:
     """Generate one fit-family example: pick an element (seeded), derive a
     target inside its measured endpoint range (seeded), fit with real
@@ -397,6 +413,12 @@ def _gen_fit_example(
             modifier=_make_modifier_gen_dispatch(gen), reader=_reader_trafo_loading(trafo),
             metric_unit="percent", metric_name="transformer loading", target_label="target loading",
         )
+
+    if contingency_line is not None:
+        # An N-1 fit (backlog 0017): the reference bisection, its endpoints and the final solve
+        # all run with the line out, and the cache key keeps it apart from the intact fit.
+        spec.modifier = with_outage(spec.modifier, contingency_line)
+        spec.element_key = (*spec.element_key, "N-1", contingency_line)
 
     # Endpoint metrics (cached per element): the metric at SCALE_LO, at the
     # base case (s=1.0), and at SCALE_HI. The metric is monotonic in s
@@ -445,6 +467,8 @@ def _gen_fit_example(
         "tolerance": tol,
         "metric_unit": spec.metric_unit,
     }
+    if contingency_line is not None:
+        task_inputs["contingency_line"] = contingency_line
     prompt = fit_prompt(subfamily, task_inputs)
 
     run = _run_fit(spec, target, tol)
