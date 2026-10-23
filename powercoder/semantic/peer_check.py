@@ -35,22 +35,41 @@ VOLTAGE_TOLERANCE_PU: float = 1e-4
 BUS_SUFFIX: re.Pattern[str] = re.compile(r"_\d+$")
 
 
-def export(zip_path: Path, voltages_path: Path) -> dict[str, int]:
+LAB5_CASE: str = "lab5-chaosnet"
+LAB5_TOPOLOGY: str = "labs/05-spartan-chaosnet-transient-stream/sample_topology.json"
+
+
+def load_named(case: str):  # noqa: ANN201 -- a pandapowerNet; pandapower is imported lazily
+    """snem-sa-2000 (or any powermcp network id), or Lab 5's committed chaos-net topology."""
+    if case == LAB5_CASE:
+        lab5 = Path(__file__).resolve().parents[2] / "labs/05-spartan-chaosnet-transient-stream"
+        sys.path.insert(0, str(lab5))
+        sys.path.insert(0, str(lab5.parent))
+        import chaosnet
+
+        return chaosnet.to_pandapower(chaosnet.read_topology_json(lab5.parents[1] / LAB5_TOPOLOGY))
+    from powercoder.inference import powermcp as pm
+
+    return pm._load_network_object(case)[0]
+
+
+def export(zip_path: Path, voltages_path: Path, case: str = CASE) -> dict[str, int]:
     """Solve the case, write its CGMES profiles and pandapower's bus voltages by name."""
     import pandapower as pp
 
-    from powercoder.inference import powermcp as pm
-    from powercoder.semantic.cgmes import solved_reactive_power, split_profiles
+    from powercoder.semantic.cgmes import solved_injections, solved_reactive_power, split_profiles
     from powercoder.semantic.export import export_network
 
-    net, _ = pm._load_network_object(CASE)
+    net = load_named(case)
     pp.runpp(net, numba=True)
-    docs = split_profiles(export_network(net, CASE), CASE, initial_q=solved_reactive_power(net, CASE))
+    docs = split_profiles(export_network(net, case), case,
+                          initial_q=solved_reactive_power(net, case) if len(net.gen) else None,
+                          initial_injection=solved_injections(net, case))
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for profile in ("EQ", "TP", "SSH"):
             buffer = io.BytesIO()
             docs[profile].serialize(buffer, format="xml")
-            archive.writestr(f"{CASE}_{profile}.xml", buffer.getvalue())
+            archive.writestr(f"{case}_{profile}.xml", buffer.getvalue())
     voltages_path.write_text(json.dumps({str(net.bus.name[b]): float(net.res_bus.vm_pu[b]) for b in net.bus.index}))
     return {profile: len(doc) for profile, doc in docs.items()}
 
@@ -107,7 +126,11 @@ def diagram(zip_path: Path, out_dir: Path, depth: int = 2) -> dict:
     net.write_single_line_diagram_svg(substation, str(out_dir / "substation_sld.svg"),
                                       parameters=pn.SldParameters(use_name=True))
     level = levels[levels.substation_id == substation].index[0]
-    net.write_network_area_diagram_svg(str(out_dir / "area.svg"), voltage_level_ids=[level], depth=depth)
+    if int(counts.iloc[0]) == 1:
+        # No transformers (e.g. Lab 5's radial MV net): each bus is its own substation, so draw it all.
+        net.write_network_area_diagram_svg(str(out_dir / "area.svg"))
+    else:
+        net.write_network_area_diagram_svg(str(out_dir / "area.svg"), voltage_level_ids=[level], depth=depth)
     return {"pypowsybl": pypowsybl.__version__, "substation": str(substation),
             "voltage_levels_in_substation": int(counts.iloc[0]), "depth": depth,
             "files": {p.name: p.stat().st_size for p in out_dir.glob("*.svg")}}
@@ -120,6 +143,7 @@ def main() -> int:
     e = steps.add_parser("export")
     e.add_argument("--zip", type=Path, required=True)
     e.add_argument("--voltages", type=Path, required=True)
+    e.add_argument("--case", default=CASE, help=f"a powermcp network id, or {LAB5_CASE}")
     c = steps.add_parser("check")
     c.add_argument("--zip", type=Path, required=True)
     c.add_argument("--out", type=Path, required=True)
@@ -131,7 +155,7 @@ def main() -> int:
     m.add_argument("--peer", type=Path, required=True)
     args = parser.parse_args()
     if args.step == "export":
-        print(json.dumps(export(args.zip, args.voltages)))
+        print(json.dumps(export(args.zip, args.voltages, args.case)))
         return 0
     if args.step == "diagram":
         print(json.dumps(diagram(args.zip, args.out_dir)))

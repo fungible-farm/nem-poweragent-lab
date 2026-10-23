@@ -246,6 +246,10 @@ def derived_fields(graph: Graph) -> tuple[list[tuple], list[tuple]]:
         eq.append((changer, CIM["TapChanger.normalStep"], Literal(float(step))))
         for rated in graph.objects(end, CIM["PowerTransformerEnd.ratedU"]):
             eq.append((changer, CIM["TapChanger.neutralU"], rated))
+    for injection in graph.subjects(RDF.type, CIM.ExternalNetworkInjection):
+        for bound, value in (("ExternalNetworkInjection.minP", -UNBOUNDED_P_MW), ("ExternalNetworkInjection.maxP", UNBOUNDED_P_MW)):
+            if next(graph.objects(injection, CIM[bound]), None) is None:
+                eq.append((injection, CIM[bound], Literal(value)))
     # Voltage regulating controls: the export writes targetValue in kV (multiplier k),
     # and a generator's voltage control is continuous, not stepped (discrete = false).
     # powsybl-core reads enabled/targetValue only together with both (regulatingControls).
@@ -277,9 +281,35 @@ def solved_reactive_power(net: object, model_id: str) -> dict[URIRef, float]:
     return {_iri(model_id, "SynchronousMachine", idx)[0]: -float(net.res_gen.q_mvar[idx]) for idx in net.gen.index}
 
 
+# CGMES requires ExternalNetworkInjection.minP/maxP; a pandapower ext_grid is an unbounded
+# slack with none. This sentinel means "no limit", in the spirit of MATPOWER's 9999/10000
+# "no limit" values, and is written only where the case gives no limit. Without minP/maxP
+# powsybl-core's externalNetworkInjections query drops the injection (Lab 5, 2026-10-23).
+UNBOUNDED_P_MW: Final[float] = 1e6
+
+
+def solved_injections(net: object, model_id: str) -> dict[URIRef, dict[str, float]]:
+    """Each ext_grid's P and Q from a solved pandapower net, in CGMES's load sign convention.
+
+    powsybl-core's ``externalNetworkInjectionsForUpdate`` reads ``controlEnabled`` and the
+    reference priority only together with ``ExternalNetworkInjection.p`` and ``q``.
+
+    Raises:
+        ValueError: if the net has no ext_grid results (run ``pp.runpp`` first).
+    """
+    from powercoder.semantic.export import _iri
+
+    if len(net.ext_grid) and not len(getattr(net, "res_ext_grid", [])):
+        raise ValueError("solved_injections needs a solved net (pp.runpp)")
+    return {_iri(model_id, "ExternalNetworkInjection", idx)[0]: {
+        "ExternalNetworkInjection.p": -float(net.res_ext_grid.p_mw[idx]),
+        "ExternalNetworkInjection.q": -float(net.res_ext_grid.q_mvar[idx])} for idx in net.ext_grid.index}
+
+
 def split_profiles(graph: Graph, model_id: str, scenario_time: str = DEFAULT_TIME,
                    created: str = DEFAULT_TIME, infer_containers: bool = True,
-                   bus_branch: bool = True, initial_q: dict[URIRef, float] | None = None) -> dict[str, Graph]:
+                   bus_branch: bool = True, initial_q: dict[URIRef, float] | None = None,
+                   initial_injection: dict[URIRef, dict[str, float]] | None = None) -> dict[str, Graph]:
     """EQ, TP, SSH (each with its header) and EXT graphs from one merged export.
 
     Every non-header triple lands in exactly one document. A subject's ``rdf:type`` is
@@ -338,6 +368,9 @@ def split_profiles(graph: Graph, model_id: str, scenario_time: str = DEFAULT_TIM
     eq_extra, ssh_extra = derived_fields(graph)
     for machine, q in (initial_q or {}).items():
         ssh_extra.append((machine, CIM["RotatingMachine.q"], Literal(q)))
+    for injection, values in (initial_injection or {}).items():
+        for name, value in values.items():
+            ssh_extra.append((injection, CIM[name], Literal(value)))
     for subject, predicate, obj in eq_extra:
         out["EQ"].add((subject, predicate, as_cgmes_literal(predicate, obj)))
     for triple in ssh_extra:

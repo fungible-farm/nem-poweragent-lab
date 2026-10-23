@@ -490,3 +490,16 @@ to the fault regardless of hop count. (3) The one bus that stays untouched (SUB-
 **`ext_grid_bus` itself** — the fixed-voltage swing bus the whole solve is referenced to. Its
 immunity is definitional (it's the source), not an emergent "well-connected buses resist sag"
 property, named explicitly so the finding isn't misread.
+
+## Symbolic network diagram (optional extension; backlog 0004 tier 2)
+
+`sample_network_area_diagram.svg` is a real powsybl-diagram rendering of `sample_topology.json`:
+pandapower → `powercoder.semantic` CGMES (EQ/TP/SSH) → **pypowsybl 1.16.1**. The same import
+solves AC and agrees with pandapower to 4.97e-8 pu on all 14 buses (measured 2026-10-23).
+pypowsybl publishes no Linux ARM64 wheel, so the rendering runs on an x86-64 peer:
+
+```
+CASE=lab5-chaosnet DIAGRAMS=1 scripts/cgmes_peer_check.sh sm3lly.lan <out-dir>
+```
+
+Like the hardware-validated extension, this is optional: the lab's core checks do not need it.

@@ -8,6 +8,7 @@
 #   3. here: peer_check compare                      -> exit 1 above the tolerance
 # Usage: scripts/cgmes_peer_check.sh [peer-host] [out-dir]   (defaults: sm3lly.lan, a mktemp dir)
 #        DIAGRAMS=1 also renders powsybl-diagram SVGs into <out-dir>/diagrams (backlog 0004).
+#        CASE=lab5-chaosnet checks Lab 5's committed chaos-net topology instead of snem-sa-2000.
 set -euo pipefail
 
 PEER="${1:-sm3lly.lan}"
@@ -20,7 +21,8 @@ UV="$(command -v uv || true)"; UV="${UV:-$HOME/.local/bin/uv}"
 
 mkdir -p "$OUT"
 cd "$ROOT"
-"$UV" run python -m powercoder.semantic.peer_check export --zip "$OUT/cgmes.zip" --voltages "$OUT/pandapower_vm.json"
+"$UV" run python -m powercoder.semantic.peer_check export --zip "$OUT/cgmes.zip" --voltages "$OUT/pandapower_vm.json" \
+    --case "${CASE:-snem-sa-2000}"
 
 REMOTE="$(ssh -o BatchMode=yes "$PEER" 'mktemp -d /tmp/cgmes-peer-check.XXXX')"
 trap 'ssh -o BatchMode=yes "$PEER" "rm -rf $REMOTE" || true' EXIT

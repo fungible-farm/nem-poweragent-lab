@@ -1,8 +1,9 @@
 # 0004 — Lab 4 & Lab 5: visualization options
 
-- **Status:** partially done — Lab 4's reconciliation chart and Lab 5's topology drawing are done.
-  The stretch tier's gate, a CIM/CGMES export, is met (0034), and real symbolic single-line diagrams now
-  render for snemSA (2026-10-23, below). Lab 5's own chaos-net topology is not wired to it yet.
+- **Status:** **done** 2026-10-23. Lab 4's chart and Lab 5's topology drawing were done earlier. The
+  stretch tier's gate (a CIM/CGMES export) is met (0034), and powsybl-diagram renders real symbolic
+  diagrams for snemSA and for Lab 5's chaos-net (below), as an optional extension like Lab 5's
+  hardware tier.
 - **Depends on:** 0001 (gap), 0002 (options research)
 
 ## Lab 4 — `labs/04-aemo-digital-twin-reconciliation/`
@@ -94,5 +95,10 @@ outputs below:
 
 The substation grouping is **inferred** (buses joined by transformers, 0034), not data, and any
 caption must say so. snemSA's `bus_data` `x y` (0024) are layout positions and could place the
-voltage levels. **Not yet:** Lab 5's chaos-net topology through the same export, and a committed
-fixture for its diagram.
+voltage levels. **Lab 5, done the same day:** `CASE=lab5-chaosnet DIAGRAMS=1 scripts/cgmes_peer_check.sh`
+exports the committed `sample_topology.json` (14 buses, 28 lines, 1 external grid, 13 loads).
+pypowsybl imports it, solves and agrees with pandapower to 4.97e-8 pu. The network-area
+diagram is committed as `labs/05-.../sample_network_area_diagram.svg`. This needed one more
+export fix: CGMES requires an ExternalNetworkInjection's `minP`/`maxP`, which an unbounded
+pandapower slack lacks. `cgmes.UNBOUNDED_P_MW` (±1e6 MW, a named "no limit" sentinel) is written
+only where the case gives no limit, and the injection's `p`/`q` come from the solved state.
