@@ -23,22 +23,30 @@ from powercoder.inference.powermcp import PowerMCP
 MODEL_HIDDEN_FIELDS: frozenset[str] = frozenset({"execution_time_s"})
 
 
-def tool_definitions(study_tools: bool = False) -> list[Tool]:
-    """The tools this server lists; the latency benchmark sends the same list."""
+def tool_definitions(study_tools: bool = False, namespace_tools: bool = False) -> list[Tool]:
+    """The tools this server lists; the latency benchmark sends the same list.
+
+    ``namespace_tools`` adds ``ls``/``get`` (backlog 0026). It is off by default, so
+    the r1-r6 tool set, and every prompt rendered from it, is unchanged.
+    """
     schemas = PowerMCP().get_tool_schemas()
     if study_tools:
         from powercoder.inference.studies import tool_schema
 
         schemas.append(tool_schema())
+    if namespace_tools:
+        from powercoder.inference.namespace import tool_schemas
+
+        schemas += tool_schemas()
     return [Tool(name=f["name"], description=f["description"], inputSchema=f["parameters"])
             for schema in schemas for f in [schema["function"]]]
 
 
-def create_server(study_tools: bool = False) -> Server:
+def create_server(study_tools: bool = False, namespace_tools: bool = False) -> Server:
     """Expose canonical schemas and real solver outcomes through SDK transport."""
     backend = PowerMCP()
     server = Server("powercoder-canonical")
-    tools = tool_definitions(study_tools)
+    tools = tool_definitions(study_tools, namespace_tools)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -52,6 +60,10 @@ def create_server(study_tools: bool = False) -> Server:
 
         # Serialize backend access: its iteration observer temporarily patches
         # pandapower's NR function and must not run concurrently in one process.
+        if namespace_tools and name in {"ls", "get"}:
+            from powercoder.inference.namespace import call
+
+            return [TextContent(type="text", text=json.dumps(call(name, arguments), allow_nan=False))]
         if study_tools and name == "run_study_trial":
             from powercoder.inference.studies import run_study_trial
 
@@ -64,9 +76,9 @@ def create_server(study_tools: bool = False) -> Server:
     return server
 
 
-async def serve(study_tools: bool = False) -> None:
+async def serve(study_tools: bool = False, namespace_tools: bool = False) -> None:
     """Run the SDK's standard parent-process pipe lifecycle."""
-    server = create_server(study_tools)
+    server = create_server(study_tools, namespace_tools)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 
@@ -74,4 +86,6 @@ async def serve(study_tools: bool = False) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--study-tools", action="store_true")
-    asyncio.run(serve(parser.parse_args().study_tools))
+    parser.add_argument("--namespace-tools", action="store_true", help="Add ls/get (backlog 0026)")
+    args = parser.parse_args()
+    asyncio.run(serve(args.study_tools, args.namespace_tools))

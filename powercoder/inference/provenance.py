@@ -122,8 +122,15 @@ REPORT_FIELDS: tuple[tuple[str, re.Pattern[str], int], ...] = (
 # or a prompt id: quoting them is not making a number up (r6b, 2026-10-23).
 NOT_OUTPUTS: frozenset[str] = frozenset({"study", "voltage_limit_pu", "thermal_limit_percent", "physical_scope"})
 DECLARED_LIMITS: frozenset[str] = frozenset({"voltage_limit_pu", "thermal_limit_percent"})
-# Markdown emphasis and code marks around a value ("**5**", "`39`").
-MARKUP: str = "*_`"
+# Markdown emphasis and code marks around a value ("**5**", "`39`"). Not "_": it is part of
+# identifiers and namespace paths ("vn_kv"), and underscore emphasis is rare.
+MARKUP: str = "*`"
+# Namespace listing fields (backlog 0026): ids, paths and counts, not measurements. An
+# answer may use them as identifiers (context), never as a measured value.
+NAMESPACE_STRUCTURE: frozenset[str] = frozenset({"path", "children", "counts", "offset", "total", "next_offset"})
+# A number with an optional unit, then a cited namespace path: "132 kV (/case/snem-sa-2000/bus/985/vn_kv)".
+CITATION: re.Pattern[str] = re.compile(
+    FIELD_NUMBER.pattern + r"\s*(?:[A-Za-z%/]+\s*)?\((?P<path>/case/[^\s)]+)\)")
 CONTINGENCY_MENTION: re.Pattern[str] = re.compile(r"line\s+(\d+)\s+out of service", re.I)
 
 
@@ -168,9 +175,9 @@ def solver_outputs(events: list[dict[str, Any]]) -> tuple[dict[str, list[float]]
             if not isinstance(data, dict):
                 continue
             for key, value in data.items():
-                if key in DECLARED_LIMITS:
-                    limits += json_numbers(value)
-                if key in NOT_OUTPUTS:
+                if key in DECLARED_LIMITS or key in NAMESPACE_STRUCTURE:
+                    limits += json_numbers(value) if not isinstance(value, str) else []
+                if key in NOT_OUTPUTS or key in NAMESPACE_STRUCTURE:
                     continue
                 found = json_numbers(value)
                 by_field.setdefault(key, []).extend(found)
@@ -189,20 +196,28 @@ def tried_scales(events: list[dict[str, Any]]) -> list[float]:
     return scales
 
 
-def check_fields(task: dict[str, Any], answer: str, events: list[dict[str, Any]]) -> FieldProvenance:
+def check_fields(task: dict[str, Any], answer: str, events: list[dict[str, Any]],
+                 resolve: Any = None) -> FieldProvenance:
     """v3 provenance (see the block comment above).
 
     Args:
         task: The benchmark row (its ``subfamily`` and ``task.inputs``).
         answer: The attempt's final answer.
         events: The attempt's journal.
+        resolve: Resolves a cited namespace path to its ``get`` response; defaults to
+            ``namespace.get``. A cited number must equal the value its path holds.
 
     Returns:
         The numbers found, those that did not trace, why, and whether all traced.
     """
     inputs = task["task"].get("inputs", {})
-    text = answer.replace(str(inputs.get("case", "\0")), " ").replace("N-1", " ")
-    text = "".join(" " if char in MARKUP else char for char in text)
+    text = "".join(" " if char in MARKUP else char for char in answer)
+    citations = list(CITATION.finditer(text))
+    # Cited numbers are checked against their paths below; blank them (path included) so
+    # the case name inside a path is not read as a number and nothing is counted twice.
+    for match in citations:
+        text = text[:match.start()] + " " * (match.end() - match.start()) + text[match.end():]
+    text = text.replace(str(inputs.get("case", "\0")), " ").replace("N-1", " ")
     by_field, outputs, limits = solver_outputs(events)
     context = outputs + limits + [float(n) for n in SOURCE_NUMBER.findall(task["task"].get("prompt", ""))]
     numbers, untraced, reasons = [], [], []
@@ -212,6 +227,18 @@ def check_fields(task: dict[str, Any], answer: str, events: list[dict[str, Any]]
         untraced.append(printed)
         reasons.append(f"{printed}: {reason}")
 
+    for match in citations:
+        printed, path = match.group(1), match.group("path")
+        numbers.append(printed)
+        if resolve is None:
+            from powercoder.inference.namespace import get as resolve_get
+        try:
+            held = (resolve or resolve_get)(path)["value"]
+        except Exception as error:  # noqa: BLE001 -- any unresolvable citation fails the number
+            fail(printed, f"cited path {path} does not resolve ({type(error).__name__})")
+            continue
+        if not isinstance(held, (int, float)) or isinstance(held, bool) or not matches(printed, float(held)):
+            fail(printed, f"cited path {path} holds {held!r}")
     if task["subfamily"] == "pf-report":
         for name, pattern, decimals in REPORT_FIELDS:
             for match in pattern.finditer(text):
