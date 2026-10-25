@@ -148,7 +148,7 @@ function Can-Write([string]$dir) {
     $d = Nearest-Existing $dir
     if (-not $d) { return $false }
     $t = Join-Path $d ".pa-write-test-$([guid]::NewGuid().ToString('N'))"
-    try { [IO.File]::WriteAllText($t, 'x'); Remove-Item $t -Force; $true } catch { $false }
+    try { [IO.File]::WriteAllText($t, 'x'); Remove-Item $t -Force -WhatIf:$false; $true } catch { $false }
 }
 function Norm([string]$p) { $p.TrimEnd('\').ToLowerInvariant() }
 function Installed-Manifest { if (Test-Path $manifestPath) { Read-Json $manifestPath } }
@@ -160,7 +160,7 @@ function Run-Exe([string]$exe, [string[]]$a) {
 
 # ---------------------------------------------------------------- preflight
 function Invoke-Preflight {
-    $kitInfo = $null
+    $WhatIfPreference = $false   # -WhatIf governs mutations (Step); the read-only probes below must clean up after themselves
     # PLAT
     $osb = if ($IsWindows) { [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild } else { 0 }
     $osn = if ($osb -ge 22000) { 'Windows 11' } elseif ($osb -gt 0) { 'Windows 10 or older' } else { [Runtime.InteropServices.RuntimeInformation]::OSDescription }

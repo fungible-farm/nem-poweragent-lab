@@ -66,6 +66,7 @@ try {
     Case 'Preflight is read-only, exits 0, emits exactly the catalogued checks' {
         $p = Prefix 'pre'; $rep = Join-Path $p.Root 'r.json'; New-Item -ItemType Directory $p.Root | Out-Null
         $r = Inst $kit (@('-Action', 'Preflight', '-ReportPath', $rep, '-Quiet') + (Common $p)); Eq $r.Code 0 "exit ($($r.Out))"
+        Assert (-not (Get-ChildItem $p.Root -Force -Recurse | Where-Object Name -like '.pa-write-test-*')) 'preflight left probe files behind'
         Assert (-not (Test-Path $p.Install)) 'preflight created the install dir'
         Assert (-not (Test-Path $p.Data)) 'preflight created the data dir'
         $j = Get-Content $rep -Raw | ConvertFrom-Json
@@ -154,10 +155,13 @@ try {
 
     $p = Prefix 'main'
     Case '-WhatIf install changes nothing but lists every step' {
-        $rep = Join-Path $work 'whatif.json'
+        $rep = Join-Path $work 'whatif.json'; New-Item -ItemType Directory -Force $p.Root | Out-Null
         $r = Inst $kit (@('-Action', 'Install', '-WhatIf', '-ReportPath', $rep, '-Quiet') + (Common $p)); Eq $r.Code 0 "exit $($r.Out)"
         Assert (-not (Test-Path $p.Install)) 'WhatIf created the install dir'
         Eq ([Environment]::GetEnvironmentVariable('Path', 'User')) $originalUserPath 'WhatIf changed PATH'
+        $litter = Get-ChildItem $p.Root -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '.pa-write-test-*' -or $_.Name -like '*.new' }
+        Assert (-not $litter) "WhatIf left files behind: $(($litter | % FullName) -join ', ')"
+        Assert (-not ($r.Out -match 'What if: .*(Remove File|Copy File)')) 'WhatIf leaked output from the preflight probes'
         $steps = (Get-Content $rep -Raw | ConvertFrom-Json).steps
         Assert (@($steps).Count -ge 5) 'steps not listed'
         Assert (-not ($steps | Where-Object { $_.result -ne 'skipped (WhatIf)' })) 'a step ran under WhatIf'
