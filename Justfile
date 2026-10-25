@@ -422,6 +422,15 @@ watch name="list":
 watch-tct name="list":
     ./scripts/watch_viz.sh --in-terminal {{name}}
 
+# --- build hygiene -----------------------------------------------------------
+# Examples (issue #55; details in scripts/cargo-sweep/README.md):
+#   just sweep            report what --days 14 would delete
+#   just sweep 30         same, 30 days
+#   just sweep 14 --apply delete
+# Prune stale Cargo target/ artifacts via cargo-sweep in a container (dry run unless --apply)
+sweep days="14" *flags="":
+    ./scripts/cargo-sweep/sweep.sh --days {{days}} {{flags}}
+
 # --- help -------------------------------------------------------------------
 default:
     @just --list
