@@ -1,0 +1,26 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running tests\gate1.rs (target\debug\deps\gate1-05052e85033bdbae.exe)
+
+running 9 tests
+test cannot_connect_to_external_address ... CONTAINED: DENIED: connect: An attempt was made to access a socket in a way forbidden by its access permissions. (os error 10013)
+
+ok
+test cannot_connect_to_host_loopback ... CONTAINED: DENIED: connect: An attempt was made to access a socket in a way forbidden by its access permissions. (os error 10013)
+
+ok
+test cannot_read_ungranted_directory ... CONTAINED: DENIED: read: Access is denied. (os error 5)
+
+ok
+test cannot_write_into_read_only_input ... CONTAINED: DENIED: write: Access is denied. (os error 5)
+
+ok
+test cannot_write_ungranted_directory ... CONTAINED: DENIED: write: Access is denied. (os error 5)
+
+ok
+test deny_decision_never_builds_a_request ... ok
+test deterministic_worker_reads_ro_input_and_writes_only_to_output ... ok
+test network_grant_is_never_translated ... ok
+test timeout_is_enforced ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.71s
+

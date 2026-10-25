@@ -42,10 +42,33 @@ the policy crate's `Probe`. On this host (build 26300.9711) it reports backend `
 Pass condition "unsupported containment requirements fail closed": met. Network enforcement is deliberately
 not claimed by the probe; Gate 1 must prove it.
 
+## Gate 1 result (real machine, 2026-10-25) — PASS
+
+`rust/poweragent-exec` builds an MXC `processcontainer` request only from a `Decision::Run` on the MXC
+backend, translating *granted* capabilities (fs_read -> read-only path, fs_write -> read-write path;
+network egress and ingress default-deny; timeout from the profile). A closed `Job` set is the only way to
+choose what the fixed worker does: there is no `execute(command)`. `just poweragent::gate1` runs
+`tests/gate1.rs` against the real Windows backend and saves output to `evidence/gate1-adversarial-*.txt`.
+
+| Test | Result (enforced by Windows, not by the worker) |
+|---|---|
+| worker reads read-only input, writes only the output dir, twice, same result | pass |
+| write into the read-only input dir | denied, os error 5, file not created |
+| read an ungranted directory | denied, os error 5, contents not leaked |
+| write an ungranted directory | denied, os error 5, file not created |
+| connect to host loopback listener | denied, os error 10013 |
+| connect to 1.1.1.1:443 | denied, os error 10013 |
+| 60 s sleep with 3 s timeout | `TimedOut` |
+| a net_egress grant, or a Deny decision | no request is built |
+
+Positive controls: the same read, write and loopback connect succeed when the worker runs uncontained,
+so the denials come from the container. Limits: unprivileged shell on one machine (build 26300.9711,
+not domain-joined or Intune-managed); `mxc-sdk` docs call the profiles not yet a security boundary.
+Allowing a specific egress host (proxy-only model) is not implemented or claimed.
+
 ## Not done (remaining for #54)
 
-- Gates 1–5: need the MSVC toolchain, a JEA endpoint, signed packaging and
-  an Intune/SCCM tenant. Gates 1, 3 and 5 are only authoritative on the real machine.
+- Gates 2–5: see the sections below as they are completed. Gate 3 needs a JEA endpoint (elevation); Gate 5 needs signing and an Intune/SCCM tenant.
 - Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.
 
 ## Running the chain (from WSL)

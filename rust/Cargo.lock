@@ -5302,6 +5302,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "poweragent-exec"
+version = "0.1.0"
+dependencies = [
+ "mxc-sdk",
+ "poweragent-policy",
+]
+
+[[package]]
 name = "poweragent-policy"
 version = "0.1.0"
 dependencies = [

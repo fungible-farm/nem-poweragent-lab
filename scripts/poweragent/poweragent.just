@@ -8,7 +8,7 @@ rust := justfile_directory() / "rust"
 docs := justfile_directory() / "docs/poweragent"
 
 # Every step in order.
-chain: os-floor toolchain fetch test mxc-pin gate0
+chain: os-floor toolchain fetch test mxc-pin gate0 gate1
 
 # Windows build must meet MXC's processcontainer floor (docs/poweragent/mxc-os-floor.txt: "build min-ubr").
 os-floor:
@@ -69,3 +69,15 @@ gate0:
     check "empty policy denies"             profile-fs  policy-empty 3 'capability_not_authorized'
     check "unverified network fails closed" profile-net policy-allow 3 'containment_unavailable'
     echo "backends on this host:"; $probe | tr -d '' | grep -A4 '"backend"'
+
+# Gate 1 on the real Windows host: a deterministic worker runs in processcontainer with read-only input,
+# a single writable output dir, network denied and a timeout; adversarial tests must be denied by the OS.
+# Output is saved to docs/poweragent/evidence/ so the run is auditable.
+gate1:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{rust}}"
+    log="{{docs}}/evidence/gate1-adversarial-$(date -u +%Y-%m-%d).txt"
+    cargo.exe test -p poweragent-exec --test gate1 -- --nocapture --test-threads=1 2>&1 | tr -d '' | tee "$log"
+    grep -q "test result: ok. 9 passed" "$log" || { echo "FAIL: Gate 1 tests did not all pass"; exit 1; }
+    echo "PASS: Gate 1 (evidence: $log)"
