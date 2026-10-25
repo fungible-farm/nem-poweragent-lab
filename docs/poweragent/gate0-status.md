@@ -79,8 +79,12 @@ They are Linux-provable logic evidence, not Windows enforcement evidence.
 
 ## Not done (remaining for #54)
 
-- **Gate 3**: register a constrained JEA endpoint (elevated) and implement the two adapters, then rerun the
-  rule tests against them. Decide whether JEA/native fallbacks are permitted on managed workstations at all.
+- **Gate 3 (deferred by the owner)**: `scripts/poweragent/jea/` has an *unverified* JEA setup (loopback-only WinRM,
+  one typed function, no admin account), a test-user script, `verify.ps1` (1 allowed + 6 must-fail checks) and
+  `teardown.ps1`. The endpoint registered, but `verify.ps1` could not connect: an Entra-joined account cannot
+  authenticate to a WinRM listener on localhost (0x8009030e). The local-test-user route was started and not completed.
+  Gate 3 stays open: it needs the verify run on a machine where the JEA login works, plus the native adapter.
+  JEA is the second fallback in ADR-002; the MXC-first path (Gates 0-2) does not depend on it. Decide whether JEA/native fallbacks are permitted on managed workstations at all.
 - **Gate 4**: Electron dashboard; same-task on/off comparison against real execution.
 - **Gate 5**: signed package, Intune/SCCM assignment, standard-user operation, clean uninstall. Needs a code-signing certificate
   and a tenant. Not started.
