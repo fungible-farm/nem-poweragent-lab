@@ -26,6 +26,28 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
   allow-list entry **and** a probe report; empty/default probe denies.
 - Table-driven tests: `cargo test -p poweragent-policy` (5 tests).
 
+## Phase 2 scope (descoped 2026-10-26)
+
+**Delivered and verified on the reference machine** — everything in #54 that can be built and proven without
+external dependencies: the MXC-first runner (probe, decision, sidecar plan and launch, sandboxed worker, audit),
+Gates 0 and 1 on the real Windows backend, Gate 2 logic plus a real Podman sidecar runtime with revocation,
+Gate 3's native adapter, Gate 4's event/audit core with a static report, and a scriptable installer with a
+34-check preflight (current-user scope: 26 cases; all-users scope: 9 elevated cases), plus the IT pilot kit
+and documentation pack.
+
+**Tracked as named blockers, not delivered** (each needs an input outside this repository):
+
+| Blocker | Needs | Owner |
+|---|---|---|
+| Gate 5: signed install, Intune/SCCM assignment, standard-user operation, clean uninstall | a code-signing certificate; a tenant with a full Intune licence and an MDM-enrolled reference machine | tenant/PKI administrator |
+| Gate 3, JEA half | a machine where a loopback WinRM login works (the development machine is Entra-joined and cannot); scripts are on branch `feat/54-jea-endpoint-deferred`, unverified. MXC covers the contained-execution path without it | security / platform |
+| Gate 4, Electron dashboard | a decision; ADR-003 permits a browser or CLI view, which the static HTML report provides | architecture owner |
+| Helper-image signature verification | an image-signing process (digest pinning is enforced today) | platform |
+| Windows-adapter helpers; policy authority separate from the caller; network egress (proxy-only) | design decisions listed in the issue's open questions | architecture owner |
+
+Issue #54 is therefore **not closed** by this work; its acceptance criteria in section 9 are met for the
+runner, boundary, helpers, audit and installer, and not met for signed distribution on a managed workstation.
+
 ## Gate 0 result (real machine, 2026-10-25) — PASS
 
 `rust/poweragent-probe` wraps the pinned `mxc-sdk =1.0.1` (`v1::available_backends`) and maps its facts to
