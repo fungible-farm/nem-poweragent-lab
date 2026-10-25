@@ -81,6 +81,10 @@ Allowing a specific egress host (proxy-only model) is not implemented or claimed
 
 ## Not done (remaining for #54)
 
+- **Gate 5 prerequisites** (checked 2026-10-25, generic): Gate 5 needs a tenant with a full Intune (device
+  management) licence and a machine enrolled in it. The development machine is Entra-joined but not MDM-enrolled,
+  and the development tenant did not have the device-management service available, so Gate 5 cannot be run on it
+  as things stand. A code-signing certificate is also required.
 - **Gate 5** (enterprise distribution): signed package, Intune/SCCM assignment, silent install/upgrade/rollback, standard-user
   operation, clean uninstall. Needs a code-signing certificate and an Intune/SCCM tenant on a managed reference machine.
   Not started and not provable on this unmanaged machine.

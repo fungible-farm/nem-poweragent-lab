@@ -13,6 +13,7 @@
 | 7 | Is outbound network access from helpers ever acceptable? Through which proxy? (L6) | decides whether the unproven egress model is worth building |
 | 8 | Which engineering applications (power-system simulators, licensed tools) are in scope, and may they run through a native adapter? | the golden path must not require commercial software |
 | 9 | What is the code-signing certificate and release process? Intune or SCCM? (L4) | needed before any managed rollout |
+| 10 | Does your tenant have a full Intune (device management) licence, and is there an enrolled reference machine to test on? | the Gate 5 proof (signed install, assignment, standard-user operation, clean uninstall) needs both; an Entra-joined machine that is not MDM-enrolled is not enough |
 
 ## Pilot success criteria (suggested)
 
