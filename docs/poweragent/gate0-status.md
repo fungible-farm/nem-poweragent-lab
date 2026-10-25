@@ -28,7 +28,7 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
 
 ## Not done (remaining for #54)
 
-- Gate 0 backend probe command (needs Windows + `mxc-sdk`; pin crate version/revision then).
+- Gate 0 probe: `scripts/poweragent/probe-gate0.ps1` reports the OS-build floor check only (this host: fails). MXC SDK detection still needs `mxc-sdk` pinned and built (MSVC toolchain).
 - Gates 1–5: need the Windows build update, MSVC toolchain, a JEA endpoint, signed packaging and
   an Intune/SCCM tenant. Gates 1, 3 and 5 are only authoritative on the real machine.
 - Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.
