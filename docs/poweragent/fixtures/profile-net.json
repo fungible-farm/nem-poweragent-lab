@@ -1,0 +1,2 @@
+{"apiVersion":"poweragent.dev/v1alpha1","kind":"TaskProfile","metadata":{"name":"needs-net"},
+ "spec":{"untrustedCode":true,"timeoutSeconds":30,"capabilities":[{"kind":"net_egress","host":"example.com"}]}}

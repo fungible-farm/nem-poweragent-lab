@@ -8,7 +8,7 @@ rust := justfile_directory() / "rust"
 docs := justfile_directory() / "docs/poweragent"
 
 # Every step in order.
-chain: os-floor toolchain fetch test mxc-pin
+chain: os-floor toolchain fetch test mxc-pin gate0
 
 # Windows build must meet MXC's processcontainer floor (docs/poweragent/mxc-os-floor.txt: "build min-ubr").
 os-floor:
@@ -49,3 +49,23 @@ test:
 mxc-pin:
     @test -f "{{docs}}/mxc-pin.json" && cat "{{docs}}/mxc-pin.json" && echo "PASS" \
         || { echo "FAIL: {{docs}}/mxc-pin.json missing -- record the mxc-sdk version"; exit 1; }
+
+# Gate 0 on the real Windows host: the probe (pinned mxc-sdk) reports backends, and the fixture matrix
+# must give: authorized fs-only -> run on mxc (exit 0); empty policy -> deny (3); unsupported net -> deny (3).
+# Runs cargo.exe through WSL interop because only the Windows build can see processcontainer.
+gate0:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{rust}}"
+    cargo.exe build -q -p poweragent-probe
+    probe=./target/debug/poweragent-probe.exe
+    fx=../docs/poweragent/fixtures
+    check() { # name profile policy want_exit want_text
+        set +e; out=$($probe --profile "$fx/$2.json" --policy "$fx/$3.json" | tr -d ''); rc=$?; set -e
+        [[ $rc -eq $4 ]] && grep -q "$5" <<<"$out" || { echo "FAIL: $1 (exit $rc, wanted $4 and '$5')"; echo "$out"; exit 1; }
+        echo "PASS: $1"
+    }
+    check "authorized fs-only runs on mxc"  profile-fs  policy-allow 0 '"backend": "mxc"'
+    check "empty policy denies"             profile-fs  policy-empty 3 'capability_not_authorized'
+    check "unverified network fails closed" profile-net policy-allow 3 'containment_unavailable'
+    echo "backends on this host:"; $probe | tr -d '' | grep -A4 '"backend"'

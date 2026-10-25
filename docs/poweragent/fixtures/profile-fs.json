@@ -1,0 +1,2 @@
+{"apiVersion":"poweragent.dev/v1alpha1","kind":"TaskProfile","metadata":{"name":"fs-only"},
+ "spec":{"untrustedCode":true,"timeoutSeconds":30,"capabilities":[{"kind":"fs_read","path":"C:/data/in"}]}}

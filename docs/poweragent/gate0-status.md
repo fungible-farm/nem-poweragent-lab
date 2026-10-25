@@ -26,9 +26,24 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
   allow-list entry **and** a probe report; empty/default probe denies.
 - Table-driven tests: `cargo test -p poweragent-policy` (5 tests).
 
+## Gate 0 result (real machine, 2026-10-25) — PASS
+
+`rust/poweragent-probe` wraps the pinned `mxc-sdk =1.0.1` (`v1::available_backends`) and maps its facts to
+the policy crate's `Probe`. On this host (build 26300.9711) it reports backend `processcontainer`, tier
+`base-container`, capabilities captureDenials / filesystemDeniedPaths / filesystemEnumeratePaths
+(full output: `evidence/gate0-probe-2026-10-25.json`). `just poweragent::gate0` asserts the fixture matrix:
+
+| Case | Expected | Observed |
+|---|---|---|
+| authorized fs-only profile | run on `mxc`, exit 0 | pass |
+| empty admin policy | deny `capability_not_authorized`, exit 3 | pass |
+| network egress requested | deny `containment_unavailable` (unverified until Gate 1), exit 3 | pass |
+
+Pass condition "unsupported containment requirements fail closed": met. Network enforcement is deliberately
+not claimed by the probe; Gate 1 must prove it.
+
 ## Not done (remaining for #54)
 
-- Gate 0 probe: removed the ad-hoc PowerShell probe. `just poweragent::os-floor` now checks the build floor from `mxc-os-floor.txt`; MXC backend detection awaits a probe crate built on the pinned `mxc-sdk` (`mxc-pin.json`).
 - Gates 1–5: need the MSVC toolchain, a JEA endpoint, signed packaging and
   an Intune/SCCM tenant. Gates 1, 3 and 5 are only authoritative on the real machine.
 - Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.

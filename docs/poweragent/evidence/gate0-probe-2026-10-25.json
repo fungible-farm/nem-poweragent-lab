@@ -1,0 +1,32 @@
+{
+  "backends": [
+    {
+      "backend": "processcontainer",
+      "capabilities": [
+        "captureDenials",
+        "filesystemDeniedPaths",
+        "filesystemEnumeratePaths",
+        "ingressHostLoopbackAllow",
+        "identitylessLoopbackProxy"
+      ],
+      "tier": "base-container"
+    }
+  ],
+  "decision": {
+    "backend": "mxc",
+    "granted": [
+      {
+        "kind": "fs_read",
+        "path": "C:/data/in"
+      }
+    ],
+    "outcome": "run"
+  },
+  "os": "windows",
+  "probe": {
+    "availableFallbacks": [],
+    "mxcAvailable": true,
+    "mxcSupportsPolicy": true
+  },
+  "unsupported": []
+}
