@@ -24,6 +24,8 @@ A pilot on **one or two non-production lab machines** succeeds if:
       [04-evidence.md](04-evidence.md) and either reproduces a sample of it or lists gaps.
 - [ ] Your team attempts at least three escapes of its own devising (read a path outside the grant, write to a
       read-only folder, reach the network, run a second process) and records the outcomes.
+- [ ] `Install-PowerAgent.ps1 -Action Preflight -ReportPath` is run on each pilot machine and the JSON reports are kept.
+- [ ] A `-WhatIf` install is reviewed by whoever owns your software-deployment standards.
 - [ ] A denied task and an authorised task each leave an audit report that verifies.
 - [ ] The decisions above have named owners.
 

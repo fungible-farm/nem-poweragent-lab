@@ -107,3 +107,4 @@ rust/systhread-explorer/dist/
 
 # pilot kit build output
 dist/
+rust/target-kit/

@@ -14,6 +14,7 @@ These are the things this kit is **not**. They are listed so nobody has to disco
 | **L8** | **One test machine.** Windows 11 build 26300.9711, x64, Entra-joined, unmanaged. | ARM64, Server, VMs, domain-joined and Intune-managed devices, and machines under WDAC/AppLocker are untested. |
 | **L9** | **Not implemented:** PowerShell JEA fallback (deferred; a first attempt is kept on a separate branch, unverified), an Electron dashboard (an HTML report is provided instead), Windows-adapter helpers, live revocation of a *running* helper. | Features described in the architecture may be absent; see `gate-status.md` for the exact state. |
 | **L10** | **Podman is optional and has its own requirements** (WSL2 or Hyper-V). | Whether it is permitted on your fleet is a policy decision for you. |
+| **L11** | **The installer is a PowerShell script, not an MSI or `.intunewin`, and the `AllUsers` scope is untested** (it needs elevation). It is unsigned. | Wrapping for Intune/SCCM, signing, and an elevated test pass are still to do. `CurrentUser` scope is covered by 26 automated cases. |
 
 ## Not claimed
 

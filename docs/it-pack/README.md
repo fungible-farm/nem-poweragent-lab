@@ -37,6 +37,9 @@ behaviour (Intune/WDAC/AppLocker), signed distribution, and a separated policy a
 
 ## Try it in 10 minutes (no admin rights, installs nothing)
 
+To install it properly (with a full dependency check, config file and rollback), see [07-install.md](07-install.md).
+The two commands that matter: `.\Install-PowerAgent.ps1 -Action Preflight` and `.\Install-PowerAgent.ps1 -Action Install -WhatIf`.
+
 1. Unzip the kit anywhere (a path without spaces is simplest).
 2. Check the zip against the `.sha256` file that came with it (`Get-FileHash <zip>`).
 3. In PowerShell, from the kit folder: `.\Verify-Pilot.ps1`
@@ -50,6 +53,7 @@ If a check fails, send us `verify-pilot.log` and the output of `winver`. See [03
 |---|---|
 | `bin\` | `poweragent.exe` (runner and report), `poweragent-worker.exe` (fixed demo workload), `poweragent-probe.exe` (backend probe) |
 | `Verify-Pilot.ps1` | self-check described above |
+| `Install-PowerAgent.ps1`, `install.config.json` | scriptable installer: 34-check preflight, install/upgrade/rollback/uninstall/status, JSON report ([07-install.md](07-install.md)) |
 | `SHA256SUMS` | hashes of every file in the kit |
 | `fixtures\` | example profiles and policies |
 | `evidence\` | saved probe, adversarial-test and end-to-end run output |
@@ -63,5 +67,6 @@ If a check fails, send us `verify-pilot.log` and the output of `winver`. See [03
 4. [04-evidence.md](04-evidence.md) — what each test proves and how to reproduce it
 5. [05-limitations.md](05-limitations.md) — what this is not
 6. [06-it-checklist.md](06-it-checklist.md) — decisions and pilot success criteria for your team
+7. [07-install.md](07-install.md) — installer: preflight catalogue, configuration, exit codes, deployment
 
 Licence: MIT OR Apache-2.0. Third-party licences are in `docs\DEPENDENCIES.md`.

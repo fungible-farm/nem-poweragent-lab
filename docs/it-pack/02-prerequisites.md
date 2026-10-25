@@ -25,6 +25,11 @@ that is the designed outcome, not a bug.
 `Verify-Pilot.ps1` targets **PowerShell 7** (tested 7.6.8). It also passed unchanged on Windows PowerShell 5.1, but 5.1 is
 not a supported requirement. Use `pwsh` to run the commands in the runbook.
 
+## Runtime libraries
+
+No Visual C++ Redistributable is required: the binaries link the C runtime statically (`DEP-04`). Their remaining
+load-time dependencies are DLLs that ship with Windows; the installer resolves each one before installing (`DEP-01..03`).
+
 ## Rights
 
 | Action | Admin needed? |

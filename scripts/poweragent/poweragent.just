@@ -106,3 +106,7 @@ sidecars:
 # Pilot kit for IT teams: release build, checksums, docs, dependency inventory -> dist/*.zip (unsigned, lab use).
 pack:
     cd "{{justfile_directory()}}" && python3 scripts/poweragent/pack.py
+
+# Installer test suite (26 cases) against the newest dist/*.zip; run `pack` first. CurrentUser scope only; restores the user PATH.
+installer-test:
+    pwsh.exe -NoProfile -File "{{justfile_directory()}}/scripts/poweragent/kit/Test-Installer.ps1"
