@@ -43,7 +43,7 @@ test:
     mkdir -p target
     bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --bind "$PWD/target" "$PWD/target" \
         --unshare-net --unshare-pid --die-with-parent \
-        cargo test -p poweragent-policy --locked --offline
+        cargo test -p poweragent-policy -p poweragent-sidecar --locked --offline
 
 # ADR-001: the mxc-sdk version must be recorded before anything builds against it.
 mxc-pin:

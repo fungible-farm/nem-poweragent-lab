@@ -1,0 +1,9 @@
+[package]
+name = "poweragent-sidecar"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Gate 2 of issue #54: sidecar registry, resolver, policy intersection and reference-counted reconciliation with revocation. Pure logic; it computes start/stop actions and executes nothing."
+
+[dependencies]
+poweragent-policy = { path = "../poweragent-policy" }

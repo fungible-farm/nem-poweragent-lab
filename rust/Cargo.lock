@@ -5328,6 +5328,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "poweragent-sidecar"
+version = "0.1.0"
+dependencies = [
+ "poweragent-policy",
+]
+
+[[package]]
 name = "pp-rs"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
