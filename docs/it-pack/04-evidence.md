@@ -1,7 +1,7 @@
 # 04 — Evidence
 
 Everything below was run on one machine: **Windows 11 Pro build 26300.9711, x64, Entra-joined, not device-managed,
-non-elevated shell, Podman 6.1.4.** 61 automated tests plus the saved run outputs. "Real OS" means the test
+non-elevated shell, Podman 6.1.4.** 63 automated tests, a 26-case installer suite, plus the saved run outputs. "Real OS" means the test
 exercises the actual Windows or Podman behaviour, not a simulation.
 
 | Suite | Tests | Runs on | What it shows |
@@ -16,7 +16,8 @@ exercises the actual Windows or Podman behaviour, not a simulation.
 | Podman args | 5 | Linux | exact `podman run` flags; nothing that widens access can appear |
 | **Podman lifecycle** | 2 | **real Podman** | start, idempotent start, stop; inside the container: empty capability sets, uid 65534, read-only root, writable tmpfs |
 | **End to end** | 5 | **real OS** | probe → decide → plan → sandboxed worker → audit; denials stop before anything runs |
-| **End to end with Podman** | 3 | **real OS + Podman** | helpers are running *while* the sandboxed worker runs and gone after; a failed helper start tears down the others and runs nothing; a denied task starts no container |
+| **End to end with Podman** | 5 | **real OS + Podman** | helpers are running *while* the sandboxed worker runs and gone after; a failed helper start tears down the others and runs nothing; a denied task starts no container; **revoking policy stops running helpers it no longer allows (and audits it) while leaving allowed and unrelated containers alone** |
+| **Installer** (`Test-Installer.ps1`) | 26 | real OS (current-user scope) | preflight, strict config, tamper, WhatIf, install, drift, upgrade, rollback incl. injected failures, uninstall with exact PATH restoration |
 
 ## Sandbox adversarial results (`evidence/gate1-adversarial-*.txt`)
 

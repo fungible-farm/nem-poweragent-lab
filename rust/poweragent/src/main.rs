@@ -1,4 +1,5 @@
 //! poweragent report --audit F --out FILE.html   (static, script-free view; exit 4 if the chain is broken)
+//! poweragent revoke --policy F --audit F   (stop running helpers the policy no longer allows; audited)
 //! poweragent run --profile F --policy F --audit F [--registry F] [--podman] --in FILE --out FILE
 //! Runs the deterministic sum worker under the full policy chain. Exit: 0 worker ok, 1 worker
 //! failed or timed out, 3 denied, 2 usage or I/O error. There is no way to pass a command.
@@ -39,9 +40,29 @@ fn report() -> Result<ExitCode, String> {
     Ok(if html.contains("AUDIT CHAIN BROKEN") { ExitCode::from(4) } else { ExitCode::SUCCESS })
 }
 
+fn revoke() -> Result<ExitCode, String> {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    let (policy_path, audit) = match a.as_slice() {
+        [k1, p, k2, au] if k1 == "--policy" && k2 == "--audit" => (p, au),
+        _ => return Err("usage: poweragent revoke --policy F --audit F".into()),
+    };
+    let text = std::fs::read_to_string(policy_path).map_err(|e| format!("{policy_path}: {e}"))?;
+    let policy: AdminPolicy = serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())?;
+    let podman = Podman::new(if cfg!(windows) { "podman.exe" } else { "podman" });
+    let mut bus = open_bus(&PathBuf::from(audit))?;
+    let stopped = poweragent::revoke_unauthorised(&policy, &podman, &mut bus)?;
+    for s in &stopped {
+        println!("revoked {s}");
+    }
+    eprintln!("{} running helper(s) revoked", stopped.len());
+    Ok(ExitCode::SUCCESS)
+}
+
 fn go() -> Result<ExitCode, String> {
-    if std::env::args().nth(1).as_deref() == Some("report") {
-        return report();
+    match std::env::args().nth(1).as_deref() {
+        Some("report") => return report(),
+        Some("revoke") => return revoke(),
+        _ => {}
     }
     let f = flags()?;
     let get = |k: &str| f.get(k).cloned().ok_or(format!("missing --{k}"));

@@ -85,7 +85,7 @@ Allowing a specific egress host (proxy-only model) is not implemented or claimed
   operation, clean uninstall. Needs a code-signing certificate and an Intune/SCCM tenant on a managed reference machine.
   Not started and not provable on this unmanaged machine.
 - **JEA** (Gate 3 JEA half) and the **Electron dashboard** (Gate 4 UI): deferred, see above.
-- Windows-adapter sidecars, image signature verification, and revoking a *running* sidecar from a live policy change (the reconciler supports it; no daemon drives it).
+- Windows-adapter sidecars and image signature verification. Revoking a *running* helper is done by `poweragent revoke` (on demand, tested on real Podman); no daemon watches the policy for changes.
 - **Network egress** (proxy-only model) is deliberately unsupported; every egress grant is refused.
 - Open decisions for the owner: policy-authority ownership and storage, Podman on managed workstations, paging vs silent denial.
 - Environment: one unmanaged developer machine, unprivileged shell. The MXC README says its profiles are not yet security boundaries.

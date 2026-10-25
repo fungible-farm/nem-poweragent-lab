@@ -94,6 +94,22 @@ impl Podman {
     fn s(v: &[&str]) -> Vec<String> {
         v.iter().map(|x| x.to_string()).collect()
     }
+    /// (task, sidecar) of every running container this runtime started, found by its labels.
+    pub fn list_running(&self) -> Result<Vec<(String, String)>, String> {
+        let o = self.run(&Self::s(&[
+            "ps", "--filter", "label=poweragent.sidecar", "--filter", "status=running",
+            "--format", "{{.Label \"poweragent.task\"}}\t{{.Label \"poweragent.sidecar\"}}",
+        ]))?;
+        if !o.status.success() {
+            return Err(format!("podman ps failed: {}", String::from_utf8_lossy(&o.stderr).trim()));
+        }
+        Ok(String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter_map(|l| l.split_once('\t'))
+            .filter(|(t, n)| container_name(t.trim(), n.trim()).is_ok())
+            .map(|(t, n)| (t.trim().to_string(), n.trim().to_string()))
+            .collect())
+    }
     fn exists(&self, name: &str) -> Result<bool, String> {
         Ok(self.run(&Self::s(&["container", "exists", name]))?.status.success())
     }

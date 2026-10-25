@@ -23,6 +23,8 @@ pub enum EventKind {
     SidecarPlanned { name: String },
     SidecarStarted { name: String },
     SidecarStopped { name: String },
+    /// A running helper was stopped because the current policy no longer allows it.
+    SidecarRevoked { name: String },
     Finished { outcome: String },
 }
 

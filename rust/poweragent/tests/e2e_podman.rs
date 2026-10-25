@@ -11,6 +11,12 @@ use poweragent_policy::{AdminPolicy, Capability, Metadata, Spec, TaskProfile};
 use poweragent_sidecar::SidecarSpec;
 use std::{cell::RefCell, fs, path::PathBuf, process::Command};
 
+/// Revocation acts on every running helper on the machine, so these tests must not overlap.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn podman(args: &[&str]) -> Option<String> {
     let o = Command::new("podman.exe").args(args).output().ok()?;
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -92,6 +98,7 @@ fn prerequisites() -> Option<String> {
 
 #[test]
 fn only_the_required_sidecars_run_while_the_contained_worker_runs_then_stop() {
+    let _serial = serial();
     let Some(img) = prerequisites() else { return };
     let c = case("podok");
     let rt = spy();
@@ -107,6 +114,7 @@ fn only_the_required_sidecars_run_while_the_contained_worker_runs_then_stop() {
 
 #[test]
 fn a_sidecar_that_fails_to_start_stops_the_ones_already_up_and_runs_nothing() {
+    let _serial = serial();
     let Some(img) = prerequisites() else { return };
     let c = case("podfail");
     let missing = format!("docker.io/library/alpine@sha256:{}", "a".repeat(64)); // valid pin, not present locally; --pull never
@@ -121,6 +129,7 @@ fn a_sidecar_that_fails_to_start_stops_the_ones_already_up_and_runs_nothing() {
 
 #[test]
 fn a_denied_task_starts_no_container_at_all() {
+    let _serial = serial();
     let Some(img) = prerequisites() else { return };
     let c = case("poddeny");
     let rt = spy();
@@ -129,4 +138,62 @@ fn a_denied_task_starts_no_container_at_all() {
     assert!(matches!(out, Outcome::Denied(_)));
     assert!(rt.log.borrow().is_empty(), "{:?}", rt.log.borrow());
     assert_eq!(leftovers(&c.task), "");
+}
+
+
+fn start_helper(task: &str, name: &str, img: &str) -> Podman {
+    let spec = load_registry(&format!(r#"[{{"name":"{name}","runtime":"podman","image":"{img}","command":["sleep","120"],"memoryMb":64}}]"#))
+        .unwrap();
+    let p = Podman::new("podman.exe");
+    p.start(task, spec.get(name).unwrap()).expect("start helper");
+    p
+}
+fn running(task: &str, name: &str) -> bool {
+    podman(&["inspect", "--format", "{{.State.Running}}", &format!("pa-{task}-{name}")]).as_deref() == Some("true")
+}
+fn allow_sidecars(names: &[&str]) -> AdminPolicy {
+    AdminPolicy { allowed_capabilities: names.iter().map(|n| sc(n)).collect(), ..Default::default() }
+}
+
+#[test]
+fn revoking_policy_stops_running_helpers_it_no_longer_allows_and_audits_it() {
+    let _serial = serial();
+    let Some(img) = prerequisites() else { return };
+    let (task, audit) = ("podrev", PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revoke-audit.jsonl"));
+    let _ = fs::remove_file(&audit);
+    let p = start_helper(task, "pandapower", &img);
+    start_helper(task, "powerio", &img);
+    assert!(running(task, "pandapower") && running(task, "powerio"));
+
+    let mut bus = open_bus(&audit).unwrap();
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &p, &mut bus).unwrap();
+    assert_eq!(revoked, ["podrev/powerio"]);
+    assert!(running(task, "pandapower"), "still-allowed helper must keep running");
+    assert!(!running(task, "powerio"), "revoked helper must be stopped");
+
+    let again = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &p, &mut bus).unwrap();
+    assert!(again.is_empty(), "idempotent");
+    let all = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &p, &mut bus).unwrap();
+    assert_eq!(all, ["podrev/pandapower"]);
+    assert_eq!(leftovers(task), "");
+
+    let log = fs::read_to_string(&audit).unwrap();
+    assert_eq!(log.matches("sidecar_revoked").count(), 2);
+    assert_eq!(verify(&audit).unwrap().0, 2);
+}
+
+#[test]
+fn revocation_never_touches_containers_it_did_not_start() {
+    let _serial = serial();
+    let Some(img) = prerequisites() else { return };
+    let name = format!("pa-unrelated-{}", std::process::id()); // right prefix, but no poweragent labels
+    podman(&["run", "-d", "--rm", "--pull", "never", "--network", "none", "--name", &name, &img, "sleep", "60"]).expect("start unrelated container");
+    let audit = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revoke-unrelated.jsonl");
+    let _ = fs::remove_file(&audit);
+    let mut bus = open_bus(&audit).unwrap();
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &Podman::new("podman.exe"), &mut bus).unwrap();
+    let still = podman(&["inspect", "--format", "{{.State.Running}}", &name]);
+    let _ = podman(&["rm", "-f", "-t", "0", &name]);
+    assert!(revoked.is_empty(), "{revoked:?}");
+    assert_eq!(still.as_deref(), Some("true"), "an unrelated container was stopped");
 }

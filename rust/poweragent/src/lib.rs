@@ -6,7 +6,7 @@ use mxc_sdk::v1::WaitResult;
 use poweragent_audit::{decision_event, AuditLog, Bus, Event, EventKind};
 use poweragent_exec::{build_request, run, Job};
 use poweragent_policy::{decide, AdminPolicy, Decision, TaskProfile};
-use poweragent_podman::SidecarRuntime;
+use poweragent_podman::{Podman, SidecarRuntime};
 use poweragent_sidecar::{resolve, Action, ContainerSpec, Drain, Reconciler, Registry, Runtime, SidecarSpec};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -159,6 +159,23 @@ pub fn run_task(a: RunArgs<'_>, bus: &mut Bus) -> Result<Outcome, String> {
     };
     bus.emit(Event { task: a.task.clone(), kind: EventKind::Finished { outcome: format!("{outcome:?}{note}") } })?;
     stop.map(|()| outcome)
+}
+
+/// Central disable of RUNNING helpers (FR-001, FR-006): stop every helper this runtime started whose
+/// sidecar capability the current policy no longer allows, and audit each stop. Returns the sidecars
+/// stopped. Containers the runtime did not start (no `poweragent.*` labels) are never touched.
+pub fn revoke_unauthorised(policy: &AdminPolicy, podman: &Podman, bus: &mut Bus) -> Result<Vec<String>, String> {
+    let mut revoked = Vec::new();
+    for (task, name) in podman.list_running()? {
+        let allowed = policy.allowed_capabilities.contains(&poweragent_policy::Capability::Sidecar { name: name.clone() });
+        if allowed {
+            continue;
+        }
+        podman.stop(&task, &name)?;
+        bus.emit(Event { task: task.clone(), kind: EventKind::SidecarRevoked { name: name.clone() } })?;
+        revoked.push(format!("{task}/{name}"));
+    }
+    Ok(revoked)
 }
 
 pub fn open_bus(path: &Path) -> Result<Bus, String> {

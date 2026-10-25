@@ -78,6 +78,20 @@ Add `--podman` to launch them (otherwise they are only *planned* and audited). E
 read-only root, no capabilities, uid 65534 and the stated limits, is named after the task, and is removed when the
 task ends — including when a later helper fails to start.
 
+## 5b. Revoke running helpers when policy changes
+
+Removing a `sidecar` capability from the policy file does not by itself stop a helper that is already running.
+Run:
+
+```powershell
+.\bin\poweragent.exe revoke --policy policy.json --audit audit.jsonl
+```
+
+It stops every running helper that PowerAgent started (found by its `poweragent.*` labels) whose `sidecar`
+capability the policy no longer allows, and writes a `sidecar_revoked` audit event for each. Helpers the policy
+still allows keep running; containers PowerAgent did not start are never touched. It is idempotent. It is a
+command you run (or schedule), not a background service (limitation L9).
+
 ## 6. Read the audit
 
 ```powershell
@@ -85,7 +99,7 @@ task ends — including when a later helper fails to start.
 ```
 
 Exit `4` and a red banner mean the log chain does not verify. Events: `authorized`, `denied` (with reason),
-`sidecar_planned`, `sidecar_started`, `sidecar_stopped`, `finished`.
+`sidecar_planned`, `sidecar_started`, `sidecar_stopped`, `sidecar_revoked`, `finished`.
 
 ## 7. Remove it
 
