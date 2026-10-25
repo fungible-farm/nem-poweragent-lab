@@ -1,4 +1,4 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
      Running tests\gate1.rs (target\debug\deps\gate1-05052e85033bdbae.exe)
 
 running 9 tests
@@ -22,5 +22,5 @@ test deterministic_worker_reads_ro_input_and_writes_only_to_output ... ok
 test network_grant_is_never_translated ... ok
 test timeout_is_enforced ... ok
 
-test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.71s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.73s
 
