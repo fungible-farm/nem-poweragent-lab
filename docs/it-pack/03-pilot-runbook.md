@@ -1,12 +1,12 @@
 # 03 — Pilot runbook
 
-All commands are PowerShell, run from the kit folder, **non-elevated**.
+All commands are PowerShell 7 (`pwsh`), run from the kit folder, **non-elevated**.
 
 ## 1. Verify the kit
 
 ```powershell
 Get-FileHash .\..\poweragent-pilot-*.zip -Algorithm SHA256   # compare with the .sha256 file shipped beside the zip
-.\Verify-Pilot.ps1
+.\Verify-Pilot.ps1        # in pwsh
 ```
 
 `Verify-Pilot.ps1` checks every file against `SHA256SUMS`, runs the probe matrix, runs one contained task and one

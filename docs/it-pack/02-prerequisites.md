@@ -20,6 +20,11 @@ that is the designed outcome, not a bug.
 - **Not tested:** ARM64, Windows Server, Windows 10, virtual machines, domain-joined or Intune-managed devices,
   machines with WDAC/AppLocker policy. Treat each as an open question for your pilot (see the checklist).
 
+## PowerShell
+
+`Verify-Pilot.ps1` targets **PowerShell 7** (tested 7.6.8). It also passed unchanged on Windows PowerShell 5.1, but 5.1 is
+not a supported requirement. Use `pwsh` to run the commands in the runbook.
+
 ## Rights
 
 | Action | Admin needed? |
