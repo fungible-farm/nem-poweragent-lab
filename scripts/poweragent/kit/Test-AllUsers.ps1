@@ -27,7 +27,7 @@ $pass = 0; $fail = 0
 foreach ($d in $inst, $data, "$inst.previous", "$inst.new") { if (Test-Path $d) { throw "refusing to run: $d already exists (remove it first)" } }
 
 function Case([string]$n, [scriptblock]$b) { try { & $b; Write-Host "PASS: $n"; $script:pass++ } catch { Write-Host "FAIL: $n -- $($_.Exception.Message)"; $script:fail++ } }
-function Assert([bool]$c, [string]$m) { if (-not $c) { throw $m } }
+function Assert($c, [string]$m) { if (-not $c) { throw $m } }   # untyped: callers pass strings, arrays and booleans
 function Inst([string]$kitDir, [string[]]$a, [hashtable]$env = @{}) {
     foreach ($k in $env.Keys) { Set-Item "env:$k" $env[$k] }
     try { $o = & $pw -NoProfile -File (Join-Path $kitDir 'Install-PowerAgent.ps1') @a 2>&1 | Out-String; [pscustomobject]@{ Code = $LASTEXITCODE; Out = $o } }

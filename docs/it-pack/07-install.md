@@ -156,5 +156,9 @@ prefix: read-only preflight, catalogue parity, strict config, tamper, missing bi
 and warning policy, `-WhatIf`, install (including the deny-all default policy and a real contained run from the
 installed copy), status and drift, idempotent re-install, upgrade preserving policy, downgrade refusal,
 rollback, three injected failures during upgrade, an injected failure on a first install, a running-process
-lock, and uninstall with exact PATH restoration. **Not tested:** `AllUsers` (needs elevation), ARM64, managed
-devices, and a real Intune/SCCM deployment.
+lock, and uninstall with exact PATH restoration. `AllUsers` scope has a separate elevated suite (`Test-AllUsers.ps1`, 9 cases): preflight when elevated, install to
+test folders, machine PATH and HKLM entry created, **policy folder read-only for Users and full control only for
+Administrators and SYSTEM with inheritance removed** (and not writable by Everyone or Authenticated Users),
+audit/work/logs modifiable by Users, deny-all default policy, drift, an injected upgrade failure that restores the
+machine PATH and HKLM entry, and uninstall with exact machine-PATH restoration. It was run once, on one machine.
+**Not tested:** ARM64, managed devices, and a real Intune/SCCM deployment.
