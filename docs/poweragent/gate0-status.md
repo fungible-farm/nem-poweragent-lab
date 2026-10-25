@@ -28,7 +28,18 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
 
 ## Not done (remaining for #54)
 
-- Gate 0 probe: `scripts/poweragent/probe-gate0.ps1` reports the OS-build floor check only (this host: passes after the 26H2 update). MXC SDK detection still needs `mxc-sdk` pinned and built (MSVC toolchain).
+- Gate 0 probe: removed the ad-hoc PowerShell probe. `just poweragent::os-floor` now checks the build floor from `mxc-os-floor.txt`; MXC backend detection awaits a probe crate built on the pinned `mxc-sdk` (`mxc-pin.json`).
 - Gates 1–5: need the MSVC toolchain, a JEA endpoint, signed packaging and
   an Intune/SCCM tenant. Gates 1, 3 and 5 are only authoritative on the real machine.
 - Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.
+
+## Running the chain (from WSL)
+
+```bash
+just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin
+```
+
+Each step stops the chain with a reason on failure. The `test` step runs inside bubblewrap (the
+MXC Linux backend primitive) with a read-only filesystem and no network; it is Linux evidence,
+not proof of Windows enforcement. Using the MXC SDK itself for the build container is pending the
+probe crate and the Windows toolchain.

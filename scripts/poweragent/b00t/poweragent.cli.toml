@@ -1,0 +1,17 @@
+[b00t]
+name = "poweragent-chain"
+type = "cli"
+hint = "Issue #54 build chain (MXC-first Windows host integration): OS floor, toolchain, sandboxed Gate 0 tests, MXC pin. Run from WSL. Shippable datum; this repo has no b00t dependency."
+
+detect = [
+    "command -v just",
+    "command -v bwrap",
+]
+
+[[b00t.usage]]
+description = "Run the whole chain; stops at the first failing step"
+command = "just poweragent::chain"
+
+[[b00t.usage]]
+description = "Gate 0 logic tests in a no-network read-only bubblewrap sandbox"
+command = "just poweragent::test"

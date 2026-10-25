@@ -1,0 +1,9 @@
+{
+  "source": "crates.io",
+  "crate": "mxc-sdk",
+  "version": "=1.0.1",
+  "license": "MIT",
+  "repository": "https://github.com/microsoft/mxc",
+  "recorded": "2026-10-25",
+  "note": "Issue #54 section 5 said the MXC README lists no releases; crates.io has mxc-sdk 1.0.1. The checksum is recorded in rust/Cargo.lock once the probe crate depends on it. The MXC README states its profiles are not yet to be treated as security boundaries (secondary reports; verify in the README at this revision)."
+}

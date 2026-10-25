@@ -1,0 +1,7 @@
+# MXC processcontainer Process Isolation floor: <windows build> <minimum UBR>
+# Source: MXC docs/backends/process-container/os-version-support.md, quoted in issue #54 section 5.
+# Re-verify against the pinned MXC revision (mxc-pin.json); a wrong row is a wrong gate.
+26100 9278
+26200 9278
+26300 9550
+28000 2804
