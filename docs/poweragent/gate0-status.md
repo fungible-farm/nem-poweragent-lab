@@ -7,7 +7,7 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
 | Item | Observed |
 |---|---|
 | OS | Windows 11 Pro 25H2, build **26200.6899**, x64 |
-| MXC `processcontainer` floor (25H2) | 26200.**9278** — **not met**; Gate 1 cannot be proven here until Windows is updated |
+| MXC `processcontainer` floor | Was 26200.6899 (25H2, below 26200.9278). After update: **26300.9711 (26H2) meets the 26300.9550 floor** — Gate 1 is no longer blocked on the OS build |
 | Management | not domain-joined, not Intune-enrolled; no AppLocker rules; WDAC policy folder present |
 | Tooling present | Rust (cargo), PowerShell 7.6.8, Git, Podman, WSL2, gh |
 | Tooling missing | MSVC Build Tools / Windows SDK (needed for `windows-rs` and `mxc-sdk` on Windows) |
@@ -28,7 +28,7 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
 
 ## Not done (remaining for #54)
 
-- Gate 0 probe: `scripts/poweragent/probe-gate0.ps1` reports the OS-build floor check only (this host: fails). MXC SDK detection still needs `mxc-sdk` pinned and built (MSVC toolchain).
-- Gates 1–5: need the Windows build update, MSVC toolchain, a JEA endpoint, signed packaging and
+- Gate 0 probe: `scripts/poweragent/probe-gate0.ps1` reports the OS-build floor check only (this host: passes after the 26H2 update). MXC SDK detection still needs `mxc-sdk` pinned and built (MSVC toolchain).
+- Gates 1–5: need the MSVC toolchain, a JEA endpoint, signed packaging and
   an Intune/SCCM tenant. Gates 1, 3 and 5 are only authoritative on the real machine.
 - Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.
