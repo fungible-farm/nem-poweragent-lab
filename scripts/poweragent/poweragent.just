@@ -8,7 +8,7 @@ rust := justfile_directory() / "rust"
 docs := justfile_directory() / "docs/poweragent"
 
 # Every step in order.
-chain: os-floor toolchain fetch test mxc-pin gate0 gate1
+chain: os-floor toolchain fetch test mxc-pin gate0 gate1 gate2-4 native e2e
 
 # Windows build must meet MXC's processcontainer floor (docs/poweragent/mxc-os-floor.txt: "build min-ubr").
 os-floor:
@@ -81,3 +81,19 @@ gate1:
     cargo.exe test -p poweragent-exec --test gate1 -- --nocapture --test-threads=1 2>&1 | tr -d '' | tee "$log"
     grep -q "test result: ok. 9 passed" "$log" || { echo "FAIL: Gate 1 tests did not all pass"; exit 1; }
     echo "PASS: Gate 1 (evidence: $log)"
+
+# Gates 2-4 logic plus the integrated runner, on the real Windows host (the Linux copies run in `test`).
+gate2-4:
+    cd "{{rust}}" && cargo.exe test -q -p poweragent-sidecar -p poweragent-audit -p poweragent-fallback --test gate2 --test gate4 --test gate3_rules
+
+# Gate 3 native half: windows-rs typed operation behind the same authorisation.
+native:
+    cd "{{rust}}" && cargo.exe test -q -p poweragent-fallback --test native_windows
+
+# Section 9 happy path and denials end to end: probe -> decide -> sidecars -> MXC worker -> audit.
+e2e:
+    cd "{{rust}}" && cargo.exe build -q -p poweragent-exec -p poweragent && cargo.exe test -q -p poweragent --test e2e
+
+# Phase 2 demo on the real host: one authorised contained run, one denial, and the HTML audit report.
+demo:
+    cd "{{rust}}" && cargo.exe build -q -p poweragent-exec -p poweragent && python3 "{{justfile_directory()}}/scripts/poweragent/demo.py"

@@ -78,3 +78,17 @@ fn denials_leave_evidence() {
     let e = decision_event("t", &Decision::Deny { reason: DenyReason::ContainmentUnavailable });
     assert_eq!(e.kind, EventKind::Denied { reason: "containment_unavailable".into() });
 }
+
+#[test]
+fn html_report_is_static_escaped_and_flags_a_broken_chain() {
+    let p = tmp("html");
+    let mut bus = Bus::new(AuditLog::open(&p).unwrap());
+    bus.emit(Event { task: "<script>alert(1)</script>".into(), kind: EventKind::Finished { outcome: "a&b".into() } }).unwrap();
+    let html = render_html(&p).unwrap();
+    assert!(html.contains("Chain verified: 1 entries"));
+    assert!(!html.contains("<script"), "no script element may be emitted");
+    assert!(html.contains("&lt;script&gt;") && html.contains("a&amp;b"));
+    assert!(html.contains("default-src 'none'"));
+    fs::write(&p, fs::read_to_string(&p).unwrap().replace("a&b", "ok")).unwrap();
+    assert!(render_html(&p).unwrap().contains("AUDIT CHAIN BROKEN"));
+}

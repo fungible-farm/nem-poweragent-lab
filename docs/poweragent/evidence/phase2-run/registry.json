@@ -1,0 +1,17 @@
+[
+ {
+  "name": "pandapower",
+  "runtime": "podman"
+ },
+ {
+  "name": "powerio",
+  "runtime": "podman",
+  "dependsOn": [
+   "pandapower"
+  ]
+ },
+ {
+  "name": "powerfactory-adapter",
+  "runtime": "windows"
+ }
+]

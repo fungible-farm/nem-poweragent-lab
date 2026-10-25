@@ -5302,6 +5302,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "poweragent"
+version = "0.1.0"
+dependencies = [
+ "mxc-sdk",
+ "poweragent-audit",
+ "poweragent-exec",
+ "poweragent-policy",
+ "poweragent-probe",
+ "poweragent-sidecar",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "poweragent-audit"
 version = "0.1.0"
 dependencies = [
@@ -5326,6 +5340,7 @@ dependencies = [
  "poweragent-policy",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]

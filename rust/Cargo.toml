@@ -1,3 +1,3 @@
 [workspace]
-members = ["phase-model", "demo-app", "fft-detector", "lab-launcher", "mission-engine", "systhread-core", "systhread-cli", "systhread-explorer", "poweragent-policy", "poweragent-probe", "poweragent-exec", "poweragent-sidecar", "poweragent-audit", "poweragent-fallback"]
+members = ["phase-model", "demo-app", "fft-detector", "lab-launcher", "mission-engine", "systhread-core", "systhread-cli", "systhread-explorer", "poweragent-policy", "poweragent-probe", "poweragent-exec", "poweragent-sidecar", "poweragent-audit", "poweragent-fallback", "poweragent"]
 resolver = "2"

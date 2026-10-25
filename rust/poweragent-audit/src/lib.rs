@@ -19,6 +19,8 @@ use std::{
 pub enum EventKind {
     Authorized { backend: String, capabilities: usize },
     Denied { reason: String },
+    /// A start the reconciler decided on. No sidecar runtime exists yet, so nothing is launched.
+    SidecarPlanned { name: String },
     SidecarStarted { name: String },
     SidecarStopped { name: String },
     Finished { outcome: String },
@@ -138,4 +140,35 @@ impl Bus {
         });
         Ok(())
     }
+}
+
+fn esc(s: &str) -> String {
+    s.chars().map(|c| match c {
+        '&' => "&amp;".into(), '<' => "&lt;".into(), '>' => "&gt;".into(),
+        '"' => "&quot;".into(), '\'' => "&#39;".into(), c => c.to_string(),
+    }).collect()
+}
+
+/// A self-contained, read-only HTML view of the log (ADR-003: presentation only). No script, no
+/// external resource, strict CSP; every value is escaped. The chain is re-verified first and a
+/// broken log is stated at the top, never silently rendered as good.
+pub fn render_html(path: &Path) -> Result<String, String> {
+    let status = match verify(path) {
+        Ok((n, tail)) => format!("<p class=ok>Chain verified: {n} entries, tail {}</p>", esc(&tail[..16])),
+        Err(e) => format!("<p class=bad>AUDIT CHAIN BROKEN: {}</p>", esc(&e)),
+    };
+    let mut rows = String::new();
+    let f = File::open(path).map_err(|e| e.to_string())?;
+    for l in BufReader::new(f).lines() {
+        let l = l.map_err(|e| e.to_string())?;
+        if let Ok(line) = serde_json::from_str::<Line>(&l) {
+            let detail = serde_json::to_string(&line.event.kind).unwrap_or_default();
+            rows += &format!("<tr><td>{}</td><td>{}</td><td>{}</td></tr>\n", line.seq, esc(&line.event.task), esc(&detail));
+        }
+    }
+    Ok(format!(
+        "<!doctype html><meta charset=utf-8><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\">\
+<title>PowerAgent audit</title><style>body{{font:14px system-ui;margin:2rem}}table{{border-collapse:collapse}}td,th{{border:1px solid #888;padding:4px 8px;text-align:left}}.ok{{color:#060}}.bad{{color:#b00;font-weight:700}}</style>\
+<h1>PowerAgent audit</h1>{status}<table><tr><th>#</th><th>Task</th><th>Event</th></tr>\n{rows}</table>"
+    ))
 }

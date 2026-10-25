@@ -1,0 +1,19 @@
+[package]
+name = "poweragent"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Issue #54 integration: probe -> policy decision -> sidecar plan -> MXC-contained worker -> audit log, as one command. No generic command execution."
+
+[dev-dependencies]
+serde_json = "1"
+
+[dependencies]
+poweragent-policy = { path = "../poweragent-policy" }
+poweragent-probe = { path = "../poweragent-probe" }
+poweragent-exec = { path = "../poweragent-exec" }
+poweragent-sidecar = { path = "../poweragent-sidecar" }
+poweragent-audit = { path = "../poweragent-audit" }
+mxc-sdk = "=1.0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

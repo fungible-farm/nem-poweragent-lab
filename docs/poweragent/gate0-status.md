@@ -66,37 +66,33 @@ so the denials come from the container. Limits: unprivileged shell on one machin
 not domain-joined or Intune-managed); `mxc-sdk` docs call the profiles not yet a security boundary.
 Allowing a specific egress host (proxy-only model) is not implemented or claimed.
 
-## Gates 2–4, Linux-provable parts (issue section 7)
+## Gates 2–4 and integration
 
-| Gate | Implemented and tested | Not proven here |
+| Gate | Implemented and tested | Not proven |
 |---|---|---|
-| 2 Dynamic sidecars | `poweragent-sidecar`: registry, resolver (authorised MXC decision only, dependencies first, no capability escalation), reference-counted idempotent reconciler, central revocation. 9 tests incl. the synthetic two-solver NEM study, Windows adapter activation, disable-blocks-activation | Actually starting Podman containers or a Windows adapter; image signing; per-study state isolation (FR-005) |
-| 3 Windows fallback | `poweragent-fallback`: closed typed ops (no script/command/exe field; unknown fields fail to parse), backend must match the ADR-002 decision, path inside a granted root, no fallback after failed authorisation or for untrusted code. 6 tests | **A real JEA endpoint and `windows-rs` adapter** (needs elevation to register a JEA session configuration; interactive-session COM case). Gate 3 is *not* passed |
-| 4 Dashboard/logging | `poweragent-audit`: structured events, hash-chained audit log, audit-before-notify bus. 5 tests: audit hash identical with dashboard on, off and killed mid-run; slow dashboard cannot block; tampering and deletion detected | The Electron dashboard itself (FR-011/ADR-003); running real tasks with Electron on/off |
+| 2 Dynamic sidecars | `poweragent-sidecar`: registry, resolver (authorised MXC decision only, dependencies first, no capability escalation), reference-counted idempotent reconciler, revocation. 9 tests; two-solver NEM study, Windows adapter, disable-blocks-activation | Sidecars are *planned and audited*, never launched: there is no Podman/Windows sidecar runtime, image signing or per-study state isolation (FR-005) |
+| 3 Fallback | Rules (6 tests) plus the **native `windows-rs` adapter** (`poweragent-fallback::native`, 6 tests on the real OS: authorised `GetFileVersionInfo` returns a real version; path outside the grant, wrong-backend decision, deny decision and missing file are refused). No process is spawned and no executable path is accepted | **JEA**: compartmentalised on branch `feat/54-jea-endpoint-deferred`, unverified (Entra account cannot authenticate to a loopback WinRM listener). MXC is the golden path and does not need it. The interactive-session COM case is untested |
+| 4 Logging/dashboard | `poweragent-audit`: events, hash-chained log written before subscribers are told; static script-free HTML report with CSP, escaping, and a loud banner for a broken chain. Audit and result identical with the dashboard on, off and dead (unit and end-to-end tests) | **Electron dashboard** not built (ADR-003 allows a browser or CLI view; the HTML report and CLI stand in) |
+| Integration | `poweragent run` / `poweragent report`: probe -> decide -> sidecar plan -> MXC-contained worker -> audit. 5 end-to-end tests on the real backend (happy path with only the required sidecars, unauthorised, network, missing dependency, dashboard on/off). `just poweragent::demo` reproduces `evidence/phase2-run/` | The worker is a fixed deterministic job (sum); real solver workloads are not wired |
 
-`just poweragent::test` runs these inside bubblewrap (read-only filesystem, no network): 25 tests.
-They are Linux-provable logic evidence, not Windows enforcement evidence.
+`just poweragent::test` runs the pure-logic crates in bubblewrap (read-only filesystem, no network); `gate0`, `gate1`,
+`gate2-4`, `native` and `e2e` run on the real Windows host. `just poweragent::chain` runs them all.
 
 ## Not done (remaining for #54)
 
-- **Gate 3 (JEA compartmentalised, deferred by the owner)**: MXC is the execution path; JEA is only the ADR-002
-  fallback and is not on the golden path. The JEA endpoint scripts (setup, test user, verify, teardown) live on
-  branch `feat/54-jea-endpoint-deferred`, unverified: the endpoint registered, but an Entra account cannot
-  authenticate to a WinRM listener on localhost (0x8009030e). Nothing in this branch's chain registers or needs
-  JEA. `poweragent-fallback` keeps only the pure rule logic (typed ops, no silent fallback). Integrate JEA later
-  if policy needs a non-contained host operation; the native `windows-rs` adapter is also still to do.
-- **Gate 4**: Electron dashboard; same-task on/off comparison against real execution.
-- **Gate 5**: signed package, Intune/SCCM assignment, standard-user operation, clean uninstall. Needs a code-signing certificate
-  and a tenant. Not started.
-- Integration: nothing yet wires probe -> decide -> sidecars -> exec -> audit into one `poweragent run` command.
-- Network egress (proxy-only model) is deliberately unsupported; every egress grant is refused.
+- **Gate 5** (enterprise distribution): signed package, Intune/SCCM assignment, silent install/upgrade/rollback, standard-user
+  operation, clean uninstall. Needs a code-signing certificate and an Intune/SCCM tenant on a managed reference machine.
+  Not started and not provable on this unmanaged machine.
+- **JEA** (Gate 3 JEA half) and the **Electron dashboard** (Gate 4 UI): deferred, see above.
+- **Real sidecar runtime** (Podman on demand, Windows adapters), including image/artifact identity and revocation of running sidecars.
+- **Network egress** (proxy-only model) is deliberately unsupported; every egress grant is refused.
 - Open decisions for the owner: policy-authority ownership and storage, Podman on managed workstations, paging vs silent denial.
-- Environment: one unmanaged developer machine, unprivileged shell. Hyper-V/Sandbox features and WinRM were not checked.
+- Environment: one unmanaged developer machine, unprivileged shell. The MXC README says its profiles are not yet security boundaries.
 
 ## Running the chain (from WSL)
 
 ```bash
-just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin, gate0, gate1
+just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin, gate0, gate1, gate2-4, native, e2e
 ```
 
 Each step stops the chain with a reason on failure. The `test` step runs inside bubblewrap (the

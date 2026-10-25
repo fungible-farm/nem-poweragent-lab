@@ -62,3 +62,6 @@ pub fn authorize(decision: &Decision, op: &Op) -> Result<(), Refusal> {
     let ok = granted.iter().any(|c| matches!(c, Capability::FsRead { path } if inside(path, op.path())));
     if ok { Ok(()) } else { Err(Refusal::PathNotGranted(op.path().to_string())) }
 }
+
+#[cfg(windows)]
+pub mod native;
