@@ -1,0 +1,11 @@
+[package]
+name = "poweragent-fallback"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Gate 3 of issue #54 (rule logic only): closed, typed JEA and native operations, authorised against an ADR-002 decision. No arbitrary PowerShell, no caller-supplied executable. Real JEA and windows-rs adapters are not implemented here."
+
+[dependencies]
+poweragent-policy = { path = "../poweragent-policy" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

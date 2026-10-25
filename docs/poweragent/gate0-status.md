@@ -66,18 +66,36 @@ so the denials come from the container. Limits: unprivileged shell on one machin
 not domain-joined or Intune-managed); `mxc-sdk` docs call the profiles not yet a security boundary.
 Allowing a specific egress host (proxy-only model) is not implemented or claimed.
 
+## Gates 2–4, Linux-provable parts (issue section 7)
+
+| Gate | Implemented and tested | Not proven here |
+|---|---|---|
+| 2 Dynamic sidecars | `poweragent-sidecar`: registry, resolver (authorised MXC decision only, dependencies first, no capability escalation), reference-counted idempotent reconciler, central revocation. 9 tests incl. the synthetic two-solver NEM study, Windows adapter activation, disable-blocks-activation | Actually starting Podman containers or a Windows adapter; image signing; per-study state isolation (FR-005) |
+| 3 Windows fallback | `poweragent-fallback`: closed typed ops (no script/command/exe field; unknown fields fail to parse), backend must match the ADR-002 decision, path inside a granted root, no fallback after failed authorisation or for untrusted code. 6 tests | **A real JEA endpoint and `windows-rs` adapter** (needs elevation to register a JEA session configuration; interactive-session COM case). Gate 3 is *not* passed |
+| 4 Dashboard/logging | `poweragent-audit`: structured events, hash-chained audit log, audit-before-notify bus. 5 tests: audit hash identical with dashboard on, off and killed mid-run; slow dashboard cannot block; tampering and deletion detected | The Electron dashboard itself (FR-011/ADR-003); running real tasks with Electron on/off |
+
+`just poweragent::test` runs these inside bubblewrap (read-only filesystem, no network): 25 tests.
+They are Linux-provable logic evidence, not Windows enforcement evidence.
+
 ## Not done (remaining for #54)
 
-- Gates 2–5: see the sections below as they are completed. Gate 3 needs a JEA endpoint (elevation); Gate 5 needs signing and an Intune/SCCM tenant.
-- Open decisions: policy-authority ownership, Podman on managed workstations, paging vs silent denial.
+- **Gate 3**: register a constrained JEA endpoint (elevated) and implement the two adapters, then rerun the
+  rule tests against them. Decide whether JEA/native fallbacks are permitted on managed workstations at all.
+- **Gate 4**: Electron dashboard; same-task on/off comparison against real execution.
+- **Gate 5**: signed package, Intune/SCCM assignment, standard-user operation, clean uninstall. Needs a code-signing certificate
+  and a tenant. Not started.
+- Integration: nothing yet wires probe -> decide -> sidecars -> exec -> audit into one `poweragent run` command.
+- Network egress (proxy-only model) is deliberately unsupported; every egress grant is refused.
+- Open decisions for the owner: policy-authority ownership and storage, Podman on managed workstations, paging vs silent denial.
+- Environment: one unmanaged developer machine, unprivileged shell. Hyper-V/Sandbox features and WinRM were not checked.
 
 ## Running the chain (from WSL)
 
 ```bash
-just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin
+just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin, gate0, gate1
 ```
 
 Each step stops the chain with a reason on failure. The `test` step runs inside bubblewrap (the
 MXC Linux backend primitive) with a read-only filesystem and no network; it is Linux evidence,
-not proof of Windows enforcement. Using the MXC SDK itself for the build container is pending the
-probe crate and the Windows toolchain.
+not proof of Windows enforcement. `gate0` and `gate1` run the Windows build and tests through WSL interop (`cargo.exe`) because only the
+Windows backend can show processcontainer enforcement. Using MXC itself as the build container is not done.

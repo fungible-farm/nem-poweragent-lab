@@ -5302,11 +5302,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "poweragent-audit"
+version = "0.1.0"
+dependencies = [
+ "poweragent-policy",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "poweragent-exec"
 version = "0.1.0"
 dependencies = [
  "mxc-sdk",
  "poweragent-policy",
+]
+
+[[package]]
+name = "poweragent-fallback"
+version = "0.1.0"
+dependencies = [
+ "poweragent-policy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
