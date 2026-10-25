@@ -102,3 +102,7 @@ demo:
 # hardened lifecycle, then the full run with sidecars up during the MXC-contained worker and torn down after.
 sidecars:
     cd "{{rust}}" && cargo.exe build -q -p poweragent-exec && POWERAGENT_REQUIRE_PODMAN=1 WSLENV=POWERAGENT_REQUIRE_PODMAN cargo.exe test -q -p poweragent-podman --test podman_real --test args && POWERAGENT_REQUIRE_PODMAN=1 WSLENV=POWERAGENT_REQUIRE_PODMAN cargo.exe test -q -p poweragent --test e2e_podman
+
+# Pilot kit for IT teams: release build, checksums, docs, dependency inventory -> dist/*.zip (unsigned, lab use).
+pack:
+    cd "{{justfile_directory()}}" && python3 scripts/poweragent/pack.py

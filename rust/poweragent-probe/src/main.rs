@@ -6,7 +6,7 @@ use poweragent_policy::{decide, parse_profile, AdminPolicy, Decision};
 use std::process::ExitCode;
 
 fn read(path: &str) -> Result<String, String> {
-    std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))
+    std::fs::read_to_string(path).map(|s| s.trim_start_matches('\u{feff}').to_string()).map_err(|e| format!("{path}: {e}"))
 }
 
 fn run() -> Result<ExitCode, String> {

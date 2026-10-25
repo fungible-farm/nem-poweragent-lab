@@ -45,7 +45,7 @@ fn go() -> Result<ExitCode, String> {
     }
     let f = flags()?;
     let get = |k: &str| f.get(k).cloned().ok_or(format!("missing --{k}"));
-    let read = |p: String| std::fs::read_to_string(&p).map_err(|e| format!("{p}: {e}"));
+    let read = |p: String| std::fs::read_to_string(&p).map(|s| s.trim_start_matches('\u{feff}').to_string()).map_err(|e| format!("{p}: {e}"));
     let profile = parse_profile(&read(get("profile")?)?)?;
     let policy: AdminPolicy = serde_json::from_str(&read(get("policy")?)?).map_err(|e| e.to_string())?;
     let registry = match f.get("registry") {
