@@ -70,10 +70,11 @@ Allowing a specific egress host (proxy-only model) is not implemented or claimed
 
 | Gate | Implemented and tested | Not proven |
 |---|---|---|
-| 2 Dynamic sidecars | `poweragent-sidecar`: registry, resolver (authorised MXC decision only, dependencies first, no capability escalation), reference-counted idempotent reconciler, revocation. 9 tests; two-solver NEM study, Windows adapter, disable-blocks-activation | Sidecars are *planned and audited*, never launched: there is no Podman/Windows sidecar runtime, image signing or per-study state isolation (FR-005) |
+| 2 Dynamic sidecars | `poweragent-sidecar`: registry, resolver (authorised MXC decision only, dependencies first, no capability escalation), reference-counted idempotent reconciler, revocation. 9 tests; two-solver NEM study, Windows adapter, disable-blocks-activation | Windows-adapter sidecars and image signature verification (digest pinning is enforced, signatures are not checked) |
 | 3 Fallback | Rules (6 tests) plus the **native `windows-rs` adapter** (`poweragent-fallback::native`, 6 tests on the real OS: authorised `GetFileVersionInfo` returns a real version; path outside the grant, wrong-backend decision, deny decision and missing file are refused). No process is spawned and no executable path is accepted | **JEA**: compartmentalised on branch `feat/54-jea-endpoint-deferred`, unverified (Entra account cannot authenticate to a loopback WinRM listener). MXC is the golden path and does not need it. The interactive-session COM case is untested |
 | 4 Logging/dashboard | `poweragent-audit`: events, hash-chained log written before subscribers are told; static script-free HTML report with CSP, escaping, and a loud banner for a broken chain. Audit and result identical with the dashboard on, off and dead (unit and end-to-end tests) | **Electron dashboard** not built (ADR-003 allows a browser or CLI view; the HTML report and CLI stand in) |
-| Integration | `poweragent run` / `poweragent report`: probe -> decide -> sidecar plan -> MXC-contained worker -> audit. 5 end-to-end tests on the real backend (happy path with only the required sidecars, unauthorised, network, missing dependency, dashboard on/off). `just poweragent::demo` reproduces `evidence/phase2-run/` | The worker is a fixed deterministic job (sum); real solver workloads are not wired |
+| Sidecar runtime | `poweragent-podman`: starts/stops administrator-registered sidecars with Podman. Typed argv, no shell, no caller command; image must be digest-pinned and already present (`--pull never`); `--network none`, read-only root, private tmpfs, `--cap-drop ALL`, `no-new-privileges`, user 65534, memory/CPU/PID limits; per-task container names for state isolation. 5 argument tests (Linux sandbox) + a real lifecycle test that checks, from inside the container, empty capability sets, uid 65534, read-only root, writable tmpfs. 3 end-to-end tests: sidecars are running while the MXC worker runs and gone after; a failing sidecar start tears down the ones already up and runs nothing; a denied task starts no container | Resource limits are Podman's, enforced inside the Podman VM; a sidecar that needs network gets none (egress is unsupported) |
+| Integration | `poweragent run` / `poweragent report`: probe -> decide -> sidecar plan (and launch with `--podman`) -> MXC-contained worker -> audit. 5 end-to-end tests (no-launch runtime audits sidecars as planned only, never as started) on the real backend (happy path with only the required sidecars, unauthorised, network, missing dependency, dashboard on/off). `just poweragent::demo` reproduces `evidence/phase2-run/` | The worker is a fixed deterministic job (sum); real solver workloads are not wired |
 
 `just poweragent::test` runs the pure-logic crates in bubblewrap (read-only filesystem, no network); `gate0`, `gate1`,
 `gate2-4`, `native` and `e2e` run on the real Windows host. `just poweragent::chain` runs them all.
@@ -84,7 +85,7 @@ Allowing a specific egress host (proxy-only model) is not implemented or claimed
   operation, clean uninstall. Needs a code-signing certificate and an Intune/SCCM tenant on a managed reference machine.
   Not started and not provable on this unmanaged machine.
 - **JEA** (Gate 3 JEA half) and the **Electron dashboard** (Gate 4 UI): deferred, see above.
-- **Real sidecar runtime** (Podman on demand, Windows adapters), including image/artifact identity and revocation of running sidecars.
+- Windows-adapter sidecars, image signature verification, and revoking a *running* sidecar from a live policy change (the reconciler supports it; no daemon drives it).
 - **Network egress** (proxy-only model) is deliberately unsupported; every egress grant is refused.
 - Open decisions for the owner: policy-authority ownership and storage, Podman on managed workstations, paging vs silent denial.
 - Environment: one unmanaged developer machine, unprivileged shell. The MXC README says its profiles are not yet security boundaries.
@@ -92,7 +93,7 @@ Allowing a specific egress host (proxy-only model) is not implemented or claimed
 ## Running the chain (from WSL)
 
 ```bash
-just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin, gate0, gate1, gate2-4, native, e2e
+just poweragent::chain   # os-floor, toolchain, fetch, test (bubblewrap, no network), mxc-pin, gate0, gate1, gate2-4, native, e2e, sidecars
 ```
 
 Each step stops the chain with a reason on failure. The `test` step runs inside bubblewrap (the

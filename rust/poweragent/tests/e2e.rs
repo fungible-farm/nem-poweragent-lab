@@ -29,7 +29,7 @@ fn case(name: &str) -> Case {
     fs::write(root.join("in").join("data.bin"), [1u8, 2, 3, 4, 250]).unwrap();
     Case { input: root.join("in"), output: root.join("out"), audit: root.join("audit.jsonl"), root }
 }
-fn args(c: &Case, caps: Vec<Capability>, allowed: Vec<Capability>) -> RunArgs {
+fn args(c: &Case, caps: Vec<Capability>, allowed: Vec<Capability>) -> RunArgs<'_> {
     RunArgs {
         task: "study".into(),
         profile: TaskProfile {
@@ -45,6 +45,7 @@ fn args(c: &Case, caps: Vec<Capability>, allowed: Vec<Capability>) -> RunArgs {
         },
         worker: worker(),
         audit_path: c.audit.clone(),
+        sidecars: &poweragent_podman::PlannedOnly,
     }
 }
 fn granted(c: &Case) -> Vec<Capability> {
@@ -68,9 +69,9 @@ fn authorised_task_runs_contained_with_only_required_sidecars_and_full_audit() {
     let out = run_task(args(&c, g.clone(), g), &mut bus).unwrap();
     assert_eq!(out, Outcome::Exited(0));
     assert_eq!(fs::read_to_string(c.output.join("sum.txt")).unwrap(), "260");
-    assert_eq!(kinds(&c), ["authorized", "sidecar_planned", "sidecar_planned", "sidecar_stopped", "sidecar_stopped", "finished"]);
+    assert_eq!(kinds(&c), ["authorized", "sidecar_planned", "sidecar_planned", "finished"]);
     assert!(!fs::read_to_string(&c.audit).unwrap().contains("powerfactory"), "unrequested sidecar stays off");
-    assert_eq!(verify(&c.audit).unwrap().0, 6);
+    assert_eq!(verify(&c.audit).unwrap().0, 4);
     let _ = &c.root;
 }
 
@@ -116,7 +117,7 @@ fn dashboard_on_or_killed_gives_the_same_result_and_audit() {
     let mut bus_a = open_bus(&a.audit).unwrap();
     let rx = bus_a.subscribe(16);
     assert_eq!(run_task(args(&a, ga.clone(), ga), &mut bus_a).unwrap(), Outcome::Exited(0));
-    assert_eq!(rx.try_iter().count(), 6);
+    assert_eq!(rx.try_iter().count(), 4);
 
     let gb = granted(&b);
     let mut bus_b = open_bus(&b.audit).unwrap();

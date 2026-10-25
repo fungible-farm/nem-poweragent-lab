@@ -1,10 +1,11 @@
 //! poweragent report --audit F --out FILE.html   (static, script-free view; exit 4 if the chain is broken)
-//! poweragent run --profile F --policy F --audit F [--registry F] --in FILE --out FILE
+//! poweragent run --profile F --policy F --audit F [--registry F] [--podman] --in FILE --out FILE
 //! Runs the deterministic sum worker under the full policy chain. Exit: 0 worker ok, 1 worker
 //! failed or timed out, 3 denied, 2 usage or I/O error. There is no way to pass a command.
 
 use poweragent::{load_registry, open_bus, run_task, Outcome, RunArgs};
 use poweragent_exec::Job;
+use poweragent_podman::{PlannedOnly, Podman, SidecarRuntime};
 use poweragent_policy::{parse_profile, AdminPolicy};
 use poweragent_sidecar::Registry;
 use std::{collections::HashMap, path::PathBuf, process::ExitCode};
@@ -18,6 +19,10 @@ fn flags() -> Result<HashMap<String, String>, String> {
     let mut m = HashMap::new();
     while let Some(k) = it.next() {
         let k = k.strip_prefix("--").ok_or_else(|| format!("unexpected argument {k:?}"))?.to_string();
+        if k == "podman" {
+            m.insert(k, String::new());
+            continue;
+        }
         m.insert(k, it.next().ok_or("missing value")?);
     }
     Ok(m)
@@ -49,7 +54,11 @@ fn go() -> Result<ExitCode, String> {
     };
     let worker = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("poweragent-worker.exe");
     let mut bus = open_bus(&PathBuf::from(get("audit")?))?;
+    // Sidecars are launched only with --podman; otherwise they are planned and audited, not started.
+    let podman = Podman::new(if cfg!(windows) { "podman.exe" } else { "podman" });
+    let runtime: &dyn SidecarRuntime = if f.contains_key("podman") { &podman } else { &PlannedOnly };
     let args = RunArgs {
+        sidecars: runtime,
         task: profile.metadata.name.clone(),
         profile,
         policy,

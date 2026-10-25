@@ -6,7 +6,7 @@ fn sc(name: &str) -> Capability {
     Capability::Sidecar { name: name.into() }
 }
 fn spec(name: &str, runtime: Runtime, deps: &[&str], requires: Vec<Capability>) -> SidecarSpec {
-    SidecarSpec { name: name.into(), runtime, depends_on: deps.iter().map(|s| s.to_string()).collect(), requires }
+    SidecarSpec { name: name.into(), runtime, depends_on: deps.iter().map(|s| s.to_string()).collect(), requires, container: None }
 }
 fn registry() -> Registry {
     Registry::new(vec![
@@ -119,4 +119,16 @@ fn unknown_and_cyclic_sidecars_are_errors() {
     let d = run_decision(caps.clone(), caps);
     assert!(matches!(resolve(&d, &registry()), Err(ResolveError::Cycle(_))));
     let _ = Backend::Mxc;
+}
+
+#[test]
+fn container_images_must_be_pinned_by_digest() {
+    let ok = |image: &str| ContainerSpec { image: image.into(), command: vec![], memory_mb: 256, cpu_millis: 500, pids: 64 }.validate();
+    let d = "a".repeat(64);
+    assert!(ok(&format!("docker.io/library/alpine@sha256:{d}")).is_ok());
+    for bad in ["alpine:3.20", "alpine:latest", "alpine", &format!("alpine@sha256:{}", "a".repeat(63)), &format!("-v@sha256:{d}"), &format!("a b@sha256:{d}")] {
+        assert!(ok(bad).is_err(), "{bad}");
+    }
+    let no_limits = ContainerSpec { image: format!("x@sha256:{d}"), command: vec![], memory_mb: 0, cpu_millis: 500, pids: 64 };
+    assert!(no_limits.validate().is_err());
 }

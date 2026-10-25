@@ -5308,6 +5308,7 @@ dependencies = [
  "mxc-sdk",
  "poweragent-audit",
  "poweragent-exec",
+ "poweragent-podman",
  "poweragent-policy",
  "poweragent-probe",
  "poweragent-sidecar",
@@ -5341,6 +5342,14 @@ dependencies = [
  "serde",
  "serde_json",
  "windows",
+]
+
+[[package]]
+name = "poweragent-podman"
+version = "0.1.0"
+dependencies = [
+ "poweragent-sidecar",
+ "serde_json",
 ]
 
 [[package]]

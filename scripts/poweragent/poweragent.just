@@ -8,7 +8,7 @@ rust := justfile_directory() / "rust"
 docs := justfile_directory() / "docs/poweragent"
 
 # Every step in order.
-chain: os-floor toolchain fetch test mxc-pin gate0 gate1 gate2-4 native e2e
+chain: os-floor toolchain fetch test mxc-pin gate0 gate1 gate2-4 native e2e sidecars
 
 # Windows build must meet MXC's processcontainer floor (docs/poweragent/mxc-os-floor.txt: "build min-ubr").
 os-floor:
@@ -43,7 +43,7 @@ test:
     mkdir -p target
     bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --bind "$PWD/target" "$PWD/target" \
         --unshare-net --unshare-pid --die-with-parent \
-        cargo test -p poweragent-policy -p poweragent-sidecar -p poweragent-audit -p poweragent-fallback --locked --offline
+        cargo test -p poweragent-policy -p poweragent-sidecar -p poweragent-audit -p poweragent-fallback -p poweragent-podman --locked --offline
 
 # ADR-001: the mxc-sdk version must be recorded before anything builds against it.
 mxc-pin:
@@ -97,3 +97,8 @@ e2e:
 # Phase 2 demo on the real host: one authorised contained run, one denial, and the HTML audit report.
 demo:
     cd "{{rust}}" && cargo.exe build -q -p poweragent-exec -p poweragent && python3 "{{justfile_directory()}}/scripts/poweragent/demo.py"
+
+# Real Podman sidecars (needs Podman and docker.io/library/alpine:3.20 locally; a missing prerequisite FAILS here):
+# hardened lifecycle, then the full run with sidecars up during the MXC-contained worker and torn down after.
+sidecars:
+    cd "{{rust}}" && cargo.exe build -q -p poweragent-exec && POWERAGENT_REQUIRE_PODMAN=1 WSLENV=POWERAGENT_REQUIRE_PODMAN cargo.exe test -q -p poweragent-podman --test podman_real --test args && POWERAGENT_REQUIRE_PODMAN=1 WSLENV=POWERAGENT_REQUIRE_PODMAN cargo.exe test -q -p poweragent --test e2e_podman

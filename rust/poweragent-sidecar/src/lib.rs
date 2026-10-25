@@ -16,6 +16,35 @@ pub enum Runtime {
     Windows,
 }
 
+/// How a Podman sidecar is launched. Administrator-owned: it comes from the installed registry,
+/// never from a task profile or the agent. `command` is fixed argv (empty = the image default).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerSpec {
+    /// Must be pinned by digest (`name@sha256:<64 hex>`); tags are rejected (FR-005, SEC-009).
+    pub image: String,
+    pub command: Vec<String>,
+    pub memory_mb: u32,
+    pub cpu_millis: u32,
+    pub pids: u32,
+}
+
+impl ContainerSpec {
+    pub fn validate(&self) -> Result<(), String> {
+        let digest = self.image.rsplit_once("@sha256:").map(|(_, d)| d);
+        match digest {
+            Some(d) if d.len() == 64 && d.chars().all(|c| c.is_ascii_hexdigit()) => {}
+            _ => return Err(format!("image {:?} is not pinned by sha256 digest", self.image)),
+        }
+        if self.image.starts_with('-') || self.image.contains(char::is_whitespace) {
+            return Err("image reference is malformed".into());
+        }
+        if self.memory_mb == 0 || self.cpu_millis == 0 || self.pids == 0 {
+            return Err("resource limits must be set and non-zero".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SidecarSpec {
     pub name: String,
@@ -24,6 +53,8 @@ pub struct SidecarSpec {
     pub depends_on: Vec<String>,
     /// Capabilities the sidecar needs; all must be in the task's granted set.
     pub requires: Vec<Capability>,
+    /// Podman sidecars need one; Windows adapters have none.
+    pub container: Option<ContainerSpec>,
 }
 
 /// Installed sidecars (immutable catalogue; installing is a deployment concern, FR-012).
@@ -33,6 +64,9 @@ pub struct Registry(BTreeMap<String, SidecarSpec>);
 impl Registry {
     pub fn new(specs: Vec<SidecarSpec>) -> Self {
         Registry(specs.into_iter().map(|s| (s.name.clone(), s)).collect())
+    }
+    pub fn get(&self, name: &str) -> Option<&SidecarSpec> {
+        self.0.get(name)
     }
 }
 
