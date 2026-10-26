@@ -25,7 +25,7 @@ exe = root + "/rust/target/debug/poweragent.exe"
 D = wp(d)
 def run(label, policy, out):
     r = subprocess.run([exe, "run", "--profile", D + "/profile.json", "--policy", D + "/" + policy,
-                        "--registry", D + "/registry.json", "--audit", D + "/audit.jsonl",
+                        "--registry", D + "/registry.json", "--plan-only", "--audit", D + "/audit.jsonl",
                         "--in", D + "/in/data.bin", "--out", D + "/out/" + out], capture_output=True, text=True)
     print(f"{label}: exit={r.returncode} stderr={r.stderr.strip()} output_exists={os.path.exists(d + '/out/' + out)}")
 run("authorized", "policy.json", "sum.txt")

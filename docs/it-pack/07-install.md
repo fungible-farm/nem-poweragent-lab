@@ -94,6 +94,10 @@ Command-line equivalents: `-Scope -InstallDir -DataDir -NoPath -NoUninstallEntry
 | PATH | user | machine |
 | Uninstall entry | `HKCU` | `HKLM` |
 
+On `AllUsers` the installer checks the exit code of every `icacls` call and then **reads the resulting permissions back** and
+refuses to finish (rolling back, exit 20) if the policy folder is writable by anyone but Administrators and SYSTEM, if
+inheritance was not removed, or if the other folders are not as specified. `Status` re-checks them and reports drift (12).
+
 No services, scheduled tasks, drivers, firewall rules or WinRM changes are made. Upgrades never overwrite an
 existing `policy.json` or `registry.json`.
 
@@ -156,9 +160,9 @@ prefix: read-only preflight, catalogue parity, strict config, tamper, missing bi
 and warning policy, `-WhatIf`, install (including the deny-all default policy and a real contained run from the
 installed copy), status and drift, idempotent re-install, upgrade preserving policy, downgrade refusal,
 rollback, three injected failures during upgrade, an injected failure on a first install, a running-process
-lock, and uninstall with exact PATH restoration. `AllUsers` scope has a separate elevated suite (`Test-AllUsers.ps1`, 9 cases): preflight when elevated, install to
+lock, and uninstall with exact PATH restoration. `AllUsers` scope has a separate elevated suite (`Test-AllUsers.ps1`, 11 cases): preflight when elevated, install to
 test folders, machine PATH and HKLM entry created, **policy folder read-only for Users and full control only for
 Administrators and SYSTEM with inheritance removed** (and not writable by Everyone or Authenticated Users),
 audit/work/logs modifiable by Users, deny-all default policy, drift, an injected upgrade failure that restores the
-machine PATH and HKLM entry, and uninstall with exact machine-PATH restoration. It was run once, on one machine.
+machine PATH and HKLM entry, a weakened policy ACL detected as drift, a failed permission step that fails the install and leaves nothing behind, and uninstall with exact machine-PATH restoration. It was run on one machine.
 **Not tested:** ARM64, managed devices, and a real Intune/SCCM deployment.

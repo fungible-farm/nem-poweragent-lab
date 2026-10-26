@@ -86,6 +86,12 @@ try {
         [IO.File]::WriteAllText($f, $orig, [Text.UTF8Encoding]::new($false))
         Assert ($c -eq 12) "drift exit $c"
     }
+    Case 'Status detects a weakened policy ACL (Users granted write) and reports drift (12)' {
+        & icacls "$data\policy" /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+        try { $c = (Inst $kit (@('-Action', 'Status') + $common)).Code } finally { & icacls "$data\policy" /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null }
+        Assert ($c -eq 12) "weakened ACL not detected (exit $c)"
+        Assert ((Inst $kit (@('-Action', 'Status') + $common)).Code -eq 0) 'status should be healthy again after restoring the ACL'
+    }
     Case 'Injected verify failure during an AllUsers upgrade restores machine PATH, HKLM entry and files' {
         $before = [Environment]::GetEnvironmentVariable('Path', 'Machine')
         $r = Inst $kit (@('-Action', 'Upgrade') + $common) @{ POWERAGENT_INSTALLER_FAULT = 'verify' }
@@ -93,6 +99,16 @@ try {
         Assert ([Environment]::GetEnvironmentVariable('Path', 'Machine') -eq $before) 'machine PATH not restored'
         Assert (Test-Path $key) 'HKLM entry lost'
         Assert ((Inst $kit (@('-Action', 'Status') + $common)).Code -eq 0) 'installed copy unhealthy after rollback'
+    }
+    Case 'A failure while applying/verifying permissions fails the install and leaves nothing behind (first install)' {
+        Assert ((Inst $kit (@('-Action', 'Uninstall', '-PurgeData') + $common)).Code -eq 0) 'setup: uninstall'
+        $before = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+        $r = Inst $kit (@('-Action', 'Install') + $common) @{ POWERAGENT_INSTALLER_FAULT = 'acl' }
+        Assert ($r.Code -eq 20) "exit $($r.Code): $($r.Out)"
+        Assert (-not (Test-Path $inst)) 'install dir left behind'
+        Assert (-not (Test-Path $data)) 'data directory with unverified permissions left behind'
+        Assert ([Environment]::GetEnvironmentVariable('Path', 'Machine') -eq $before) 'machine PATH not restored'
+        Assert ((Inst $kit (@('-Action', 'Install') + $common)).Code -eq 0) 're-install after the failure'
     }
     Case 'Uninstall -PurgeData removes everything and restores the machine PATH exactly' {
         Assert ((Inst $kit (@('-Action', 'Uninstall', '-PurgeData') + $common)).Code -eq 0) 'uninstall'

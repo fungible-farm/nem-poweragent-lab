@@ -77,6 +77,7 @@ fn args<'a>(c: &Case, reg: poweragent_sidecar::Registry, caps: Vec<Capability>, 
         worker: worker(),
         audit_path: c.audit.clone(),
         sidecars: rt,
+        plan_only: false,
     }
 }
 fn caps(c: &Case) -> Vec<Capability> {
@@ -166,14 +167,14 @@ fn revoking_policy_stops_running_helpers_it_no_longer_allows_and_audits_it() {
     assert!(running(task, "pandapower") && running(task, "powerio"));
 
     let mut bus = open_bus(&audit).unwrap();
-    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &p, &mut bus).unwrap();
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &reg_for(&img), &p, &mut bus).unwrap();
     assert_eq!(revoked, ["podrev/powerio"]);
     assert!(running(task, "pandapower"), "still-allowed helper must keep running");
     assert!(!running(task, "powerio"), "revoked helper must be stopped");
 
-    let again = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &p, &mut bus).unwrap();
+    let again = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &reg_for(&img), &p, &mut bus).unwrap();
     assert!(again.is_empty(), "idempotent");
-    let all = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &p, &mut bus).unwrap();
+    let all = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &reg_for(&img), &p, &mut bus).unwrap();
     assert_eq!(all, ["podrev/pandapower"]);
     assert_eq!(leftovers(task), "");
 
@@ -191,9 +192,88 @@ fn revocation_never_touches_containers_it_did_not_start() {
     let audit = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revoke-unrelated.jsonl");
     let _ = fs::remove_file(&audit);
     let mut bus = open_bus(&audit).unwrap();
-    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &Podman::new("podman.exe"), &mut bus).unwrap();
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&[]), &reg_for(&img), &Podman::new("podman.exe"), &mut bus).unwrap();
     let still = podman(&["inspect", "--format", "{{.State.Running}}", &name]);
     let _ = podman(&["rm", "-f", "-t", "0", &name]);
     assert!(revoked.is_empty(), "{revoked:?}");
     assert_eq!(still.as_deref(), Some("true"), "an unrelated container was stopped");
+}
+
+
+/// Registry matching the helpers the revocation tests start: powerio depends on pandapower.
+fn reg_for(img: &str) -> poweragent_sidecar::Registry {
+    registry(img, img)
+}
+
+#[test]
+fn revocation_considers_dependencies_and_required_capabilities_not_just_the_name() {
+    let Some(img) = prerequisites() else { return };
+    let _serial = serial();
+    let (task, audit) = ("podrevdep", PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revoke-dep.jsonl"));
+    let _ = fs::remove_file(&audit);
+    let p = start_helper(task, "pandapower", &img);
+    start_helper(task, "powerio", &img);
+    let mut bus = open_bus(&audit).unwrap();
+    // powerio is still named in the policy, but its dependency pandapower is not: powerio is no longer fully authorised.
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&["powerio"]), &reg_for(&img), &p, &mut bus).unwrap();
+    assert!(revoked.contains(&"podrevdep/powerio".to_string()), "{revoked:?}");
+    assert!(revoked.contains(&"podrevdep/pandapower".to_string()), "{revoked:?}");
+    assert_eq!(leftovers(task), "");
+}
+
+#[test]
+fn a_running_helper_that_is_not_in_the_registry_is_revoked() {
+    let Some(img) = prerequisites() else { return };
+    let _serial = serial();
+    let task = "podghost";
+    let p = start_helper(task, "pandapower", &img);
+    let audit = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revoke-ghost.jsonl");
+    let _ = fs::remove_file(&audit);
+    let mut bus = open_bus(&audit).unwrap();
+    let empty = load_registry("[]").unwrap();
+    let revoked = poweragent::revoke_unauthorised(&allow_sidecars(&["pandapower"]), &empty, &p, &mut bus).unwrap();
+    assert_eq!(revoked, ["podghost/pandapower"]);
+}
+
+#[test]
+fn reap_stops_orphaned_helpers_whatever_the_policy_says() {
+    let Some(img) = prerequisites() else { return };
+    let _serial = serial();
+    let task = "podreap";
+    let p = start_helper(task, "pandapower", &img);
+    start_helper(task, "powerio", &img);
+    let audit = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("reap.jsonl");
+    let _ = fs::remove_file(&audit);
+    let mut bus = open_bus(&audit).unwrap();
+    let reaped = poweragent::reap(&p, &mut bus).unwrap();
+    assert_eq!(reaped.len(), 2);
+    assert_eq!(leftovers(task), "");
+}
+
+#[test]
+fn an_audit_failure_after_a_sidecar_starts_still_stops_every_sidecar() {
+    let Some(img) = prerequisites() else { return };
+    let _serial = serial();
+    let c = case("podauditfail");
+    let rt = spy();
+    let mut bus = open_bus(&c.audit).unwrap();
+    bus.fail_emits_after(2); // authorized, planned ok; the SidecarStarted emit fails after pandapower is up
+    let err = run_task(args(&c, registry(&img, &img), caps(&c), caps(&c), &rt), &mut bus).unwrap_err();
+    assert!(err.contains("injected audit failure"), "{err}");
+    assert_eq!(leftovers(&c.task), "", "a started sidecar leaked after the audit failure");
+    assert!(!c.output.join("sum.txt").exists(), "the worker must not run after an audit failure");
+}
+
+#[test]
+fn an_audit_failure_during_teardown_does_not_stop_the_remaining_stops() {
+    let Some(img) = prerequisites() else { return };
+    let _serial = serial();
+    let c = case("podteardownfail");
+    let rt = spy();
+    let mut bus = open_bus(&c.audit).unwrap();
+    bus.fail_emits_after(5); // decision, 2x planned, 2x started succeed; the first SidecarStopped emit fails
+    let err = run_task(args(&c, registry(&img, &img), caps(&c), caps(&c), &rt), &mut bus).unwrap_err();
+    assert!(err.contains("injected audit failure") || err.contains("audit stop"), "{err}");
+    assert_eq!(leftovers(&c.task), "", "both sidecars must be stopped even though the audit failed mid-teardown");
+    assert_eq!(rt.log.borrow().iter().filter(|l| l.starts_with("stopped:")).count(), 2);
 }

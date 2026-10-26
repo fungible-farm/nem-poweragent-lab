@@ -74,23 +74,36 @@ Registry file (administrator-owned) — a helper must be pinned by digest and al
     "image": "registry.example/powerio@sha256:<64 hex digits>" } ]
 ```
 
-Add `--podman` to launch them (otherwise they are only *planned* and audited). Each runs with no network, a
-read-only root, no capabilities, uid 65534 and the stated limits, is named after the task, and is removed when the
-task ends — including when a later helper fails to start.
+Helpers are launched with Podman by default. A task that needs a helper is **denied** if it cannot be launched; it never
+succeeds with a helper silently skipped. Add `--plan-only` for an explicit dry run in which helpers are audited as
+*planned* and nothing is launched. Each helper runs with no network, a read-only root, no capabilities, uid 65534 and
+the stated limits, is named after the task, and is removed when the task ends — including when a later helper fails to
+start or the audit log cannot be written.
 
-## 5b. Revoke running helpers when policy changes
+PowerAgent only reuses or removes a container it can prove it started: the labels and the full configuration (image,
+network, read-only root, user, limits) are read back from Podman. A container that merely has the expected name is
+treated as a collision and left alone.
+
+## 5b. Revoke running helpers when policy changes, and recover from crashes
 
 Removing a `sidecar` capability from the policy file does not by itself stop a helper that is already running.
 Run:
 
 ```powershell
-.\bin\poweragent.exe revoke --policy policy.json --audit audit.jsonl
+.\bin\poweragent.exe revoke --policy policy.json --registry registry.json --audit audit.jsonl
 ```
 
-It stops every running helper that PowerAgent started (found by its `poweragent.*` labels) whose `sidecar`
-capability the policy no longer allows, and writes a `sidecar_revoked` audit event for each. Helpers the policy
+It stops every running helper that PowerAgent started (found by its `poweragent.*` labels) that the policy no longer
+fully authorises: its own `sidecar` capability, every capability it requires, and every helper it depends on. A helper
+that is missing from the registry is revoked, and writes a `sidecar_revoked` audit event for each. Helpers the policy
 still allows keep running; containers PowerAgent did not start are never touched. It is idempotent. It is a
 command you run (or schedule), not a background service (limitation L9).
+
+If `poweragent run` is killed (power loss, task manager), no cleanup code can run. Recover with:
+
+```powershell
+.\bin\poweragent.exe reap --audit audit.jsonl     # stops every running helper PowerAgent started, whatever the policy says
+```
 
 ## 6. Read the audit
 

@@ -121,11 +121,17 @@ pub fn verify(path: &Path) -> Result<(u64, String), String> {
 pub struct Bus {
     log: AuditLog,
     subscribers: Vec<SyncSender<Event>>,
+    /// Test hook: the emit after this many successful ones fails (without writing). `None` in production.
+    fail_after: Option<usize>,
 }
 
 impl Bus {
     pub fn new(log: AuditLog) -> Self {
-        Bus { log, subscribers: vec![] }
+        Bus { log, subscribers: vec![], fail_after: None }
+    }
+    /// For tests: let `n` emits succeed, then make every later emit fail without writing, as a full disk would.
+    pub fn fail_emits_after(&mut self, n: usize) {
+        self.fail_after = Some(n);
     }
     /// A bounded, lossy view for a dashboard. If it is slow or dropped, events are skipped for it only.
     pub fn subscribe(&mut self, capacity: usize) -> Receiver<Event> {
@@ -135,6 +141,12 @@ impl Bus {
     }
     /// Audit first; failure to audit is returned so the caller can fail closed (SEC-008).
     pub fn emit(&mut self, event: Event) -> Result<(), String> {
+        if let Some(n) = self.fail_after {
+            if n == 0 {
+                return Err("injected audit failure".into());
+            }
+            self.fail_after = Some(n - 1);
+        }
         self.log.append(&event)?;
         self.subscribers.retain(|tx| match tx.try_send(event.clone()) {
             Ok(()) | Err(TrySendError::Full(_)) => true,

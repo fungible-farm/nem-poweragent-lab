@@ -38,6 +38,17 @@ shutil.copy2(os.path.join(repo, "scripts", "poweragent", "kit", "Verify-Pilot.ps
 for f in ("Install-PowerAgent.ps1", "install.config.json"):
     shutil.copy2(os.path.join(repo, "scripts", "poweragent", "kit", f), stage)
 
+# Every PowerShell script that ships must parse. A syntax error would make the installer unusable on the target.
+for ps1 in ("Verify-Pilot.ps1", "Install-PowerAgent.ps1"):
+    path = os.path.join(stage, ps1)
+    if path.startswith("/mnt/"):  # running under WSL: hand Windows pwsh a Windows path
+        path = path[5].upper() + ":" + path[6:].replace("/", "\\")
+    cmd = ("$e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('%s',[ref]$null,[ref]$e); "
+           "if ($e.Count) { $e | ForEach-Object { 'line ' + $_.Extent.StartLineNumber + ': ' + $_.Message }; exit 1 }" % path)
+    r = subprocess.run(["pwsh.exe", "-NoProfile", "-NoLogo", "-Command", cmd], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"{ps1} does not parse:\n{r.stdout}{r.stderr}")
+
 # data/: facts the installer needs on the target machine
 os.makedirs(os.path.join(stage, "data"))
 shutil.copy2(os.path.join(repo, "docs", "poweragent", "mxc-os-floor.txt"), os.path.join(stage, "data", "mxc-os-floor.txt"))

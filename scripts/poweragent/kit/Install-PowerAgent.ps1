@@ -347,11 +347,58 @@ function Set-UninstallEntry($manifest) {
         NoModify = 1; NoRepair = 1 }
     foreach ($k in $vals.Keys) { New-ItemProperty -Path $uninstallKey -Name $k -Value $vals[$k] -Force | Out-Null }
 }
+# The security-critical invariants of the AllUsers data directory. Returns a list of violations (empty = holds).
+#   policy\  : inheritance removed; Administrators and SYSTEM full control; nobody else may write, delete or change it
+#              (in particular not Users, Everyone or Authenticated Users)
+#   audit\ work\ logs\ : inheritance removed; Users may modify; Administrators and SYSTEM full control
+function Test-DataAcl {
+    $v = @()
+    $write = [int][Security.AccessControl.FileSystemRights]'WriteData,AppendData,WriteExtendedAttributes,WriteAttributes,Delete,DeleteSubdirectoriesAndFiles,ChangePermissions,TakeOwnership'
+    $full = [int][Security.AccessControl.FileSystemRights]::FullControl
+    $trusted = 'S-1-5-18', 'S-1-5-32-544', 'S-1-3-0'          # SYSTEM, Administrators, CREATOR OWNER
+    $sidOf = { param($r) try { $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { "unresolvable:$($r.IdentityReference)" } }
+    foreach ($d in 'policy', 'audit', 'work', 'logs') {
+        $path = Join-Path $dataDir $d
+        if (-not (Test-Path $path)) { $v += "$d is missing"; continue }
+        $acl = Get-Acl $path
+        if (-not $acl.AreAccessRulesProtected) { $v += "$d inherits permissions from its parent" }
+        $allow = @($acl.Access | Where-Object { $_.AccessControlType -eq 'Allow' })
+        foreach ($need in 'S-1-5-18', 'S-1-5-32-544') {
+            $has = $allow | Where-Object { (& $sidOf $_) -eq $need -and (([int]$_.FileSystemRights -band $full) -eq $full) }
+            if (-not $has) { $v += "${d}: $need lacks FullControl" }
+        }
+        if ($d -eq 'policy') {
+            foreach ($r in $allow) {
+                $sid = & $sidOf $r
+                if ($sid -notin $trusted -and (([int]$r.FileSystemRights -band $write) -ne 0)) { $v += "policy: $sid can write ($($r.FileSystemRights))" }
+            }
+            if (-not ($allow | Where-Object { (& $sidOf $_) -eq 'S-1-5-32-545' })) { $v += 'policy: Users have no read access' }
+        } else {
+            $u = $allow | Where-Object { (& $sidOf $_) -eq 'S-1-5-32-545' }
+            if (-not ($u | Where-Object { ([int]$_.FileSystemRights -band [int][Security.AccessControl.FileSystemRights]::Modify) -eq [int][Security.AccessControl.FileSystemRights]::Modify })) { $v += "${d}: Users cannot modify" }
+        }
+    }
+    $v
+}
 function Set-DataAcl {
     if (-not $allUsers) { return }
-    # Policy is readable by everyone, writable only by administrators: the start of an independent policy authority.
-    & icacls (Join-Path $dataDir 'policy') /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
-    foreach ($d in 'audit', 'work', 'logs') { & icacls (Join-Path $dataDir $d) /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)M' | Out-Null }
+    $grants = @(
+        @('policy', @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX')),   # administrators write, everyone reads
+        @('audit',  @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)M')),
+        @('work',   @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)M')),
+        @('logs',   @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)M')))
+    foreach ($g in $grants) {
+        $path = Join-Path $dataDir $g[0]
+        # A native command's failure does not raise a PowerShell error: check every exit code.
+        $o = & icacls $path /inheritance:r 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw "icacls /inheritance:r failed on $path (exit $LASTEXITCODE): $($o.Trim())" }
+        $o = & icacls $path /grant:r @($g[1]) 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw "icacls /grant:r failed on $path (exit $LASTEXITCODE): $($o.Trim())" }
+    }
+    if ($env:POWERAGENT_INSTALLER_FAULT -eq 'acl') { throw 'injected fault: acl (after applying ACLs, before verification)' }
+    # And verify the result actually is what the security model assumes; do not trust that the commands "worked".
+    $bad = @(Test-DataAcl)
+    if ($bad.Count) { throw "data directory permissions are not as required: $($bad -join '; ')" }
 }
 
 # ---------------------------------------------------------------- actions
@@ -364,6 +411,7 @@ function Do-Install {
     $old = Installed-Manifest
     Say "== $(if ($old) { "Upgrade $($old.version) -> $($new.version)" } else { "Install $($new.version)" }) ($($cfg.scope))"
     # What this run has actually done, so a failure undoes exactly that and nothing else.
+    $script:dataExisted = Test-Path $dataDir
     $script:movedCurrent = $false; $script:activated = $false; $script:pathTouched = $false; $script:entryTouched = $false; $script:verifyFailed = $false
     try {
         if ($env:POWERAGENT_INSTALLER_FAULT -eq 'stage') { throw 'injected fault: stage' }
@@ -399,6 +447,7 @@ function Do-Install {
             $m = Read-Json $manifestPath
             $bad = @($m.files | Where-Object { (Sha (Join-Path $installDir $_.path)) -ne $_.sha256 })
             if ($bad) { throw "installed files differ from the manifest: $(($bad | % path) -join ', ')" }
+            if ($allUsers) { $acl = @(Test-DataAcl); if ($acl.Count) { throw "data directory permissions are not as required: $($acl -join '; ')" } }
             $r = Run-Exe (Join-Path $installDir 'bin\poweragent-probe.exe') @()
             $j = try { $r.Out | ConvertFrom-Json } catch { $null }
             if (-not (@($j.backends) | Where-Object { $_.backend -eq $cfg.verify.expectBackend })) { $script:verifyFailed = $true; throw "post-install probe did not report backend '$($cfg.verify.expectBackend)'" }
@@ -414,6 +463,7 @@ function Do-Install {
             } elseif ($script:activated -and -not $old) {   # first install: remove what we created
                 Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
             }
+            if (-not $script:dataExisted -and (Test-Path $dataDir)) { Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue }   # created by this run; its permissions are unverified
             if ($script:pathTouched) { try { if ($old -and $old.pathAdded) { Path-Add (Join-Path $installDir 'bin') } else { Path-Remove (Join-Path $installDir 'bin') } } catch {} }
             if ($script:entryTouched) { try { if ($old -and $old.uninstallEntry) { Set-UninstallEntry $old } else { Remove-Item $uninstallKey -Recurse -Force -ErrorAction SilentlyContinue } } catch {} }
         }
@@ -464,6 +514,10 @@ function Do-Status {
     Say "PowerAgent $($m.version) ($($m.commit)) installed $($m.installedUtc) scope=$($m.scope)"
     Say "  installDir $installDir ; dataDir $($m.dataDir) ; on PATH: $onPath ; previous version kept: $(Test-Path $previousDir)"
     if ($bad) { Say "  DRIFT in $($bad.Count) file(s): $(($bad | % path) -join ', ')"; Finish 12 'installed files differ from the manifest' }
+    if ($allUsers) {
+        $acl = @(Test-DataAcl)
+        if ($acl.Count) { Say "  PERMISSION DRIFT: $($acl -join '; ')"; Finish 12 'data directory permissions differ from the security model' }
+    }
     Finish 0 "healthy: $($m.files.Count) files match the manifest"
 }
 

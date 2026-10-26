@@ -1,6 +1,7 @@
 //! poweragent report --audit F --out FILE.html   (static, script-free view; exit 4 if the chain is broken)
-//! poweragent revoke --policy F --audit F   (stop running helpers the policy no longer allows; audited)
-//! poweragent run --profile F --policy F --audit F [--registry F] [--podman] --in FILE --out FILE
+//! poweragent reap --audit F   (stop every running helper PowerAgent started; for recovery after a crash)
+//! poweragent revoke --policy F --registry F --audit F   (stop running helpers the policy no longer allows; audited)
+//! poweragent run --profile F --policy F --audit F [--registry F] [--plan-only] --in FILE --out FILE
 //! Runs the deterministic sum worker under the full policy chain. Exit: 0 worker ok, 1 worker
 //! failed or timed out, 3 denied, 2 usage or I/O error. There is no way to pass a command.
 
@@ -20,7 +21,7 @@ fn flags() -> Result<HashMap<String, String>, String> {
     let mut m = HashMap::new();
     while let Some(k) = it.next() {
         let k = k.strip_prefix("--").ok_or_else(|| format!("unexpected argument {k:?}"))?.to_string();
-        if k == "podman" {
+        if k == "plan-only" {
             m.insert(k, String::new());
             continue;
         }
@@ -42,15 +43,16 @@ fn report() -> Result<ExitCode, String> {
 
 fn revoke() -> Result<ExitCode, String> {
     let a: Vec<String> = std::env::args().skip(2).collect();
-    let (policy_path, audit) = match a.as_slice() {
-        [k1, p, k2, au] if k1 == "--policy" && k2 == "--audit" => (p, au),
-        _ => return Err("usage: poweragent revoke --policy F --audit F".into()),
+    let (policy_path, registry_path, audit) = match a.as_slice() {
+        [k1, p, k2, r, k3, au] if k1 == "--policy" && k2 == "--registry" && k3 == "--audit" => (p, r, au),
+        _ => return Err("usage: poweragent revoke --policy F --registry F --audit F".into()),
     };
+    let registry = load_registry(std::fs::read_to_string(registry_path).map_err(|e| format!("{registry_path}: {e}"))?.trim_start_matches('\u{feff}'))?;
     let text = std::fs::read_to_string(policy_path).map_err(|e| format!("{policy_path}: {e}"))?;
     let policy: AdminPolicy = serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())?;
     let podman = Podman::new(if cfg!(windows) { "podman.exe" } else { "podman" });
     let mut bus = open_bus(&PathBuf::from(audit))?;
-    let stopped = poweragent::revoke_unauthorised(&policy, &podman, &mut bus)?;
+    let stopped = poweragent::revoke_unauthorised(&policy, &registry, &podman, &mut bus)?;
     for s in &stopped {
         println!("revoked {s}");
     }
@@ -58,10 +60,27 @@ fn revoke() -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
+fn reap() -> Result<ExitCode, String> {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    let audit = match a.as_slice() {
+        [k, au] if k == "--audit" => au,
+        _ => return Err("usage: poweragent reap --audit F".into()),
+    };
+    let podman = Podman::new(if cfg!(windows) { "podman.exe" } else { "podman" });
+    let mut bus = open_bus(&PathBuf::from(audit))?;
+    let stopped = poweragent::reap(&podman, &mut bus)?;
+    for s in &stopped {
+        println!("reaped {s}");
+    }
+    eprintln!("{} orphaned helper(s) stopped", stopped.len());
+    Ok(ExitCode::SUCCESS)
+}
+
 fn go() -> Result<ExitCode, String> {
     match std::env::args().nth(1).as_deref() {
         Some("report") => return report(),
         Some("revoke") => return revoke(),
+        Some("reap") => return reap(),
         _ => {}
     }
     let f = flags()?;
@@ -75,11 +94,14 @@ fn go() -> Result<ExitCode, String> {
     };
     let worker = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("poweragent-worker.exe");
     let mut bus = open_bus(&PathBuf::from(get("audit")?))?;
-    // Sidecars are launched only with --podman; otherwise they are planned and audited, not started.
+    // Helpers are launched with Podman by default. --plan-only is the explicit dry run: they are audited as planned
+    // and nothing is launched. A task that needs helpers is never allowed to succeed with them silently skipped.
     let podman = Podman::new(if cfg!(windows) { "podman.exe" } else { "podman" });
-    let runtime: &dyn SidecarRuntime = if f.contains_key("podman") { &podman } else { &PlannedOnly };
+    let plan_only = f.contains_key("plan-only");
+    let runtime: &dyn SidecarRuntime = if plan_only { &PlannedOnly } else { &podman };
     let args = RunArgs {
         sidecars: runtime,
+        plan_only,
         task: profile.metadata.name.clone(),
         profile,
         policy,

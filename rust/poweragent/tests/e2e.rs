@@ -46,6 +46,7 @@ fn args(c: &Case, caps: Vec<Capability>, allowed: Vec<Capability>) -> RunArgs<'_
         worker: worker(),
         audit_path: c.audit.clone(),
         sidecars: &poweragent_podman::PlannedOnly,
+        plan_only: true,
     }
 }
 fn granted(c: &Case) -> Vec<Capability> {
@@ -128,4 +129,28 @@ fn dashboard_on_or_killed_gives_the_same_result_and_audit() {
     // Paths differ per case, so compare the event kinds and the chain length, not the hashes.
     assert_eq!(kinds(&a), kinds(&b));
     assert_eq!(verify(&a.audit).unwrap().0, verify(&b.audit).unwrap().0);
+}
+
+
+#[test]
+fn a_required_sidecar_with_a_runtime_that_launches_nothing_is_denied_never_run() {
+    let c = case("nolaunch");
+    let g = granted(&c);
+    let mut bus = open_bus(&c.audit).unwrap();
+    let mut a = args(&c, g.clone(), g);
+    a.plan_only = false; // not dry-run, but PlannedOnly launches nothing: must refuse
+    let out = run_task(a, &mut bus).unwrap();
+    assert!(matches!(&out, Outcome::Denied(r) if r.contains("sidecar_not_launchable")), "{out:?}");
+    assert!(!c.output.join("sum.txt").exists(), "the worker must not run");
+    assert_eq!(kinds(&c), ["authorized", "denied"]);
+}
+
+#[test]
+fn a_task_with_no_sidecars_still_runs_with_a_non_launching_runtime() {
+    let c = case("nosidecar");
+    let g: Vec<_> = granted(&c).into_iter().filter(|x| !matches!(x, Capability::Sidecar { .. })).collect();
+    let mut bus = open_bus(&c.audit).unwrap();
+    let mut a = args(&c, g.clone(), g);
+    a.plan_only = false;
+    assert_eq!(run_task(a, &mut bus).unwrap(), Outcome::Exited(0));
 }

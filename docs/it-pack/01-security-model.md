@@ -28,10 +28,10 @@
 | SEC-002 | Helper services cannot add capabilities | resolver only accepts helpers already granted, with dependencies already granted | sidecar tests (10) |
 | SEC-003 | A failed sandbox never silently falls back | denial reasons are distinct and audited; the runner has no second execution path | policy, e2e |
 | SEC-004 | No arbitrary command execution through agent-facing APIs | request types are a closed set; unknown fields fail to parse; no script/command/exe-path field exists | fallback rules (6), exec (9) |
-| SEC-005 | Helpers run least-privilege | `--network none`, read-only root, private tmpfs, all capabilities dropped, `no-new-privileges`, uid 65534, memory/CPU/PID limits — verified from inside the container | podman (2 real, 5 args) |
-| SEC-006 | Explicit authorisation for file and network access | read and write grants are separate; network is refused | exec adversarial tests |
+| SEC-005 | Helpers run least-privilege | `--network none`, read-only root, private tmpfs, all capabilities dropped, `no-new-privileges`, uid 65534, memory/CPU/PID limits — verified from inside the container; an existing container is reused or removed only if its labels and full configuration are read back as ours | podman (7 real, 5 args) |
+| SEC-006 | Explicit authorisation for file and network access | read and write grants are separate; network is refused; the native adapter authorises the file's *real* location, resolved through an open handle, so a junction or symbolic link inside a granted folder cannot reach outside it | exec adversarial tests, native junction/symlink tests |
 | SEC-007 | A compromised dashboard gives no host privilege | the dashboard is a read-only HTML file with no script and a strict content policy | audit tests |
-| SEC-008 | Approvals, denials and results leave evidence | every decision and sidecar action is written to a hash-chained log *before* any viewer is told | audit (6), e2e |
+| SEC-008 | Approvals, denials and results leave evidence | every decision and sidecar action is written to a hash-chained log *before* any viewer is told. If the log cannot be written, every helper already started is still stopped | audit (6), e2e, Podman audit-failure tests |
 | SEC-009 | Updates need verifiable artifacts | helper images must be pinned by sha256 digest and already present (`--pull never`). **Signatures are not verified** (L5) | sidecar, podman args |
 | SEC-010 | Failure defaults to denial | every error path in the runner is a denial or an error exit | e2e |
 | SEC-011 | Agent content cannot change policy | policy is read from a separate file; a task cannot write to it (but see L1) | — |
