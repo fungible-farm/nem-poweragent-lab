@@ -1,0 +1,9 @@
+{
+  "schema": "poweragent.component/v1",
+  "id": "docs",
+  "description": "The IT documentation pack.",
+  "required": false,
+  "dependsOn": [],
+  "source": { "type": "kit", "paths": ["docs"] },
+  "install": { "to": "." }
+}

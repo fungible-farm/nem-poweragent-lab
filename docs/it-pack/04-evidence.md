@@ -1,7 +1,7 @@
 # 04 — Evidence
 
 Everything below was run on one machine: **Windows 11 Pro build 26300.9711, x64, Entra-joined, not device-managed,
-non-elevated shell, Podman 6.1.4.** 63 automated tests, a 26-case installer suite, an 11-case elevated AllUsers installer suite, plus the saved run outputs. "Real OS" means the test
+non-elevated shell, Podman 6.1.4.** 63 automated tests, a 44-case installer suite, an 11-case elevated AllUsers installer suite, plus the saved run outputs. "Real OS" means the test
 exercises the actual Windows or Podman behaviour, not a simulation.
 
 | Suite | Tests | Runs on | What it shows |
@@ -17,7 +17,7 @@ exercises the actual Windows or Podman behaviour, not a simulation.
 | **Podman lifecycle** | 7 | **real Podman** | start, idempotent start, stop; inside the container: empty capability sets, uid 65534, read-only root, writable tmpfs; a foreign container (running or stopped) with the expected name, an impostor with our labels but a weaker configuration, and a drifted helper are all refused and left untouched |
 | **End to end** | 7 | **real OS** | probe → decide → plan → sandboxed worker → audit; denials stop before anything runs |
 | **End to end with Podman** | 10 | **real OS + Podman** | helpers are running *while* the sandboxed worker runs and gone after; a failed helper start tears down the others and runs nothing; a denied task starts no container; **revoking policy stops running helpers it no longer allows (and audits it) while leaving allowed and unrelated containers alone; revocation considers dependencies and required capabilities, not just the name; an audit failure after a helper starts, or during teardown, still stops every helper; `reap` recovers orphans** |
-| **Installer** (`Test-Installer.ps1`) | 26 | real OS (current-user scope) | preflight, strict config, tamper, WhatIf, install, drift, upgrade, rollback incl. injected failures, uninstall with exact PATH restoration |
+| **Installer** (`Test-Installer.ps1`) | 44 | real OS (current-user scope) | preflight, strict config, tamper, WhatIf, install, drift, upgrade, rollback incl. injected failures, uninstall with exact PATH restoration; bootstrap integrity, extensions, component descriptors, the OCI signature gate (fail closed), component exclusion |
 | **Installer, AllUsers** (`Test-AllUsers.ps1`, elevated) | 11 | real OS (machine scope) | policy folder is read-only for Users and administrator-only writable, machine PATH and HKLM entry created and restored, injected-failure rollback, full uninstall |
 
 ## Sandbox adversarial results (`evidence/gate1-adversarial-*.txt`)

@@ -1,0 +1,9 @@
+{
+  "schema": "poweragent.component/v1",
+  "id": "fixtures",
+  "description": "Example task profiles and policies, also used by the preflight self-test.",
+  "required": false,
+  "dependsOn": [],
+  "source": { "type": "kit", "paths": ["fixtures"] },
+  "install": { "to": "." }
+}

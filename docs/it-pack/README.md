@@ -53,7 +53,7 @@ If a check fails, send us `verify-pilot.log` and the output of `winver`. See [03
 |---|---|
 | `bin\` | `poweragent.exe` (runner and report), `poweragent-worker.exe` (fixed demo workload), `poweragent-probe.exe` (backend probe) |
 | `Verify-Pilot.ps1` | self-check described above |
-| `Install-PowerAgent.ps1`, `install.config.json` | scriptable installer: 34-check preflight, install/upgrade/rollback/uninstall/status, JSON report ([07-install.md](07-install.md)) |
+| `Install-PowerAgent.ps1`, `install.config.json` | scriptable installer: 37-check preflight, install/upgrade/rollback/uninstall/status, JSON report ([07-install.md](07-install.md)) |
 | `SHA256SUMS` | hashes of every file in the kit |
 | `fixtures\` | example profiles and policies |
 | `evidence\` | saved probe, adversarial-test and end-to-end run output |

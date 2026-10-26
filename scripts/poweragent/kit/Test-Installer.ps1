@@ -36,6 +36,15 @@ function Retag([string]$kitDir, [string]$version) {   # make a kit that claims a
     $lines = Get-Content $sums | ForEach-Object { if ($_ -match '  data/kit-info\.json$') { "$h  data/kit-info.json" } else { $_ } }
     [IO.File]::WriteAllText($sums, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 }
+function AddListed([string]$kitDir, [string]$rel, [string]$content) {   # new file, covered by SHA256SUMS
+    $f = Join-Path $kitDir $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path $f -Parent) | Out-Null
+    [IO.File]::WriteAllText($f, $content, [Text.UTF8Encoding]::new($false))
+    $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+    $sums = Join-Path $kitDir 'SHA256SUMS'
+    [IO.File]::WriteAllText($sums, ((Get-Content $sums -Raw).TrimEnd() + "`n$h  $($rel.Replace('\', '/'))`n"), [Text.UTF8Encoding]::new($false))
+}
+function CheckStatus($report, [string]$id) { (Get-Content $report -Raw | ConvertFrom-Json).checks | Where-Object id -eq $id }
 function Inst([string]$kitDir, [string[]]$a, [hashtable]$env = @{}) {
     foreach ($k in $env.Keys) { Set-Item "env:$k" $env[$k] }
     try {
@@ -151,6 +160,123 @@ try {
         $o = (Get-Content $rep -Raw | ConvertFrom-Json).checks | Where-Object id -eq 'OPT-03'
         Assert ($o.status -in 'WARN', 'SKIP') "OPT-03 was $($o.status)"
         if ($o.status -eq 'WARN') { Assert ($o.detail -match 'not digest-pinned') 'names the unpinned image' }
+    }
+
+    # ------------------------------------------------------------ composition: bootstrap integrity, extensions, components
+    Case 'Bootstrap refuses an installer module whose hash differs from SHA256SUMS (10)' {
+        $t = Extract (Join-Path $work 'boot1'); Add-Content (Join-Path $t 'installer\core\30-util.ps1') '# tampered'
+        $r = Inst $t @('-Action', 'Preflight', '-Quiet'); Eq $r.Code 10 'exit'
+        Assert ($r.Out -match 'refusing to load installer code') "message: $($r.Out)"
+        Assert (-not (Test-Path (Join-Path $env:TEMP 'pa-should-not-exist'))) 'sanity'
+    }
+    Case 'Bootstrap refuses an unlisted file planted in installer\ (10) and never runs it' {
+        $t = Extract (Join-Path $work 'boot2'); $marker = Join-Path $work 'planted-ran.txt'
+        [IO.File]::WriteAllText((Join-Path $t 'installer\checks\99-planted.ps1'), "'ran' | Set-Content '$marker'", [Text.UTF8Encoding]::new($false))
+        $r = Inst $t @('-Action', 'Preflight', '-Quiet'); Eq $r.Code 10 'exit'
+        Assert ($r.Out -match 'not listed in SHA256SUMS') "message: $($r.Out)"
+        Assert (-not (Test-Path $marker)) 'the planted module executed'
+    }
+    Case 'Bootstrap refuses when SHA256SUMS is missing (10)' {
+        $t = Extract (Join-Path $work 'boot3'); Remove-Item (Join-Path $t 'SHA256SUMS')
+        Eq (Inst $t @('-Action', 'Preflight', '-Quiet')).Code 10 'exit'
+    }
+    Case 'An extension that is listed in SHA256SUMS adds a check to the catalogue and to preflight' {
+        $t = Extract (Join-Path $work 'ext'); $rep = Join-Path $work 'ext.json'
+        AddListed $t 'extensions\10-site.ps1' @"
+Register-Check -Id 'SITE-01' -Category 'Site policy' -Required `$false -Title 'Site-specific check added by an extension' -Run { New-Result 'INFO' 'extension ran' }
+"@
+        Assert ((Inst $t @('-Action', 'ListChecks')).Out -match 'SITE-01') 'ListChecks does not show the extension check'
+        Eq (Inst $t @('-Action', 'Preflight', '-Quiet', '-ReportPath', $rep)).Code 0 'preflight'
+        $c = CheckStatus $rep 'SITE-01'; Eq $c.status 'INFO' 'extension check result'; Eq $c.detail 'extension ran' 'detail'
+    }
+    Case 'A check that throws becomes a FAIL (fail closed), not a crash or a pass' {
+        $t = Extract (Join-Path $work 'throws'); $rep = Join-Path $work 'throws.json'
+        AddListed $t 'extensions\20-bad.ps1' "Register-Check -Id 'BAD-01' -Category 'x' -Required `$true -Title 'throws' -Run { throw 'boom' }"
+        Eq (Inst $t @('-Action', 'Preflight', '-Quiet', '-ReportPath', $rep)).Code 10 'exit'
+        $c = CheckStatus $rep 'BAD-01'; Eq $c.status 'FAIL' 'status'; Assert ($c.detail -match 'boom') 'detail names the cause'
+    }
+    Case 'A duplicate check id from an extension is refused rather than silently shadowing a built-in' {
+        $t = Extract (Join-Path $work 'dupid')
+        AddListed $t 'extensions\30-dup.ps1' "Register-Check -Id 'PLAT-01' -Category 'x' -Required `$false -Title 'dup' -Run { New-Result 'PASS' }"
+        $r = Inst $t @('-Action', 'Preflight', '-Quiet'); Assert ($r.Code -ne 0) 'duplicate id was accepted'
+    }
+
+    $comp = @{
+        BadSchema = '{"schema":"nope","id":"x","required":false,"dependsOn":[],"source":{"type":"kit","paths":["docs"]},"install":{"to":"."}}'
+        UnknownDep = '{"schema":"poweragent.component/v1","id":"extra","required":false,"dependsOn":["ghost"],"source":{"type":"kit","paths":["docs"]},"install":{"to":"."}}'
+        Traversal = '{"schema":"poweragent.component/v1","id":"extra","required":false,"dependsOn":[],"source":{"type":"kit","paths":["..\\outside"]},"install":{"to":"."}}'
+        UnknownProp = '{"schema":"poweragent.component/v1","id":"extra","required":false,"dependsOn":[],"source":{"type":"kit","paths":["docs"]},"install":{"to":"."},"surprise":1}'
+        Tag = '{"schema":"poweragent.component/v1","id":"img","required":false,"dependsOn":[],"source":{"type":"oci","reference":"registry.example/pandapower:1.2","pull":"never"},"verify":{"signature":"required","mechanism":"cosign"}}'
+        Pull = '{"schema":"poweragent.component/v1","id":"img","required":false,"dependsOn":[],"source":{"type":"oci","reference":"registry.example/pandapower@sha256:__D__","pull":"if-missing"},"verify":{"signature":"required","mechanism":"cosign"}}'
+    }
+    $d64 = 'a' * 64
+    foreach ($descKey in $comp.Keys) {
+        Case "Component descriptor '$descKey' is rejected by COMP-01 (preflight fails, 10)" {
+            $t = Extract (Join-Path $work "c-$descKey"); $rep = Join-Path $work "c-$descKey.json"
+            AddListed $t 'components\extra.json' ($comp[$descKey].Replace('__D__', $d64))
+            Eq (Inst $t @('-Action', 'Preflight', '-Quiet', '-ReportPath', $rep)).Code 10 'exit'
+            Eq (CheckStatus $rep 'COMP-01').status 'FAIL' 'COMP-01'
+        }
+    }
+    Case 'A dependency cycle between components is rejected' {
+        $t = Extract (Join-Path $work 'cycle')
+        AddListed $t 'components\a.json' '{"schema":"poweragent.component/v1","id":"aa","required":false,"dependsOn":["bb"],"source":{"type":"kit","paths":["docs"]},"install":{"to":"."}}'
+        AddListed $t 'components\b.json' '{"schema":"poweragent.component/v1","id":"bb","required":false,"dependsOn":["aa"],"source":{"type":"kit","paths":["docs"]},"install":{"to":"."}}'
+        $rep = Join-Path $work 'cycle.json'; Eq (Inst $t @('-Action', 'Preflight', '-Quiet', '-ReportPath', $rep)).Code 10 'exit'
+        Assert ((CheckStatus $rep 'COMP-01').detail -match 'cycle') 'cycle not named'
+    }
+
+    $ociReq = '{"schema":"poweragent.component/v1","id":"helper-req","description":"x","required":true,"dependsOn":[],"source":{"type":"oci","reference":"registry.example/pandapower@sha256:' + $d64 + '","pull":"never"},"verify":{"signature":"required","mechanism":"podman-policy"}}'
+    $ociOpt = $ociReq.Replace('helper-req', 'helper-opt').Replace('"required":true', '"required":false')
+    Case 'A REQUIRED OCI component with a required signature fails closed: no verification mechanism exists yet (10)' {
+        $t = Extract (Join-Path $work 'oci-req'); $rep = Join-Path $work 'oci-req.json'; $q = Prefix 'oci-req'
+        AddListed $t 'components\helper.json' $ociReq
+        Eq (Inst $t (@('-Action', 'Install', '-Quiet', '-NoPath', '-ReportPath', $rep) + (Common $q))).Code 10 'install must be refused'
+        $c = CheckStatus $rep 'COMP-03'; Eq $c.status 'FAIL' 'COMP-03'
+        Assert ($c.detail -match 'not implemented') "detail: $($c.detail)"
+        Assert (-not (Test-Path $q.Install)) 'nothing may be installed'
+    }
+    Case 'An OPTIONAL OCI component that cannot be verified is skipped with a warning; the rest installs' {
+        $t = Extract (Join-Path $work 'oci-opt'); $rep = Join-Path $work 'oci-opt.json'; $q = Prefix 'oci-opt'
+        AddListed $t 'components\helper.json' $ociOpt
+        $r = Inst $t (@('-Action', 'Install', '-Quiet', '-NoPath', '-ReportPath', $rep) + (Common $q)); Eq $r.Code 0 "exit $($r.Out)"
+        Eq (CheckStatus $rep 'COMP-03').status 'WARN' 'COMP-03'
+        $m = Get-Content (Join-Path $q.Install 'install-manifest.json') -Raw | ConvertFrom-Json
+        Assert (@($m.images).Count -eq 0) 'an unverifiable image must not be recorded as installed'
+        Eq @($m.skippedComponents).Count 1 'skipped component recorded'
+        Eq $m.skippedComponents[0].component 'helper-opt' 'which one'
+        Inst $t (@('-Action', 'Uninstall', '-PurgeData', '-Quiet') + (Common $q)) | Out-Null
+    }
+    Case '-FailOnWarning turns the unverifiable optional OCI component into a refusal (11)' {
+        $t = Extract (Join-Path $work 'oci-fow'); $q = Prefix 'oci-fow'
+        AddListed $t 'components\helper.json' $ociOpt
+        Eq (Inst $t (@('-Action', 'Install', '-Quiet', '-NoPath', '-FailOnWarning') + (Common $q))).Code 11 'exit'
+        Assert (-not (Test-Path $q.Install)) 'nothing may be installed'
+    }
+
+    Case 'Default install records every component and attributes each file to one' {
+        $q = Prefix 'comps'; Eq (Inst $kit (@('-Action', 'Install', '-Quiet', '-NoPath', '-NoUninstallEntry') + (Common $q))).Code 0 'install'
+        $m = Get-Content (Join-Path $q.Install 'install-manifest.json') -Raw | ConvertFrom-Json
+        Eq (($m.components | ForEach-Object id | Sort-Object) -join ',') 'data,docs,fixtures,installer,runtime' 'components'
+        Assert (-not ($m.files | Where-Object { -not $_.component })) 'a file has no owning component'
+        Assert (($m.files | Where-Object { $_.component -eq 'runtime' } | ForEach-Object path) -contains 'bin/poweragent.exe') 'runtime owns the binaries'
+        Eq (Inst $kit (@('-Action', 'Status', '-Quiet') + (Common $q))).Code 0 'healthy'
+        Inst $kit (@('-Action', 'Uninstall', '-PurgeData', '-Quiet') + (Common $q)) | Out-Null
+    }
+    Case 'Excluding optional components omits them; excluding a required or unknown one is refused (64)' {
+        $q = Prefix 'excl'; $c = Join-Path $work 'excl.json'
+        '{"components":{"exclude":["docs","fixtures"]}}' | Set-Content $c
+        Eq (Inst $kit (@('-Action', 'Install', '-Quiet', '-NoPath', '-NoUninstallEntry', '-ConfigPath', $c) + (Common $q))).Code 0 'install'
+        Assert (-not (Test-Path (Join-Path $q.Install 'docs'))) 'docs were installed despite the exclusion'
+        Assert (Test-Path (Join-Path $q.Install 'bin\poweragent.exe')) 'runtime missing'
+        $m = Get-Content (Join-Path $q.Install 'install-manifest.json') -Raw | ConvertFrom-Json
+        Eq (($m.components | ForEach-Object id | Sort-Object) -join ',') 'data,installer,runtime' 'components'
+        Eq (Inst $kit (@('-Action', 'Status', '-Quiet') + (Common $q))).Code 0 'healthy without the excluded components'
+        Inst $kit (@('-Action', 'Uninstall', '-PurgeData', '-Quiet') + (Common $q)) | Out-Null
+        '{"components":{"exclude":["runtime"]}}' | Set-Content $c
+        Eq (Inst $kit @('-Action', 'Preflight', '-Quiet', '-ConfigPath', $c)).Code 64 'required component'
+        '{"components":{"exclude":["nonsense"]}}' | Set-Content $c
+        Eq (Inst $kit @('-Action', 'Preflight', '-Quiet', '-ConfigPath', $c)).Code 64 'unknown component'
     }
 
     $p = Prefix 'main'

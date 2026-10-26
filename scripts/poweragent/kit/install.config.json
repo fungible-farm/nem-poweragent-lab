@@ -7,7 +7,15 @@
   "requireSignedBinaries": false,
   "failOnWarning": false,
   "minFreeDiskMB": 200,
-  "podman": { "require": false, "bin": "podman" },
+  "podman": {
+    "require": false,
+    "bin": "podman"
+  },
   "registryFile": null,
-  "verify": { "expectBackend": "processcontainer" }
+  "verify": {
+    "expectBackend": "processcontainer"
+  },
+  "components": {
+    "exclude": []
+  }
 }

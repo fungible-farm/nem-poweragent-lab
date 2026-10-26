@@ -35,11 +35,17 @@ shutil.copytree(os.path.join(repo, "docs", "poweragent", "fixtures"), os.path.jo
 shutil.copytree(os.path.join(repo, "docs", "poweragent", "evidence"), os.path.join(stage, "evidence"))
 shutil.copy2(os.path.join(repo, "docs", "poweragent", "gate0-status.md"), os.path.join(stage, "docs", "gate-status.md"))
 shutil.copy2(os.path.join(repo, "scripts", "poweragent", "kit", "Verify-Pilot.ps1"), stage)
+kitsrc = os.path.join(repo, "scripts", "poweragent", "kit")
 for f in ("Install-PowerAgent.ps1", "install.config.json"):
-    shutil.copy2(os.path.join(repo, "scripts", "poweragent", "kit", f), stage)
+    shutil.copy2(os.path.join(kitsrc, f), stage)
+for d in ("installer", "components"):  # the modular installer and its component descriptors
+    shutil.copytree(os.path.join(kitsrc, d), os.path.join(stage, d))
 
 # Every PowerShell script that ships must parse. A syntax error would make the installer unusable on the target.
-for ps1 in ("Verify-Pilot.ps1", "Install-PowerAgent.ps1"):
+ps1_files = ["Verify-Pilot.ps1", "Install-PowerAgent.ps1"]
+for base, _, names in os.walk(os.path.join(stage, "installer")):
+    ps1_files += [os.path.relpath(os.path.join(base, n), stage) for n in names if n.endswith(".ps1")]
+for ps1 in ps1_files:
     path = os.path.join(stage, ps1)
     if path.startswith("/mnt/"):  # running under WSL: hand Windows pwsh a Windows path
         path = path[5].upper() + ":" + path[6:].replace("/", "\\")

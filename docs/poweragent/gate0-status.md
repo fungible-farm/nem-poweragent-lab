@@ -32,7 +32,7 @@ Observed 2026-10-25 on the developer machine (read-only checks, non-admin shell)
 external dependencies: the MXC-first runner (probe, decision, sidecar plan and launch, sandboxed worker, audit),
 Gates 0 and 1 on the real Windows backend, Gate 2 logic plus a real Podman sidecar runtime with revocation,
 Gate 3's native adapter, Gate 4's event/audit core with a static report, and a scriptable installer with a
-34-check preflight (current-user scope: 26 cases; all-users scope: 9 elevated cases), plus the IT pilot kit
+37-check preflight (current-user scope: 44 cases; all-users scope: 11 elevated cases), plus the IT pilot kit
 and documentation pack.
 
 **Tracked as named blockers, not delivered** (each needs an input outside this repository):
@@ -41,7 +41,7 @@ and documentation pack.
 |---|---|---|
 | Gate 5: signed install, Intune/SCCM assignment, standard-user operation, clean uninstall | a code-signing certificate; a tenant with a full Intune licence and an MDM-enrolled reference machine | tenant/PKI administrator |
 | Gate 3, JEA half | a machine where a loopback WinRM login works (the development machine is Entra-joined and cannot); scripts are on branch `feat/54-jea-endpoint-deferred`, unverified. MXC covers the contained-execution path without it | security / platform |
-| Gate 4, Electron dashboard | a decision; ADR-003 permits a browser or CLI view, which the static HTML report provides | architecture owner |
+| ~~Gate 4, Electron dashboard~~ | **Decided: not built.** ADR-004 supersedes ADR-003; the static HTML report and a future status/control API serve the role | architecture owner |
 | Helper-image signature verification | an image-signing process (digest pinning is enforced today) | platform |
 | Windows-adapter helpers; policy authority separate from the caller; network egress (proxy-only) | design decisions listed in the issue's open questions | architecture owner |
 
