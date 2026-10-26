@@ -5,6 +5,8 @@ MVOC as the organising goal (next section). Supersedes ADR-003 (Electron dashboa
 the direction; **only the execution platform and the installer exist today.** The claims the architecture depends on
 carry a verification status at the end; ratification does not turn an unverified claim into a verified one.
 
+Tracking for MVOC-2 to MVOC-5: issue #58 (fungible-farm/nem-poweragent-lab).
+
 ## MVOC — Minimum Viable Operational Capability (the organising goal)
 
 MVOC is the smallest capability an operator can **deploy, inspect, run, update, roll back and remove in a managed
