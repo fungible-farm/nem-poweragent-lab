@@ -1,0 +1,13 @@
+{
+  "schema": "poweragent.component/v1",
+  "id": "installer",
+  "description": "The installer itself, so the installed copy can report status, roll back and uninstall.",
+  "required": true,
+  "dependsOn": [],
+  "source": {
+    "type": "kit",
+    "paths": ["Install-PowerAgent.ps1", "installer", "components", "install.config.json", "SHA256SUMS"],
+    "optionalPaths": ["extensions", "LICENSE", "README.md"]
+  },
+  "install": { "to": "." }
+}

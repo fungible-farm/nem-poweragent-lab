@@ -1,0 +1,9 @@
+{
+  "schema": "poweragent.component/v1",
+  "id": "data",
+  "description": "Facts the installer and checks need on the machine: the MXC OS-build floor, load-time DLL lists, kit information.",
+  "required": true,
+  "dependsOn": [],
+  "source": { "type": "kit", "paths": ["data"] },
+  "install": { "to": "." }
+}

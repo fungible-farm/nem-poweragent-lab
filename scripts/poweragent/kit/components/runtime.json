@@ -1,0 +1,9 @@
+{
+  "schema": "poweragent.component/v1",
+  "id": "runtime",
+  "description": "The PowerAgent runner, the fixed demonstration worker and the backend probe.",
+  "required": true,
+  "dependsOn": [],
+  "source": { "type": "kit", "paths": ["bin"] },
+  "install": { "to": "." }
+}

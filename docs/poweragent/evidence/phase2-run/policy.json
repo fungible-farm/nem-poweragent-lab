@@ -1,0 +1,21 @@
+{
+ "allowedCapabilities": [
+  {
+   "kind": "fs_read",
+   "path": "D:/projects/nem-poweragent-lab/docs/poweragent/evidence/phase2-run/in"
+  },
+  {
+   "kind": "fs_write",
+   "path": "D:/projects/nem-poweragent-lab/docs/poweragent/evidence/phase2-run/out"
+  },
+  {
+   "kind": "sidecar",
+   "name": "pandapower"
+  },
+  {
+   "kind": "sidecar",
+   "name": "powerio"
+  }
+ ],
+ "allowedFallbacks": []
+}

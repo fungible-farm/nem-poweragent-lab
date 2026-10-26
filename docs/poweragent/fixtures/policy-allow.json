@@ -1,0 +1,1 @@
+{"allowedCapabilities":[{"kind":"fs_read","path":"C:/data/in"},{"kind":"net_egress","host":"example.com"}],"allowedFallbacks":[]}

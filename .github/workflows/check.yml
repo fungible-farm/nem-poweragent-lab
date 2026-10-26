@@ -65,3 +65,38 @@ jobs:
 
       - name: Rust workspace tests (phase-model, demo-app, fft-detector)
         run: just rust-test
+
+  # PowerAgent (issue #54) on Windows. The Linux job above compiles the cross-platform crates but skips every
+  # `cfg(windows)` test. This job compiles ALL PowerAgent crates and tests for Windows and runs the Windows-only tests
+  # that need no sandbox backend (the native adapter, including its junction / reparse-point escape tests).
+  #
+  # What it deliberately does NOT run: the MXC processcontainer adversarial tests, the end-to-end tests and the
+  # Podman tests. They need a Windows 11 build at or above the MXC floor (docs/poweragent/mxc-os-floor.txt) and Podman,
+  # which hosted runners do not guarantee. Those run via `just poweragent::chain` on a prepared machine; see
+  # docs/poweragent/gate0-status.md. Do not read a green result here as proof of Windows sandbox enforcement.
+  poweragent-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Compile every PowerAgent crate and test for Windows
+        run: cargo check --locked --tests -p poweragent -p poweragent-exec -p poweragent-probe -p poweragent-fallback -p poweragent-podman -p poweragent-sidecar -p poweragent-audit -p poweragent-policy
+
+      - name: Windows-only tests that need no sandbox backend (native adapter, reparse-point escapes)
+        run: cargo test --locked -p poweragent-fallback --test native_windows
+
+      - name: Logic suites on Windows
+        run: cargo test --locked -p poweragent-policy -p poweragent-sidecar -p poweragent-audit -p poweragent-fallback --test fail_closed --test gate2 --test gate4 --test gate3_rules
+
+      - name: Podman argument tests (no container runtime needed)
+        run: cargo test --locked -p poweragent-podman --test args

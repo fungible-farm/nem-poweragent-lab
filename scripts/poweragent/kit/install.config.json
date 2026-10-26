@@ -1,0 +1,21 @@
+{
+  "scope": "CurrentUser",
+  "installDir": null,
+  "dataDir": null,
+  "addToPath": true,
+  "registerUninstallEntry": true,
+  "requireSignedBinaries": false,
+  "failOnWarning": false,
+  "minFreeDiskMB": 200,
+  "podman": {
+    "require": false,
+    "bin": "podman"
+  },
+  "registryFile": null,
+  "verify": {
+    "expectBackend": "processcontainer"
+  },
+  "components": {
+    "exclude": []
+  }
+}

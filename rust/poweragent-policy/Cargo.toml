@@ -1,0 +1,10 @@
+[package]
+name = "poweragent-policy"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Gate 0 of issue #54: TaskProfile schema, validator, policy intersection and the fail-closed execution-backend selector (ADR-002). Pure logic; no OS calls."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

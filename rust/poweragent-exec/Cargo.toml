@@ -1,0 +1,10 @@
+[package]
+name = "poweragent-exec"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Gate 1 of issue #54: turn an authorized policy decision into an MXC processcontainer request and run a deterministic worker inside it. No generic execute(command) API."
+
+[dependencies]
+mxc-sdk = "=1.0.1"
+poweragent-policy = { path = "../poweragent-policy" }
