@@ -85,6 +85,7 @@ try {
         Eq (($ids | Sort-Object) -join ',') (($cat | Sort-Object) -join ',') 'check ids vs catalogue'
         Assert ($j.counts.fail -eq 0) 'unexpected FAIL'
         Assert (@($j.loadTimeDlls).Count -gt 30) 'load-time DLL list missing'
+        Eq ((@($j.components) | ForEach-Object id | Sort-Object) -join ',') 'data,docs,fixtures,installer,runtime' 'preflight report lists the components'
         Assert (@($j.loadTimeDlls | Where-Object { -not $_.resolved }).Count -eq 0) 'unresolved DLL'
     }
 
