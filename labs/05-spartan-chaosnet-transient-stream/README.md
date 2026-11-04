@@ -490,3 +490,66 @@ to the fault regardless of hop count. (3) The one bus that stays untouched (SUB-
 **`ext_grid_bus` itself** — the fixed-voltage swing bus the whole solve is referenced to. Its
 immunity is definitional (it's the source), not an emergent "well-connected buses resist sag"
 property, named explicitly so the finding isn't misread.
+
+## Symbolic network diagram (optional, historical artifact)
+
+`sample_network_area_diagram.svg` is the real powsybl-diagram rendering recorded on
+2026-10-23 from this lab's committed `sample_topology.json` (14 buses, 28 lines,
+1 external grid, 13 loads). The original pipeline converted pandapower to CGMES
+EQ/TP/SSH and imported it with pypowsybl 1.16.1 on an x86-64 peer; that run's AC
+voltage comparison measured a maximum difference of 4.97e-8 pu. These are historical
+observations, **not results rerun during the 2026-11-05 rescope**. Inferred
+substation grouping is a rendering assumption. The original exporter used a
+named ±1e6 MW no-limit sentinel for an unbounded slack's CGMES minP/maxP.
+
+The original implementation and history are preserved on
+[`archive/pr59-before-wattson-20261105`](https://github.com/fungible-farm/nem-poweragent-lab/tree/archive/pr59-before-wattson-20261105).
+The maintained exporter belongs to WattsOn; this lab does not import its Python
+package or require it for the core lab checks.
+
+### External JSON artifact boundary (draft reproduction)
+
+Produce a **pandapower JSON**, not the raw topology JSON, using this lab's own converter:
+
+```bash
+mkdir -p out/lab5-diagram-v1
+uv run python - <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import pandapower as pp
+lab = Path('labs/05-spartan-chaosnet-transient-stream')
+sys.path.insert(0, str(lab))
+from chaosnet import read_topology_json, to_pandapower
+source = lab / 'sample_topology.json'
+network = Path('out/lab5-diagram-v1/network.json')
+pp.to_json(to_pandapower(read_topology_json(source)), str(network))
+manifest = {
+    'schema_version': 1,
+    'format': 'pandapower-json',
+    'producer_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+    'pandapower_version': pp.__version__,
+    'topology_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+    'network_sha256': hashlib.sha256(network.read_bytes()).hexdigest(),
+}
+network.with_name('manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+PY
+```
+
+Copy that artifact directory to a separate WattsOn checkout. Its draft
+[`staged/powercoder-runtime-port`](https://github.com/fungible-farm/wattson/tree/staged/powercoder-runtime-port)
+implementation accepts the artifact with:
+
+```bash
+uv run --extra semantic python -m wattson.semantic.peer_check export \
+  --case lab5-chaosnet --network-json /absolute/path/lab5-diagram-v1/network.json \
+  --zip out/cgmes.zip --voltages out/voltages.json
+```
+
+Record the consumer's immutable `git rev-parse HEAD` alongside the producer manifest
+and check the network hash after copying. This external command exports CGMES and
+reference voltages; it does not itself regenerate the committed SVG. The draft
+cross-repository workflow and diagram regeneration have **not been revalidated**
+and are not a completion claim. The lab's normal checks remain independent.

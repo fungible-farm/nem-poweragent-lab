@@ -1,7 +1,10 @@
 """pytest wrapper around Lab 3's orchestrator, for scripts/run_labs_1_3.sh."""
+import platform
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 LAB_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = LAB_DIR.parent.parent / "benchmarks" / "power-agent-bench-lite" / "results"
@@ -18,6 +21,10 @@ def test_lab3_scorecard_matches_fixture():
     assert "MATCH" in result.stdout
 
 
+@pytest.mark.skipif(
+    platform.system() == "Linux" and platform.machine() == "aarch64",
+    reason="pypowsybl has no aarch64 wheel; skipped on this platform",
+)
 def test_pypowsybl_spike_matches_fixture():
     """spike_pypowsybl.py is a standalone solver-comparison spike, not part of the bake-off
     matrix (see its own module docstring) -- this only checks its own --step check gate, the

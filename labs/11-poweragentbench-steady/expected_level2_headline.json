@@ -1,0 +1,67 @@
+{
+  "source": "measured by steady_lab.py --step record-level2; PowerAgentBench publishes no Level 2 results",
+  "role": "drift check, not a correctness check (correctness: LEVEL2_IDENTITIES)",
+  "measured": "2026-10-23",
+  "poweragentbench_commit": "b39c48b0b96c096632ae8e28d359f0231ea483ec",
+  "lab_uv_lock_sha256": "e9741e2e050d07235a900d3aa4492fd3e3848295f02ca1a1ca62d160eba76ec8",
+  "runner_args": [
+    "--case-source",
+    "case39",
+    "--cases",
+    "8",
+    "--budget",
+    "80",
+    "--report-k",
+    "20"
+  ],
+  "metrics": {
+    "reported_top20_recall_mean": "search: share of the oracle top 20 that the agent reported",
+    "evidence_rate_mean": "evidence: share of reported contingencies the agent actually validated",
+    "violation_reduction_mean": "mitigation: relative drop in the oracle top 20's mean severity after its actions",
+    "validation_budget_used_mean": "efficiency: validations used / validation budget"
+  },
+  "agents": {
+    "Random": {
+      "reported_top20_recall_mean": 0.07875000000000001,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 1.0
+    },
+    "No-validation": {
+      "reported_top20_recall_mean": 0.0,
+      "evidence_rate_mean": 0.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 0.0
+    },
+    "Topology": {
+      "reported_top20_recall_mean": 0.0,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 1.0
+    },
+    "Base-loading": {
+      "reported_top20_recall_mean": 0.51875,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 1.0
+    },
+    "LODF-screen": {
+      "reported_top20_recall_mean": 0.08125000000000002,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 1.0
+    },
+    "Hybrid-tool": {
+      "reported_top20_recall_mean": 0.225,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.0,
+      "validation_budget_used_mean": 1.0
+    },
+    "Hybrid+redispatch": {
+      "reported_top20_recall_mean": 0.225,
+      "evidence_rate_mean": 1.0,
+      "violation_reduction_mean": 0.07675666453491017,
+      "validation_budget_used_mean": 1.0
+    }
+  }
+}

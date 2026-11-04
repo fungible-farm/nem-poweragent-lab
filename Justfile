@@ -438,3 +438,15 @@ default:
 # --- lab tours (recorded, narrated demos) -----------------------------------
 mod tour "labs/tour.just"
 mod systhread "rust/systhread-cli/systhread.just"
+
+# Independent pinned PowerAgentBench Steady Levels 1-2 checkout (licence assumption: Lab 11 README).
+lab11-fetch:
+    uv run python labs/11-poweragentbench-steady/fetch_benchmark.py
+
+# Fast Lab 11 comparison/source-verification tests; no model server.
+check-lab11:
+    uv run python -m pytest -q labs/11-poweragentbench-steady/test_lab11.py
+
+# Actual upstream Level 1/2 scripted physics baselines (~45 s historically).
+lab11-check-slow:
+    uv run python labs/11-poweragentbench-steady/steady_lab.py --step check

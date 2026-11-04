@@ -202,3 +202,10 @@ This lab is a runnable implementation of the roadmap in:
 The paper names three pillars — Foundation Model, Model Context Protocol, and Workflow — which map
 onto PowerFM, PowerMCP, and PowerWF/PowerSkills respectively, and onto this repo's labs. See
 `docs/VISION.md` §1 for the full mapping.
+
+## Independent outside benchmark
+
+[Lab 11: PowerAgentBench Steady Levels 1–2](labs/11-poweragentbench-steady/README.md)
+runs upstream scripted IEEE 39-bus baselines in its own pinned environment. Its source checkout
+is fetched independently with `just lab11-fetch`; no model server or WattsOn runtime is required.
+The upstream root-licence assumption and historical result provenance are documented in the lab.
