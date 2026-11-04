@@ -37,10 +37,26 @@ WORKDIR /workspace
 # through 1.12.2 (the last pre-2.0 release at build time) all still expose
 # `mcp.server.fastmcp.FastMCP`; mcp 1.0.0 predates it entirely. Pinning to
 # the newest confirmed-working release rather than floating.
+#
+# pydantic is pinned to 2.11.10 because mcp 1.12.2 imports
+# `pydantic._internal._typing_extra.eval_type_backport`, which exists in
+# pydantic 2.11.x but was removed from that internal module in 2.12/2.13.
+# An unpinned build on 2026-10-18 resolved pydantic 2.13.4 and the pod
+# crashed at import with `ImportError: cannot import name
+# 'eval_type_backport' from 'pydantic._internal._typing_extra'`. Verified
+# working: mcp 1.12.2 + pydantic 2.11.10 imports FastMCP cleanly (checked in
+# a scratch venv before rebuilding this image).
+#
+# powerio is pinned to 0.7.2 (the version this repo's own venv resolves and
+# Labs 1-3 verify against) because PowerMCP's `load_network_from_any` calls
+# `powerio.parse_file`, which powerio 0.11.x removed (an unpinned build on
+# 2026-10-18 resolved 0.11.5 and the tool failed with `module 'powerio' has
+# no attribute 'parse_file'`).
 RUN uv pip install --system --no-cache \
     "mcp==1.12.2" \
+    "pydantic==2.11.10" \
     "powermcp" \
-    "powerio"
+    "powerio==0.7.2"
 
 # This wrapper does not modify PowerMCP's own source; see its own module
 # docstring for exactly why it exists and what it does (PowerMCP's shipped

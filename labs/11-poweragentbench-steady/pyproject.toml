@@ -1,0 +1,17 @@
+# Lab 11's own environment: PowerAgentBench Steady Levels 1-2 ship no lockfile,
+# so this project pins what they resolve to. Built and run by steady_lab.py
+# (uv sync --frozen / uv run --frozen --project); never part of the repo venv.
+[project]
+name = "lab11-poweragentbench-steady"
+version = "0.1.0"
+# Same interpreter as the repo venv (.python-version, AGENTS.md FM-27).
+requires-python = ">=3.12,<3.13"
+dependencies = ["poweragentbench"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+# The pinned checkout fetch_benchmark.py fetches (data/ is gitignored). Editable, because
+# PowerAgentBench resolves its case and benchmark files relative to its source tree.
+poweragentbench = { path = "../../data/poweragentbench", editable = true }

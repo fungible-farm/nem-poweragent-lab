@@ -81,3 +81,14 @@ Two separate gaps, two separate fixes:
 Both labs already hold the exact objects (`pandapower.pandapowerNet`, `networkx.Graph`) that the
 free-tier tools in 0002 operate on directly — no data reshaping needed, only a rendering call at
 the point where the object already exists in the script.
+
+## Historical Lab 5 symbolic artifact (2026-10-23; scope clarified 2026-11-05)
+
+The committed `labs/05-spartan-chaosnet-transient-stream/sample_network_area_diagram.svg`
+is a real powsybl-diagram rendering. Its original CGMES/pypowsybl pipeline and measured
+4.97e-8 pu voltage agreement are preserved in the lab README and the
+`archive/pr59-before-wattson-20261105` history. Runtime/exporter code now belongs to
+WattsOn. The lab README documents a versioned pandapower-JSON artifact boundary,
+with producer/consumer commits and hashes, instead of an in-process dependency.
+Cross-repository export and full diagram regeneration are draft, not revalidated
+in this rescope; the historical artifact does not close that reproducibility gap.

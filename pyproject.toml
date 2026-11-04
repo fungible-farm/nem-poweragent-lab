@@ -11,7 +11,7 @@ dependencies = [
     "pandas>=2.0",
     "numba>=0.60",
     "nemosis>=3.8.1",
-    "dpsim>=1.2.1",
+    "dpsim>=1.2.1; sys_platform != 'linux' or platform_machine != 'aarch64'",
     "simbench>=1.6.2",
     "networkx>=3.6.1",
     "pyyaml>=6.0.3",
@@ -21,7 +21,7 @@ dependencies = [
     "linkml-runtime>=1.11.1",
     "cyclonedx-python-lib>=11.12.0",
     "kiwisolver>=1.5.0",
-    "pypowsybl>=1.16.1",
+    "pypowsybl>=1.16.1; sys_platform != 'linux' or platform_machine != 'aarch64'",
 ]
 
 [dependency-groups]

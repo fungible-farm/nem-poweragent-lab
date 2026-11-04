@@ -137,3 +137,13 @@ golden path still consumes `powerio` and does not fork it. The oxidation
 roadmap **supersedes §8 for the ring-buffer / hot-path layer**: a first-party
 Rust crate (e.g. `phase-model-rs`) is the intended future there. This is an
 explicit revision decision, not a silent change.
+
+## Lab 11 upstream licence assumption (2026-10-23)
+
+PowerAgentBench Steady Levels 1-2 and its shared library have no repository-root licence at
+commit `b39c48b0b96c096632ae8e28d359f0231ea483ec` (PowerAgentBench issue #11). The user directed
+use as MIT on 2026-10-23 based on the Power-Agent organisation's other repositories. This is an
+**assumption, not an upstream licence grant**. Lab 11 fetches into gitignored `data/`; it does
+not vendor upstream code or data. Its independent lock retains the measured environment:
+pypsa 1.2.4, linopy 0.10.1 and highspy 1.15.1 are MIT; additional dependency licences remain
+those supplied by their distributions. Dynamic benchmarks requiring commercial engines are excluded.
